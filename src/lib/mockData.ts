@@ -9,8 +9,9 @@ export const novelas: Novela[] = [
   {
     id: 'n1',
     slug: 'return-of-the-mount-hua',
-    titulo: 'Return of the Mount Hua Sect',
+    titulo: 'Regreso de la Secta del Monte Hua',
     titulosAlternativos: [
+      'Return of the Mount Hua Sect',
       'Return of the Blossoming Blade',
       'Hwasan Jaerim',
       '화산귀환',

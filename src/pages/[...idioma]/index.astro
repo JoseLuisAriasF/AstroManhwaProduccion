@@ -2,9 +2,10 @@
 import Base from '@/layouts/Base.astro';
 import NovelaCard from '@/components/NovelaCard.astro';
 import SyncExplanationBanner from '@/components/SyncExplanationBanner.astro';
-import { getCapitulos, getNovelas } from '@/lib/api';
+import { getCapitulos, getCapitulosExternos, getNovelas } from '@/lib/api';
 import { idiomaDeRuta, ruta, t } from '@/lib/i18n';
 import { paramsDeIdioma } from '@/lib/publicables';
+import { rangos } from '@/lib/rangos';
 
 export function getStaticPaths() {
   return paramsDeIdioma().map(({ idioma }) => ({ params: { idioma } }));
@@ -15,7 +16,10 @@ const dic = t(idioma);
 
 const novelas = await getNovelas(idioma);
 const conTotales = await Promise.all(
-  novelas.map(async (n) => ({ novela: n, total: (await getCapitulos(n.slug)).length })),
+  novelas.map(async (n) => {
+    const [caps, externos] = await Promise.all([getCapitulos(n.slug), getCapitulosExternos(n.slug)]);
+    return { novela: n, total: caps.length, rangos: rangos(externos.map((e) => e.numero)) };
+  }),
 );
 
 // "Tendencias" mock: en emisión y más largas. Cambiar por una vista de Supabase.
@@ -138,7 +142,7 @@ const jsonLd = {
     </div>
     <div class="grid sm:grid-cols-3 gap-4">
       {
-        tendencias.map(({ novela, total }, i) => (
+        tendencias.map(({ novela, total, rangos }, i) => (
           <a
             href={ruta(idioma, `/novela/${novela.slug}`)}
             class="group neu rounded-2xl p-3 flex gap-3 transition-transform duration-200 hover:-translate-y-0.5"
@@ -163,6 +167,7 @@ const jsonLd = {
               </h3>
               <p class="text-xs text-base-400 mt-1 line-clamp-1">{novela.titulosAlternativos[0]}</p>
               {total > 0 && <p class="text-xs text-base-400 tabular-nums mt-1">{dic.nCapitulos(total)}</p>}
+              {rangos && <p class="text-xs text-base-400 tabular-nums mt-1 truncate" title={`cap. ${rangos}`}>cap. {rangos}</p>}
             </div>
           </a>
         ))
@@ -203,11 +208,11 @@ const jsonLd = {
     </h2>
     <div class="grid sm:grid-cols-2 gap-4">
       {
-        conTotales.map(({ novela, total }) => (
+        conTotales.map(({ novela, total, rangos }) => (
           <div
             data-busca={`${novela.titulo} ${novela.titulosAlternativos.join(' ')} ${novela.categorias.join(' ')}`.toLowerCase()}
           >
-            <NovelaCard novela={novela} totalCapitulos={total} />
+            <NovelaCard novela={novela} totalCapitulos={total} rangos={rangos} />
           </div>
         ))
       }
