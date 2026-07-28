@@ -1,0 +1,26 @@
+name: Indexar fuentes
+
+# Una vez al día. cron va en UTC: 06:00 UTC ≈ 01:00 Perú.
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch: # botón manual en la pestaña Actions
+
+jobs:
+  scrapear:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node scripts/scrapear.mjs
+        env:
+          PUBLIC_SUPABASE_URL: ${{ secrets.PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+
+      # Cloudflare Pages reconstruye el sitio estático con lo nuevo ya aprobado.
+      - run: curl -fsS -X POST "${{ secrets.CF_DEPLOY_HOOK }}"
+        if: success()

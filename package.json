@@ -6,6 +6,8 @@
     "dev": "astro dev",
     "build": "astro build",
     "traducir": "node --env-file-if-exists=.env scripts/traducir.mjs",
+    "scrapear": "node --env-file-if-exists=.env scripts/scrapear.mjs",
+    "test:scrapear": "node scripts/scrapear.test.mjs",
     "verificar": "node --env-file-if-exists=.env scripts/verificar-supabase.mjs",
     "preview": "astro preview",
     "check": "astro check"
@@ -19,6 +21,7 @@
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.4",
+    "cheerio": "^1.2.0",
     "typescript": "^5.7.2"
   }
 }
