@@ -1,0 +1,61 @@
+---
+import type { CapituloExterno } from '@/types/novela';
+
+interface Props {
+  capitulos: CapituloExterno[];
+  fuente: string;
+}
+
+const { capitulos, fuente } = Astro.props;
+---
+
+{
+  capitulos.length > 0 && (
+    <section aria-label="Capítulos en la fuente original">
+      <div class="flex items-baseline gap-3 mb-2">
+        <h2 class="font-semibold text-base-800 dark:text-base-100">Últimos capítulos publicados</h2>
+        <span class="text-sm text-base-400 tabular-nums">({capitulos.length})</span>
+      </div>
+
+      {/* Decir de dónde sale cada enlace no es letra chica: es el sitio. */}
+      <p class="text-sm text-base-500 mb-4">
+        Índice de lo que ha publicado <strong class="text-base-600 dark:text-base-300">{fuente}</strong>.
+        Los capítulos se leen en su sitio: cada enlace lleva allí.
+      </p>
+
+      <ol class="grid gap-2">
+        {capitulos.map((c) => (
+          <li class="neu-sm rounded-xl flex items-center gap-3 px-3 py-2">
+            <a
+              href={c.url}
+              target="_blank"
+              rel="noopener nofollow"
+              class="min-w-0 flex-1 flex items-baseline gap-2 py-0.5"
+            >
+              {c.numero !== null && (
+                <span class="font-medium tabular-nums text-base-700 dark:text-base-200">{c.numero}</span>
+              )}
+              <span class="truncate text-sm text-base-500">{c.titulo}</span>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.7"
+                stroke-linecap="round"
+                class="size-3.5 shrink-0 text-base-400"
+                aria-hidden="true"
+              >
+                <path d="M7 17 17 7M9 7h8v8" />
+              </svg>
+              <span class="sr-only">(se abre en {fuente})</span>
+            </a>
+
+            {c.fecha_texto && (
+              <span class="shrink-0 text-[11px] text-base-400 hidden sm:block">{c.fecha_texto}</span>
+            )}
+          </li>
+        ))}
+      </ol>
+    </section>
+  )
+}

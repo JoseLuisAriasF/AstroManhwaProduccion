@@ -17,7 +17,10 @@ create table if not exists public.fuentes (
   sel_fecha text,                  -- opcional
   novela_slug text not null,       -- a qué novela del catálogo pertenece
   activa boolean not null default true,
-  ultimo_scrape timestamptz
+  ultimo_scrape timestamptz,
+  -- Sin esto, correr el seed dos veces duplica la fuente y cada capítulo entra
+  -- una vez por fuente: el unique de abajo es por fuente_id y no lo atrapa.
+  unique (url_listado, novela_slug)
 );
 
 create table if not exists public.capitulos_externos (

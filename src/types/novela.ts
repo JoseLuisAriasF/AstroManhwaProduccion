@@ -31,6 +31,17 @@ export interface Capitulo {
   equivalenciaManhwa?: number;
 }
 
+/**
+ * Capítulo que vive en otro sitio. Guardamos el índice y enlazamos; el texto
+ * nunca se copia, el lector lo lee en la fuente original.
+ */
+export interface CapituloExterno {
+  numero: number | null;
+  titulo: string;
+  url: string;
+  fecha_texto: string | null;
+}
+
 export interface UserProgress {
   userId?: string;
   novelaSlug: string;

@@ -1,6 +1,7 @@
-import type { Capitulo, EquivalenciaManhwa, Novela } from '@/types/novela';
+import type { Capitulo, CapituloExterno, EquivalenciaManhwa, Novela } from '@/types/novela';
 import { IDIOMA_BASE, type Idioma } from './i18n';
 import { capitulosDe, equivalencias, novelas } from './mockData';
+import { supabase } from './supabaseClient';
 import { traducir, traducirTexto } from './traducir';
 
 /**
@@ -57,6 +58,25 @@ export async function getCapitulo(slug: string, numero: number, idioma: Idioma =
 
 export async function getEquivalencias(slug: string): Promise<EquivalenciaManhwa[]> {
   return equivalencias[slug] ?? [];
+}
+
+/**
+ * Capítulos indexados de fuentes externas: metadata y enlace al sitio de origen.
+ * RLS solo deja leer los aprobados, así que la anon key basta.
+ * Sin credenciales devuelve [] y la sección simplemente no se pinta.
+ */
+export async function getCapitulosExternos(slug: string): Promise<CapituloExterno[]> {
+  if (!supabase) return [];
+  const { data, error } = await supabase
+    .from('capitulos_externos')
+    .select('numero, titulo, url, fecha_texto')
+    .eq('novela_slug', slug)
+    .order('numero', { ascending: false, nullsFirst: false });
+  if (error) {
+    console.warn('[api] capitulos_externos:', error.message);
+    return [];
+  }
+  return data ?? [];
 }
 
 export { manhwaANovela } from './equivalencia';
