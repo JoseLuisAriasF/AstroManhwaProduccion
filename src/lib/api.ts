@@ -57,7 +57,20 @@ export async function getCapitulo(slug: string, numero: number, idioma: Idioma =
 }
 
 export async function getEquivalencias(slug: string): Promise<EquivalenciaManhwa[]> {
-  return equivalencias[slug] ?? [];
+  if (!supabase) return equivalencias[slug] ?? [];
+  const { data, error } = await supabase
+    .from('equivalencias')
+    .select('capitulo_manhwa, capitulo_novela')
+    .eq('novela_slug', slug)
+    .order('capitulo_manhwa');
+  if (error) {
+    console.warn(`[equivalencias:${slug}] ${error.message}`);
+    return [];
+  }
+  return (data ?? []).map((e) => ({
+    capituloManhwa: e.capitulo_manhwa,
+    capituloNovela: e.capitulo_novela,
+  }));
 }
 
 /**
@@ -70,18 +83,27 @@ export async function getCapitulosExternos(slug: string): Promise<CapituloExtern
     console.warn(`[externos:${slug}] SIN CLIENTE — falta PUBLIC_SUPABASE_URL / PUBLIC_SUPABASE_ANON_KEY en el build`);
     return [];
   }
-  const { data, error } = await supabase
-    .from('capitulos_externos')
-    .select('numero, titulo, url, fecha_texto')
-    .eq('novela_slug', slug)
-    .eq('aprobado', true)
-    .order('numero', { ascending: false, nullsFirst: false });
-  if (error) {
-    console.warn(`[externos:${slug}] error: ${error.message}`);
-    return [];
+  // Supabase Cloud corta a 1000 filas por request; paginamos en el cliente.
+  const TAMAÑO = 1000;
+  const todos: CapituloExterno[] = [];
+  for (let desde = 0; ; desde += TAMAÑO) {
+    const { data, error } = await supabase
+      .from('capitulos_externos')
+      .select('numero, titulo, url, fecha_texto')
+      .eq('novela_slug', slug)
+      .eq('aprobado', true)
+      .order('numero', { ascending: false, nullsFirst: false })
+      .range(desde, desde + TAMAÑO - 1);
+    if (error) {
+      console.warn(`[externos:${slug}] error: ${error.message}`);
+      return todos;
+    }
+    if (!data?.length) break;
+    todos.push(...data);
+    if (data.length < TAMAÑO) break;
   }
-  console.log(`[externos:${slug}] ${data?.length ?? 0} filas`);
-  return data ?? [];
+  console.log(`[externos:${slug}] ${todos.length} filas`);
+  return todos;
 }
 
 export { manhwaANovela } from './equivalencia';

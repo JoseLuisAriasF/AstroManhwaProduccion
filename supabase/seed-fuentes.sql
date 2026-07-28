@@ -6,7 +6,7 @@ insert into public.fuentes
 values
   ('Maehwasup',
    'https://maehwasup.com/page/{page}/',
-   2,
+   250,  -- techo: el listado real termina antes de eso
    'li.wp-block-post',
    'h2.wp-block-post-title',
    'h2.wp-block-post-title a',
