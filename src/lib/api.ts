@@ -66,16 +66,21 @@ export async function getEquivalencias(slug: string): Promise<EquivalenciaManhwa
  * Sin credenciales devuelve [] y la sección simplemente no se pinta.
  */
 export async function getCapitulosExternos(slug: string): Promise<CapituloExterno[]> {
-  if (!supabase) return [];
+  if (!supabase) {
+    console.warn(`[externos:${slug}] SIN CLIENTE — falta PUBLIC_SUPABASE_URL / PUBLIC_SUPABASE_ANON_KEY en el build`);
+    return [];
+  }
   const { data, error } = await supabase
     .from('capitulos_externos')
     .select('numero, titulo, url, fecha_texto')
     .eq('novela_slug', slug)
+    .eq('aprobado', true)
     .order('numero', { ascending: false, nullsFirst: false });
   if (error) {
-    console.warn('[api] capitulos_externos:', error.message);
+    console.warn(`[externos:${slug}] error: ${error.message}`);
     return [];
   }
+  console.log(`[externos:${slug}] ${data?.length ?? 0} filas`);
   return data ?? [];
 }
 
