@@ -1,0 +1,97 @@
+---
+import Base from '@/layouts/Base.astro';
+import SyncExplanationBanner from '@/components/SyncExplanationBanner.astro';
+import { getCapitulos, getNovelas } from '@/lib/api';
+import { idiomaDeRuta, ruta, t } from '@/lib/i18n';
+import { paramsDeIdioma } from '@/lib/publicables';
+
+export function getStaticPaths() {
+  return paramsDeIdioma().map(({ idioma }) => ({ params: { idioma } }));
+}
+
+const idioma = idiomaDeRuta(Astro.url.pathname);
+const dic = t(idioma);
+
+const novelas = await getNovelas(idioma);
+const catalogo = await Promise.all(
+  novelas.map(async (n) => ({
+    slug: n.slug,
+    titulo: n.titulo,
+    portadaUrl: n.portadaUrl,
+    total: (await getCapitulos(n.slug)).length,
+  })),
+);
+---
+
+<Base titulo={`${dic.bibliotecaTitulo} · ManhwaToNovel`} descripcion={dic.seoBibliotecaDesc} anchoCompleto>
+  <h1 class="text-2xl font-bold tracking-tight text-base-800 dark:text-base-50">
+    {dic.bibliotecaTitulo}
+  </h1>
+  <p class="mt-1 text-base-500 text-sm">{dic.bibliotecaSub}</p>
+
+  <div class="mt-6"><SyncExplanationBanner /></div>
+
+  <div id="biblioteca" class="mt-6 grid sm:grid-cols-2 gap-4"></div>
+
+  <p id="vacia" hidden class="mt-8 neu-inset rounded-2xl p-8 text-center text-base-500">
+    {dic.bibliotecaVacia}{' '}
+    <a href={ruta(idioma, '/novelas')} class="text-acento-500 font-medium">{dic.bibliotecaExplora}</a>
+  </p>
+
+  <script is:inline define:vars={{ catalogo }}>
+    window.__catalogo = catalogo;
+  </script>
+</Base>
+
+<script>
+  import { getAll, ultimoLeido } from '@/lib/progress';
+  import { idiomaDeRuta, ruta, t } from '@/lib/i18n';
+
+  type Item = { slug: string; titulo: string; portadaUrl: string; total: number };
+  const catalogo: Item[] = (window as any).__catalogo;
+  const idioma = idiomaDeRuta(location.pathname);
+  const dic = t(idioma);
+  const cont = document.getElementById('biblioteca')!;
+  const vacia = document.getElementById('vacia') as HTMLElement;
+
+  function pintar() {
+    const progreso = getAll();
+    const items = catalogo.filter(
+      (n) => progreso[n.slug]?.esFavorito || (progreso[n.slug]?.capitulosLeidos.length ?? 0) > 0,
+    );
+
+    vacia.hidden = items.length > 0;
+    cont.innerHTML = items
+      .map((n) => {
+        const leidos = progreso[n.slug]?.capitulosLeidos.length ?? 0;
+        const pct = Math.round((leidos / n.total) * 100);
+        const ultimo = ultimoLeido(n.slug);
+        const destino = ultimo !== null ? Math.min(ultimo + 1, n.total) : 1;
+        const base = ruta(idioma, `/novela/${n.slug}`);
+        return `
+        <article class="neu rounded-2xl p-3 flex gap-4">
+          <a href="${base}" class="shrink-0">
+            <img src="${n.portadaUrl}" alt="${n.titulo}" width="80" height="114" loading="lazy"
+                 class="w-20 aspect-[7/10] object-cover rounded-xl neu-sm" />
+          </a>
+          <div class="min-w-0 flex-1 flex flex-col">
+            <h2 class="font-semibold leading-snug text-base-800 dark:text-base-100 truncate">
+              <a href="${base}" class="hover:text-acento-500">${n.titulo}</a>
+            </h2>
+            <p class="text-sm text-base-500 mt-0.5 tabular-nums">${dic.deNCapitulos(leidos, n.total)} · ${pct}%</p>
+            <div class="neu-inset rounded-full h-2 mt-2 overflow-hidden">
+              <div class="h-full rounded-full bg-acento-500 transition-[width] duration-500" style="width:${pct}%"></div>
+            </div>
+            <a href="${base}/capitulo-${destino}" class="neu-sm neu-press rounded-xl px-3 py-2 text-sm text-acento-500 font-medium mt-auto self-start">
+              ${ultimo !== null ? dic.continuarEnCap(destino) : dic.empezar}
+            </a>
+          </div>
+        </article>`;
+      })
+      .join('');
+  }
+
+  pintar();
+  window.addEventListener('progress:change', pintar);
+  window.addEventListener('progress:synced', pintar);
+</script>

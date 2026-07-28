@@ -1,0 +1,26 @@
+# Cloudflare Pages — caché en el edge, sin tocar Supabase en cada visita.
+
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: SAMEORIGIN
+
+# Páginas de lectura: 1 día en el edge, sirve viejo mientras revalida 7 días.
+/novela/*
+  Cache-Control: public, max-age=0, must-revalidate
+  CDN-Cache-Control: public, s-maxage=86400, stale-while-revalidate=604800
+
+# Lo mismo para los idiomas con prefijo: /en/novela/…, /pt/novela/…
+/*/novela/*
+  Cache-Control: public, max-age=0, must-revalidate
+  CDN-Cache-Control: public, s-maxage=86400, stale-while-revalidate=604800
+
+/
+  CDN-Cache-Control: public, s-maxage=3600, stale-while-revalidate=86400
+
+# Assets con hash: inmutables.
+/_astro/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/portadas/*
+  Cache-Control: public, max-age=604800

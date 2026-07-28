@@ -1,0 +1,283 @@
+---
+import Base from '@/layouts/Base.astro';
+import NovelaCard from '@/components/NovelaCard.astro';
+import SyncExplanationBanner from '@/components/SyncExplanationBanner.astro';
+import { getCapitulos, getNovelas } from '@/lib/api';
+import { idiomaDeRuta, ruta, t } from '@/lib/i18n';
+import { paramsDeIdioma } from '@/lib/publicables';
+
+export function getStaticPaths() {
+  return paramsDeIdioma().map(({ idioma }) => ({ params: { idioma } }));
+}
+
+const idioma = idiomaDeRuta(Astro.url.pathname);
+const dic = t(idioma);
+
+const novelas = await getNovelas(idioma);
+const conTotales = await Promise.all(
+  novelas.map(async (n) => ({ novela: n, total: (await getCapitulos(n.slug)).length })),
+);
+
+// "Tendencias" mock: en emisión y más largas. Cambiar por una vista de Supabase.
+const tendencias = [...conTotales]
+  .sort(
+    (a, b) =>
+      Number(b.novela.estado === 'En emisión') - Number(a.novela.estado === 'En emisión') ||
+      b.total - a.total,
+  )
+  .slice(0, 3);
+
+// Últimos capítulos: contenido fresco arriba + enlaces internos a las lecturas.
+const recientes = (
+  await Promise.all(
+    novelas.map(async (novela) => {
+      const caps = await getCapitulos(novela.slug, idioma);
+      return caps.slice(-2).map((c) => ({ novela, capitulo: c }));
+    }),
+  )
+)
+  .flat()
+  .sort((a, b) => +new Date(b.capitulo.fechaPublicacion) - +new Date(a.capitulo.fechaPublicacion))
+  .slice(0, 6);
+
+const fmt = new Intl.DateTimeFormat(idioma, { day: '2-digit', month: 'short' });
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'CollectionPage',
+  name: 'ManhwaToNovel',
+  inLanguage: idioma,
+  description: dic.sitioDescripcion,
+  hasPart: novelas.map((n) => ({
+    '@type': 'Book',
+    name: n.titulo,
+    alternateName: n.titulosAlternativos,
+    url: new URL(ruta(idioma, `/novela/${n.slug}`), Astro.site).toString(),
+  })),
+};
+---
+
+<Base
+  titulo={`ManhwaToNovel · ${dic.seoInicio}`}
+  descripcion={dic.sitioDescripcion}
+  anchoCompleto
+  jsonLd={jsonLd}
+>
+  <!-- Hero -->
+  <section class="relative text-center py-10 sm:py-16 overflow-hidden">
+    <div
+      aria-hidden="true"
+      class="pointer-events-none absolute inset-x-0 -top-24 h-72 opacity-60 blur-3xl
+             bg-[radial-gradient(closest-side,theme(colors.acento.400),transparent)]
+             dark:opacity-25"
+    >
+    </div>
+
+    <div class="relative">
+      <span class="neu-inset rounded-full px-3 py-1 text-xs font-medium text-acento-500">
+        {dic.heroBadge}
+      </span>
+      <h1
+        class="mt-5 text-4xl sm:text-6xl font-bold tracking-tight text-base-800 dark:text-base-50 text-balance leading-[1.05]"
+      >
+        {dic.heroTitulo}
+      </h1>
+      <p class="mt-5 text-base-500 max-w-xl mx-auto text-pretty">{dic.heroSub}</p>
+
+      <div class="mt-8 max-w-lg mx-auto">
+        <label class="neu-inset rounded-2xl flex items-center gap-3 px-4 py-3.5">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" class="size-5 text-base-400 shrink-0">
+            <circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" stroke-linecap="round" />
+          </svg>
+          <input
+            id="buscador"
+            type="search"
+            placeholder={dic.buscarPlaceholder}
+            aria-label={dic.buscarEtiqueta}
+            autocomplete="off"
+            class="w-full bg-transparent outline-none text-base-800 dark:text-base-100 placeholder:text-base-400"
+          />
+        </label>
+      </div>
+
+      <dl class="mt-8 flex justify-center gap-3 flex-wrap text-sm">
+        {
+          [
+            [conTotales.length, dic.statNovelas],
+            [conTotales.reduce((s, n) => s + n.total, 0), dic.statCapitulos],
+            ['100%', dic.statGratis],
+          ].map(([valor, etiqueta]) => (
+            <div class="neu-sm rounded-xl px-4 py-2">
+              <dt class="sr-only">{etiqueta}</dt>
+              <dd>
+                <span class="font-semibold text-base-800 dark:text-base-100 tabular-nums">{valor}</span>
+                <span class="text-base-500"> {etiqueta}</span>
+              </dd>
+            </div>
+          ))
+        }
+      </dl>
+    </div>
+  </section>
+
+  <!-- Continuar leyendo (solo si hay progreso guardado) -->
+  <section id="continuar" hidden class="mb-10">
+    <h2 class="font-semibold text-base-800 dark:text-base-100 mb-4">{dic.continuarLeyendo}</h2>
+    <div id="continuar-lista" class="grid sm:grid-cols-2 gap-3"></div>
+  </section>
+
+  <div class="mb-10"><SyncExplanationBanner /></div>
+
+  <!-- Tendencias -->
+  <section id="tendencias" class="mb-10">
+    <div class="flex items-baseline gap-2 mb-4">
+      <h2 class="font-semibold text-base-800 dark:text-base-100">{dic.tendencias}</h2>
+      <span class="text-xs text-base-400">{dic.tendenciasSub}</span>
+    </div>
+    <div class="grid sm:grid-cols-3 gap-4">
+      {
+        tendencias.map(({ novela, total }, i) => (
+          <a
+            href={ruta(idioma, `/novela/${novela.slug}`)}
+            class="group neu rounded-2xl p-3 flex gap-3 transition-transform duration-200 hover:-translate-y-0.5"
+          >
+            <div class="relative shrink-0">
+              <img
+                src={novela.portadaUrl}
+                alt={novela.titulo}
+                width="72"
+                height="103"
+                loading={i === 0 ? 'eager' : 'lazy'}
+                decoding="async"
+                class="w-[72px] aspect-[7/10] object-cover rounded-xl neu-sm"
+              />
+              <span class="absolute -top-1.5 -left-1.5 neu grid place-items-center size-6 rounded-lg text-[11px] font-bold text-acento-500 tabular-nums">
+                {i + 1}
+              </span>
+            </div>
+            <div class="min-w-0 py-0.5">
+              <h3 class="font-medium text-sm leading-snug text-base-800 dark:text-base-100 line-clamp-2 group-hover:text-acento-500 transition-colors">
+                {novela.titulo}
+              </h3>
+              <p class="text-xs text-base-400 mt-1 line-clamp-1">{novela.titulosAlternativos[0]}</p>
+              <p class="text-xs text-base-400 tabular-nums mt-1">{dic.nCapitulos(total)}</p>
+            </div>
+          </a>
+        ))
+      }
+    </div>
+  </section>
+
+  <!-- Últimos capítulos -->
+  <section id="recientes" class="mb-10">
+    <h2 class="font-semibold text-base-800 dark:text-base-100 mb-4">{dic.ultimosCapitulos}</h2>
+    <ul class="grid sm:grid-cols-2 gap-2">
+      {
+        recientes.map(({ novela, capitulo }) => (
+          <li>
+            <a
+              href={`${ruta(idioma, `/novela/${novela.slug}`)}/capitulo-${capitulo.numero}`}
+              class="neu-sm rounded-xl px-3 py-2.5 flex items-center gap-3 transition-transform duration-200 hover:-translate-y-0.5"
+            >
+              <span class="neu-inset rounded-lg px-2 py-1 text-xs font-medium text-acento-500 tabular-nums shrink-0">
+                #{capitulo.numero}
+              </span>
+              <span class="min-w-0 flex-1 truncate text-sm text-base-700 dark:text-base-200">
+                {novela.titulo}
+              </span>
+              <time datetime={capitulo.fechaPublicacion} class="shrink-0 text-[11px] text-base-400">
+                {fmt.format(new Date(capitulo.fechaPublicacion))}
+              </time>
+            </a>
+          </li>
+        ))
+      }
+    </ul>
+  </section>
+
+  <!-- Catálogo -->
+  <section>
+    <h2 id="titulo-catalogo" class="font-semibold text-base-800 dark:text-base-100 mb-4">
+      {dic.catalogo}
+    </h2>
+    <div class="grid sm:grid-cols-2 gap-4">
+      {
+        conTotales.map(({ novela, total }) => (
+          <div
+            data-busca={`${novela.titulo} ${novela.titulosAlternativos.join(' ')} ${novela.categorias.join(' ')}`.toLowerCase()}
+          >
+            <NovelaCard novela={novela} totalCapitulos={total} />
+          </div>
+        ))
+      }
+    </div>
+    <p id="sin-resultados" hidden class="neu-inset rounded-2xl p-8 text-center text-base-500 mt-2">
+      {dic.sinResultados}
+    </p>
+  </section>
+</Base>
+
+<script>
+  import { getAll, ultimoLeido } from '@/lib/progress';
+  import { idiomaDeRuta, ruta, t } from '@/lib/i18n';
+
+  const idioma = idiomaDeRuta(location.pathname);
+  const dic = t(idioma);
+  const tarjetas = [...document.querySelectorAll<HTMLElement>('[data-busca]')];
+
+  // Chip "Vas por el cap. N" + fila de "Continuar leyendo".
+  function pintarProgreso() {
+    document.querySelectorAll<HTMLElement>('[data-novela]').forEach((card) => {
+      const n = ultimoLeido(card.dataset.novela!);
+      const chip = card.querySelector<HTMLElement>('[data-continuar]')!;
+      chip.hidden = n === null;
+      if (n !== null) chip.textContent = dic.vasPorCap(n);
+    });
+
+    const enCurso = Object.values(getAll()).filter((p) => p.capitulosLeidos.length > 0);
+    const seccion = document.getElementById('continuar') as HTMLElement;
+    seccion.hidden = enCurso.length === 0;
+
+    document.getElementById('continuar-lista')!.innerHTML = enCurso
+      .map((p) => {
+        const card = document.querySelector<HTMLElement>(`[data-novela="${p.novelaSlug}"]`);
+        const titulo = card?.querySelector('h3')?.textContent?.trim() ?? p.novelaSlug;
+        const portada = card?.querySelector('img')?.getAttribute('src') ?? '';
+        const siguiente = Math.max(...p.capitulosLeidos) + 1;
+        return `
+        <a href="${ruta(idioma, `/novela/${p.novelaSlug}`)}/capitulo-${siguiente}"
+           class="neu rounded-2xl p-3 flex items-center gap-3 transition-transform duration-200 hover:-translate-y-0.5">
+          <img src="${portada}" alt="" width="48" height="69" class="w-12 aspect-[7/10] object-cover rounded-lg neu-sm shrink-0" />
+          <span class="min-w-0 flex-1">
+            <span class="block text-sm font-medium text-base-800 dark:text-base-100 truncate">${titulo}</span>
+            <span class="block text-xs text-base-500">${dic.continuarEnCapitulo(siguiente)}</span>
+          </span>
+          <span class="text-acento-500 shrink-0 pr-1" aria-hidden="true">→</span>
+        </a>`;
+      })
+      .join('');
+  }
+  pintarProgreso();
+  window.addEventListener('progress:synced', pintarProgreso);
+
+  // Buscador: filtra en el cliente, incluye títulos en otros idiomas.
+  const input = document.getElementById('buscador') as HTMLInputElement;
+  const vacio = document.getElementById('sin-resultados') as HTMLElement;
+  const titulo = document.getElementById('titulo-catalogo') as HTMLElement;
+  const secciones = ['continuar', 'tendencias', 'recientes'].map((id) => document.getElementById(id)!);
+  const visiblePrevio = new Map(secciones.map((s) => [s, !s.hidden]));
+
+  input.addEventListener('input', () => {
+    const q = input.value.trim().toLowerCase();
+    let visibles = 0;
+    for (const tarjeta of tarjetas) {
+      const coincide = q === '' || tarjeta.dataset.busca!.includes(q);
+      tarjeta.hidden = !coincide;
+      if (coincide) visibles++;
+    }
+    // Al buscar, solo queda el catálogo filtrado.
+    secciones.forEach((s) => (s.hidden = q !== '' || !visiblePrevio.get(s)));
+    vacio.hidden = visibles > 0;
+    titulo.textContent = q === '' ? dic.catalogo : dic.resultados(visibles);
+  });
+</script>

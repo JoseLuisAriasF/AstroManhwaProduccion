@@ -1,0 +1,105 @@
+---
+import { idiomaDeRuta, ruta, t } from '@/lib/i18n';
+import type { EquivalenciaManhwa } from '@/types/novela';
+
+interface Props {
+  slug: string;
+  anclas: EquivalenciaManhwa[];
+  compacto?: boolean;
+}
+
+const { slug, anclas, compacto = false } = Astro.props;
+const idioma = idiomaDeRuta(Astro.url.pathname);
+const dic = t(idioma);
+const maxManhwa = anclas.length ? Math.max(...anclas.map((a) => a.capituloManhwa)) : 0;
+---
+
+{
+  anclas.length > 0 && (
+    <section
+      class:list={['neu rounded-2xl', compacto ? 'p-4' : 'p-5 sm:p-6']}
+      data-cruce
+      data-slug={slug}
+      data-base={ruta(idioma, `/novela/${slug}`)}
+      data-anclas={JSON.stringify(anclas)}
+      aria-labelledby={`cruce-${slug}`}
+    >
+      <div class="flex items-start gap-3">
+        <span class="neu-inset shrink-0 grid place-items-center size-9 rounded-xl text-acento-500">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" class="size-4">
+            <path d="M4 7h9m0 0-3-3m3 3-3 3M20 17h-9m0 0 3-3m-3 3 3 3" />
+          </svg>
+        </span>
+        <div class="min-w-0">
+          <h2 id={`cruce-${slug}`} class="font-semibold text-base-800 dark:text-base-100">
+            {dic.puenteTitulo}
+          </h2>
+          <p class="text-sm text-base-500 mt-0.5">{dic.puenteSub}</p>
+        </div>
+      </div>
+
+      <div class="mt-4 flex flex-wrap items-center gap-3">
+        <label class="neu-inset rounded-xl flex items-center gap-2 px-3 py-2">
+          <span class="text-sm text-base-500 whitespace-nowrap">{dic.puenteEtiqueta}</span>
+          <input
+            type="number"
+            min="1"
+            max={maxManhwa + 50}
+            placeholder={String(Math.min(86, maxManhwa))}
+            data-cruce-input
+            aria-label={dic.puenteAria}
+            class="w-20 bg-transparent outline-none text-base-800 dark:text-base-100 font-medium tabular-nums"
+          />
+        </label>
+
+        <button data-cruce-ir class="neu-sm neu-press rounded-xl px-4 py-2 text-sm font-medium text-acento-500" disabled>
+          {dic.puenteBoton}
+        </button>
+      </div>
+
+      <p data-cruce-resultado hidden class="mt-3 text-sm neu-inset rounded-xl px-4 py-3 text-base-600 dark:text-base-300" />
+    </section>
+  )
+}
+
+<script>
+  import { manhwaANovela } from '@/lib/equivalencia';
+  import { idiomaDeRuta, t } from '@/lib/i18n';
+  import type { EquivalenciaManhwa } from '@/types/novela';
+
+  const dic = t(idiomaDeRuta(location.pathname));
+
+  document.querySelectorAll<HTMLElement>('[data-cruce]').forEach((caja) => {
+    const anclas: EquivalenciaManhwa[] = JSON.parse(caja.dataset.anclas!);
+    const base = caja.dataset.base!;
+    const input = caja.querySelector<HTMLInputElement>('[data-cruce-input]')!;
+    const boton = caja.querySelector<HTMLButtonElement>('[data-cruce-ir]')!;
+    const salida = caja.querySelector<HTMLElement>('[data-cruce-resultado]')!;
+    let destino: number | null = null;
+
+    function calcular() {
+      const cap = parseInt(input.value, 10);
+      destino = Number.isFinite(cap) ? manhwaANovela(anclas, cap) : null;
+      boton.disabled = destino === null;
+      salida.hidden = destino === null;
+      if (destino === null) return;
+
+      const exacta = anclas.some((a) => a.capituloManhwa === cap);
+      salida.innerHTML =
+        dic.puenteResultado(cap, destino) +
+        (exacta ? '' : ` <span class="text-base-400">${dic.puenteAproximado}</span>`);
+
+      // Resalta el capítulo en la lista, si está en esta página.
+      document
+        .querySelectorAll('[data-cap].ring-2')
+        .forEach((e) => e.classList.remove('ring-2', 'ring-acento-400'));
+      document.querySelector(`[data-cap="${destino}"]`)?.classList.add('ring-2', 'ring-acento-400');
+    }
+
+    input.addEventListener('input', calcular);
+    input.addEventListener('keydown', (e) => e.key === 'Enter' && boton.click());
+    boton.addEventListener('click', () => {
+      if (destino !== null) location.href = `${base}/capitulo-${destino}`;
+    });
+  });
+</script>

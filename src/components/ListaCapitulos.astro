@@ -1,0 +1,86 @@
+---
+import ReadTrackerButton from './ReadTrackerButton.astro';
+import { idiomaDeRuta, ruta, t } from '@/lib/i18n';
+import type { Capitulo } from '@/types/novela';
+
+interface Props {
+  capitulos: Capitulo[];
+  slug: string;
+}
+
+const { capitulos, slug } = Astro.props;
+const idioma = idiomaDeRuta(Astro.url.pathname);
+const dic = t(idioma);
+const fmt = new Intl.DateTimeFormat(idioma, { day: '2-digit', month: 'short', year: 'numeric' });
+---
+
+<section aria-label="Capítulos" data-lista-caps data-slug={slug}>
+  <div class="flex items-center gap-3 mb-4">
+    <h2 class="font-semibold text-base-800 dark:text-base-100">{dic.capitulos}</h2>
+    <span class="text-sm text-base-400 tabular-nums">({capitulos.length})</span>
+    <label class="neu-inset rounded-xl px-3 py-1.5 ml-auto flex items-center gap-2">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" class="size-4 text-base-400">
+        <circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" stroke-linecap="round" />
+      </svg>
+      <input
+        type="search"
+        data-filtro
+        placeholder={dic.filtroCapitulo}
+        aria-label={dic.filtrarCapitulos}
+        class="w-28 bg-transparent outline-none text-sm"
+      />
+    </label>
+  </div>
+
+  <ol class="grid gap-2">
+    {
+      capitulos.map((c) => (
+        <li
+          data-cap={c.numero}
+          data-leido="false"
+          class="neu-sm rounded-xl flex items-center gap-3 pl-3 pr-2 py-2 transition-all duration-200 data-[leido=true]:opacity-60"
+        >
+          <ReadTrackerButton slug={slug} numero={c.numero} />
+
+          <a href={`${ruta(idioma, `/novela/${slug}`)}/capitulo-${c.numero}`} class="min-w-0 flex-1 flex items-baseline gap-2 py-0.5">
+            <span class="font-medium tabular-nums text-base-700 dark:text-base-200">{c.numero}</span>
+            <span class="truncate text-sm text-base-500">{c.titulo}</span>
+            {c.equivalenciaManhwa && (
+              <span class="ml-auto shrink-0 text-[11px] text-acento-500 neu-inset rounded-lg px-2 py-0.5 hidden sm:inline">
+                {dic.manhwaCorto} {c.equivalenciaManhwa}
+              </span>
+            )}
+          </a>
+
+          <time datetime={c.fechaPublicacion} class="shrink-0 text-[11px] text-base-400 hidden sm:block pr-1">
+            {fmt.format(new Date(c.fechaPublicacion))}
+          </time>
+        </li>
+      ))
+    }
+  </ol>
+</section>
+
+<script>
+  import { leido } from '@/lib/progress';
+
+  const lista = document.querySelector<HTMLElement>('[data-lista-caps]');
+  if (lista) {
+    const slug = lista.dataset.slug!;
+    const filas = [...lista.querySelectorAll<HTMLElement>('[data-cap]')];
+
+    // El botón guarda; la fila solo refleja el estado (atenuada si ya se leyó).
+    const pintar = () =>
+      filas.forEach((f) => (f.dataset.leido = String(leido(slug, +f.dataset.cap!))));
+    pintar();
+    lista.addEventListener('click', () => queueMicrotask(pintar));
+    window.addEventListener('progress:change', pintar);
+    window.addEventListener('progress:synced', pintar);
+
+    const filtro = lista.querySelector<HTMLInputElement>('[data-filtro]')!;
+    filtro.addEventListener('input', () => {
+      const q = filtro.value.trim();
+      filas.forEach((f) => (f.hidden = q !== '' && !f.dataset.cap!.startsWith(q)));
+    });
+  }
+</script>

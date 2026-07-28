@@ -1,0 +1,61 @@
+---
+import { idiomaDeRuta, ruta, t } from '@/lib/i18n';
+import type { Novela } from '@/types/novela';
+
+interface Props {
+  novela: Novela;
+  totalCapitulos?: number;
+}
+
+const { novela, totalCapitulos } = Astro.props;
+const idioma = idiomaDeRuta(Astro.url.pathname);
+const dic = t(idioma);
+const href = ruta(idioma, `/novela/${novela.slug}`);
+---
+
+<article
+  class="neu rounded-2xl overflow-hidden flex gap-4 p-3 transition-transform duration-200 hover:-translate-y-0.5"
+  data-novela={novela.slug}
+>
+  <a href={href} class="shrink-0">
+    <img
+      src={novela.portadaUrl}
+      alt={`Portada de ${novela.titulo}`}
+      width="112"
+      height="160"
+      loading="lazy"
+      decoding="async"
+      class="w-20 sm:w-28 aspect-[7/10] object-cover rounded-xl neu-sm"
+    />
+  </a>
+
+  <div class="min-w-0 flex flex-col py-1">
+    <div class="flex items-center gap-2 text-[11px] font-medium">
+      <span
+        class:list={[
+          'rounded-lg px-2 py-0.5 neu-inset',
+          novela.estado === 'En emisión' ? 'text-emerald-500' : 'text-base-500',
+        ]}>{novela.estado === 'En emisión' ? dic.enEmision : dic.finalizado}</span
+      >
+      {totalCapitulos && <span class="text-base-400 tabular-nums">{totalCapitulos} {dic.capitulosCorto}</span>}
+    </div>
+
+    <h3 class="mt-1.5 font-semibold leading-snug text-base-800 dark:text-base-100">
+      <a href={href} class="hover:text-acento-500 transition-colors">{novela.titulo}</a>
+    </h3>
+
+    {/* Título alterno visible: reconocimiento para quien viene del manhwa en inglés. */}
+    <p class="text-xs text-base-400 truncate">{novela.titulosAlternativos[0]}</p>
+
+    <p class="mt-1.5 text-sm text-base-500 line-clamp-2">{novela.sinopsis}</p>
+
+    <div class="mt-auto pt-2 flex items-center gap-2 flex-wrap">
+      {
+        novela.categorias.slice(0, 2).map((c) => (
+          <span class="text-[11px] text-base-500 neu-inset rounded-lg px-2 py-0.5">{c}</span>
+        ))
+      }
+      <span data-continuar hidden class="text-[11px] text-acento-500 font-medium ml-auto"></span>
+    </div>
+  </div>
+</article>

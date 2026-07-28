@@ -1,0 +1,60 @@
+---
+import Base from '@/layouts/Base.astro';
+import NovelaCard from '@/components/NovelaCard.astro';
+import { getCapitulos, getNovelas } from '@/lib/api';
+import { idiomaDeRuta, t } from '@/lib/i18n';
+import { paramsDeIdioma } from '@/lib/publicables';
+
+export function getStaticPaths() {
+  return paramsDeIdioma().map(({ idioma }) => ({ params: { idioma } }));
+}
+
+const idioma = idiomaDeRuta(Astro.url.pathname);
+const dic = t(idioma);
+
+const novelas = await getNovelas(idioma);
+const conTotales = await Promise.all(
+  novelas.map(async (n) => ({ novela: n, total: (await getCapitulos(n.slug)).length })),
+);
+const categorias = [...new Set(novelas.flatMap((n) => n.categorias))].sort();
+---
+
+<Base titulo={`${dic.catalogo} · ManhwaToNovel`} descripcion={dic.seoCatalogoDesc} anchoCompleto>
+  <h1 class="text-2xl font-bold tracking-tight text-base-800 dark:text-base-50">{dic.catalogo}</h1>
+
+  <div class="mt-5 flex flex-wrap gap-2" data-filtros>
+    <button data-cat="" class="neu-sm neu-press rounded-xl px-3 py-1.5 text-sm aria-pressed:text-acento-500" aria-pressed="true">
+      {dic.todas}
+    </button>
+    {
+      categorias.map((c) => (
+        <button data-cat={c} class="neu-sm neu-press rounded-xl px-3 py-1.5 text-sm aria-pressed:text-acento-500" aria-pressed="false">
+          {c}
+        </button>
+      ))
+    }
+  </div>
+
+  <div class="mt-6 grid sm:grid-cols-2 gap-4">
+    {
+      conTotales.map(({ novela, total }) => (
+        <div data-cats={novela.categorias.join('|')}>
+          <NovelaCard novela={novela} totalCapitulos={total} />
+        </div>
+      ))
+    }
+  </div>
+</Base>
+
+<script>
+  const botones = document.querySelectorAll<HTMLButtonElement>('[data-cat]');
+  const tarjetas = document.querySelectorAll<HTMLElement>('[data-cats]');
+
+  botones.forEach((b) =>
+    b.addEventListener('click', () => {
+      const cat = b.dataset.cat!;
+      botones.forEach((o) => o.setAttribute('aria-pressed', String(o === b)));
+      tarjetas.forEach((t) => (t.hidden = cat !== '' && !t.dataset.cats!.split('|').includes(cat)));
+    }),
+  );
+</script>

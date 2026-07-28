@@ -1,0 +1,86 @@
+---
+/**
+ * Botón de "capítulo leído" con check animado estilo Things 3.
+ *
+ * No sabe nada de dónde se guarda el dato: llama a src/lib/progress.ts, que
+ * escribe siempre en localStorage y además sube a Supabase si hay sesión.
+ * Invitado y usuario logueado usan exactamente este mismo botón.
+ */
+import { idiomaDeRuta, t } from '@/lib/i18n';
+
+interface Props {
+  slug: string;
+  numero: number;
+  /** 'icono' = solo el check (listas) · 'completo' = check + texto (lectora) */
+  variante?: 'icono' | 'completo';
+  clase?: string;
+}
+
+const dic = t(idiomaDeRuta(Astro.url.pathname));
+const { slug, numero, variante = 'icono', clase = '' } = Astro.props;
+const completo = variante === 'completo';
+---
+
+<button
+  type="button"
+  data-read-tracker
+  data-slug={slug}
+  data-numero={numero}
+  data-leido="false"
+  aria-pressed="false"
+  aria-label={dic.marcarLeidoAria(numero)}
+  class:list={[
+    'group shrink-0 neu-press flex items-center',
+    completo ? 'neu-sm rounded-xl px-3 py-2 gap-2 text-sm' : 'neu-inset rounded-lg size-7 justify-center',
+    clase,
+  ]}
+>
+  <span
+    class:list={[
+      'grid place-items-center text-acento-500 transition-opacity duration-200',
+      'opacity-30 group-aria-pressed:opacity-100',
+      completo && 'neu-inset rounded-md size-5',
+    ]}
+  >
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width={completo ? 2.6 : 2.4}
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      class={completo ? 'size-3.5' : 'size-4'}
+      aria-hidden="true"
+    >
+      <path class="check-trazo" d="m5 12.5 4.5 4.5L19 7" />
+    </svg>
+  </span>
+  {completo && <span data-read-tracker-texto>{dic.marcarLeido}</span>}
+</button>
+
+<script>
+  import { leido, toggleCapitulo } from '@/lib/progress';
+  import { idiomaDeRuta, t } from '@/lib/i18n';
+
+  const dic = t(idiomaDeRuta(location.pathname));
+
+  const botones = document.querySelectorAll<HTMLButtonElement>('[data-read-tracker]');
+
+  function pintar(b: HTMLButtonElement, estado = leido(b.dataset.slug!, +b.dataset.numero!)) {
+    b.dataset.leido = String(estado);
+    b.setAttribute('aria-pressed', String(estado));
+    const etiqueta = b.querySelector('[data-read-tracker-texto]');
+    if (etiqueta) etiqueta.textContent = estado ? dic.leido : dic.marcarLeido;
+  }
+
+  const pintarTodo = () => botones.forEach((b) => pintar(b));
+  pintarTodo();
+
+  botones.forEach((b) =>
+    b.addEventListener('click', () => pintar(b, toggleCapitulo(b.dataset.slug!, +b.dataset.numero!))),
+  );
+
+  // Otra pestaña, o la sincronización con la nube al iniciar sesión.
+  window.addEventListener('progress:change', pintarTodo);
+  window.addEventListener('progress:synced', pintarTodo);
+</script>

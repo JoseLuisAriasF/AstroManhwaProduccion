@@ -1,0 +1,216 @@
+---
+import Base from '@/layouts/Base.astro';
+import ReadTrackerButton from '@/components/ReadTrackerButton.astro';
+import { getCapitulos, getEquivalencias, getNovelas, manhwaANovela } from '@/lib/api';
+import { IDIOMAS, idiomaDeRuta, ruta, t } from '@/lib/i18n';
+import { paramsDeIdioma } from '@/lib/publicables';
+import type { Capitulo, Novela } from '@/types/novela';
+
+export async function getStaticPaths() {
+  const rutas = await Promise.all(
+    paramsDeIdioma().map(async ({ idioma, codigo }) => {
+      const novelas = await getNovelas(codigo);
+      const porNovela = await Promise.all(
+        novelas.map(async (novela) => {
+          const capitulos = await getCapitulos(novela.slug, codigo);
+          const anclas = await getEquivalencias(novela.slug);
+          return capitulos.map((capitulo, i) => ({
+            params: { idioma, slug: novela.slug, numero: String(capitulo.numero) },
+            props: {
+              novela,
+              capitulo,
+              anterior: capitulos[i - 1]?.numero ?? null,
+              siguiente: capitulos[i + 1]?.numero ?? null,
+              total: capitulos.length,
+              anclas,
+            },
+          }));
+        }),
+      );
+      return porNovela.flat();
+    }),
+  );
+  return rutas.flat();
+}
+
+interface Props {
+  novela: Novela;
+  capitulo: Capitulo;
+  anterior: number | null;
+  siguiente: number | null;
+  total: number;
+  anclas: { capituloManhwa: number; capituloNovela: number }[];
+}
+
+const { novela, capitulo, anterior, siguiente, total, anclas } = Astro.props;
+const idioma = idiomaDeRuta(Astro.url.pathname);
+const dic = t(idioma);
+const base = ruta(idioma, `/novela/${novela.slug}`);
+const parrafos = capitulo.contenidoTexto.split('\n\n');
+
+// Capítulo del manhwa equivalente a este punto de la novela (para el badge de cruce).
+const manhwaAqui = (() => {
+  const maxManhwa = anclas.length ? Math.max(...anclas.map((a) => a.capituloManhwa)) : 0;
+  for (let m = maxManhwa; m >= 1; m--) {
+    if ((manhwaANovela(anclas, m) ?? Infinity) <= capitulo.numero) return m;
+  }
+  return null;
+})();
+
+const url = new URL(`${base}/capitulo-${capitulo.numero}`, Astro.site).toString();
+
+// La consulta real es "<título> capítulo 12", y ese título puede venir en
+// inglés, portugués o romanizado. Los alternos van en title, description,
+// JSON-LD y texto visible al pie.
+const [tituloIngles] = novela.titulosAlternativos;
+const alternos = novela.titulosAlternativos.join(', ');
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'Chapter',
+  name: `${novela.titulo} — ${capitulo.titulo}`,
+  alternateName: novela.titulosAlternativos.map((t) => `${t} — Chapter ${capitulo.numero}`),
+  url,
+  position: capitulo.numero,
+  datePublished: capitulo.fechaPublicacion,
+  inLanguage: IDIOMAS[idioma].htmlLang,
+  isPartOf: {
+    '@type': 'Book',
+    name: novela.titulo,
+    alternateName: novela.titulosAlternativos,
+    url: new URL(base, Astro.site).toString(),
+  },
+};
+---
+
+<Base
+  titulo={dic.seoCapituloTitulo(novela.titulo, capitulo.numero, tituloIngles)}
+  descripcion={dic.seoCapituloDesc(novela.titulo, capitulo.numero, alternos, parrafos[0].slice(0, 100))}
+  imagen={novela.portadaUrl}
+  tipo="article"
+  jsonLd={jsonLd}
+>
+  <Fragment slot="head">
+    {anterior && <link rel="prev" href={`${base}/capitulo-${anterior}`} />}
+    {siguiente && <link rel="next" href={`${base}/capitulo-${siguiente}`} />}
+  </Fragment>
+
+  <div class="flex items-center gap-3 text-sm">
+    <a href={base} class="text-base-500 hover:text-acento-500 truncate">
+      ← {novela.titulo}
+    </a>
+    <span class="ml-auto text-base-400 tabular-nums whitespace-nowrap">
+      {capitulo.numero} / {total}
+    </span>
+  </div>
+
+  <header class="mt-4 flex items-start gap-4 flex-wrap">
+    <div class="min-w-0">
+      {/* El H1 lleva el título de la novela: es literalmente lo que se busca. */}
+      <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-base-800 dark:text-base-50">
+        <span class="block text-sm font-medium text-base-500">{novela.titulo}</span>
+        {capitulo.titulo}
+      </h1>
+      <time datetime={capitulo.fechaPublicacion} class="text-sm text-base-400">
+        {new Intl.DateTimeFormat(idioma, { dateStyle: 'long' }).format(new Date(capitulo.fechaPublicacion))}
+      </time>
+    </div>
+
+    {
+      manhwaAqui && (
+        <span class="neu-sm rounded-xl px-3 py-2 text-xs text-base-500 sm:ml-auto">
+          <Fragment set:html={dic.equivaleA(manhwaAqui)} />
+        </span>
+      )
+    }
+  </header>
+
+  <!-- Controles de lectura -->
+  <div class="mt-5 neu-inset rounded-2xl p-2 flex items-center gap-2 flex-wrap">
+    <div class="flex items-center gap-1">
+      <button data-tamano="-" aria-label={dic.reducirTexto} class="neu-sm neu-press rounded-lg size-8 grid place-items-center text-sm">A−</button>
+      <button data-tamano="+" aria-label={dic.aumentarTexto} class="neu-sm neu-press rounded-lg size-8 grid place-items-center text-sm">A+</button>
+    </div>
+    <ReadTrackerButton slug={novela.slug} numero={capitulo.numero} variante="completo" clase="ml-auto" />
+  </div>
+
+  <article class="prosa-lectura mx-auto mt-8 text-base-700 dark:text-base-300">
+    {parrafos.map((p) => <p>{p}</p>)}
+  </article>
+
+  <nav class="mt-10 flex gap-3" data-nav-caps aria-label={dic.navCapitulos}>
+    {
+      anterior ? (
+        <a href={`${base}/capitulo-${anterior}`} rel="prev" class="neu-sm neu-press rounded-xl px-4 py-3 text-sm flex-1 text-center">
+          {dic.capAnterior(anterior)}
+        </a>
+      ) : (
+        <span class="flex-1" />
+      )
+    }
+    {
+      siguiente ? (
+        <a
+          href={`${base}/capitulo-${siguiente}`}
+          rel="next"
+          data-siguiente
+          class="neu neu-press rounded-xl px-4 py-3 text-sm font-medium text-acento-500 flex-1 text-center"
+        >
+          {dic.capSiguiente(siguiente)}
+        </a>
+      ) : (
+        <span class="neu-inset rounded-xl px-4 py-3 text-sm text-base-400 flex-1 text-center">
+          {dic.finPublicado}
+        </span>
+      )
+    }
+  </nav>
+
+  {/* Nombres alternos visibles: el lector que llegó buscando en otro idioma
+      confirma que está en la obra correcta, y el buscador lo indexa. */}
+  <p class="mt-8 text-xs text-base-400 text-center text-balance">
+    {dic.capituloDe(capitulo.numero)} <span class="text-base-500">{novela.titulo}</span>, {dic.tambienPublicada}{' '}
+    <span class="text-base-500">{novela.titulosAlternativos.join(' · ')}</span>.
+  </p>
+</Base>
+
+<script>
+  import { marcarLeido } from '@/lib/progress';
+
+  // El botón de marcado vive en ReadTrackerButton.astro; aquí solo el auto-marcado
+  // al llegar al final del capítulo (el botón se repinta con 'progress:change').
+  const boton = document.querySelector<HTMLButtonElement>('[data-read-tracker]')!;
+  const fin = document.querySelector('[data-nav-caps]')!;
+
+  new IntersectionObserver(
+    ([e]) => {
+      if (e.isIntersecting) marcarLeido(boton.dataset.slug!, +boton.dataset.numero!);
+    },
+    { threshold: 0.4 },
+  ).observe(fin);
+
+  // Tamaño de texto persistente.
+  const TAMANOS = [1, 1.0625, 1.125, 1.25, 1.375, 1.5];
+  let i = TAMANOS.indexOf(parseFloat(localStorage.getItem('mtn:tamano') || '1.125'));
+  if (i < 0) i = 2;
+  const aplicar = () => {
+    const v = `${TAMANOS[i]}rem`;
+    // El script anti-FOUC del layout relee esta var en el primer pintado.
+    document.documentElement.style.setProperty('--tamano-lectura', v);
+    localStorage.setItem('mtn:tamano', v);
+  };
+  aplicar();
+  document.querySelectorAll<HTMLButtonElement>('[data-tamano]').forEach((b) =>
+    b.addEventListener('click', () => {
+      i = Math.min(TAMANOS.length - 1, Math.max(0, i + (b.dataset.tamano === '+' ? 1 : -1)));
+      aplicar();
+    }),
+  );
+
+  // Flechas ← → para saltar de capítulo.
+  document.addEventListener('keydown', (e) => {
+    if (e.target instanceof HTMLInputElement || e.metaKey || e.ctrlKey) return;
+    const sel = e.key === 'ArrowLeft' ? 'prev' : e.key === 'ArrowRight' ? 'next' : null;
+    if (sel) document.querySelector<HTMLAnchorElement>(`a[rel="${sel}"]`)?.click();
+  });
+</script>

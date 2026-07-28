@@ -1,0 +1,104 @@
+---
+import { IDIOMAS, idiomaDeRuta, t } from '@/lib/i18n';
+import { alternativas } from '@/lib/publicables';
+
+/**
+ * Selector de idioma.
+ *
+ * Solo lista los idiomas con URL propia (IDIOMAS en src/lib/i18n.ts), que son
+ * los que Google puede indexar. Para cualquier otro idioma NO cargamos ningún
+ * script: el navegador ya traduce solo — Chrome, Safari y Edge ofrecen traducir
+ * cuando <html lang> no coincide con el idioma del usuario, y lo hacen mejor,
+ * gratis y sin third-party. Nuestra única obligación es mandar un `lang`
+ * correcto (lo hace Base.astro) y marcar con `notranslate` lo que no debe
+ * traducirse (nombres de idioma, títulos originales).
+ *
+ * Esa traducción es invisible para el buscador: sirve al lector, no al SEO.
+ * El SEO en otros idiomas lo dan los títulos alternos en texto visible.
+ */
+const idioma = idiomaDeRuta(Astro.url.pathname);
+const dic = t(idioma);
+const propios = alternativas(Astro.url.pathname);
+---
+
+<div class="relative" id="i18n" data-idioma-actual={idioma}>
+  <button
+    id="i18n-boton"
+    type="button"
+    class="neu-sm neu-press rounded-xl px-2.5 h-9 flex items-center gap-1.5 text-base-500"
+    aria-label={dic.cambiarIdioma}
+  >
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" class="size-4">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18" />
+    </svg>
+    <span class="text-xs font-medium uppercase notranslate">{idioma}</span>
+  </button>
+
+  <div id="i18n-menu" hidden class="absolute right-0 mt-2 w-44 neu rounded-2xl p-2 text-sm z-50">
+    {
+      propios.map((a) => (
+        <a
+          href={a.href}
+          hreflang={a.hreflang}
+          aria-current={a.idioma === idioma ? 'true' : undefined}
+          class="block rounded-xl px-3 py-2 notranslate hover:bg-base-200/60 dark:hover:bg-base-800/60 aria-[current]:text-acento-500 aria-[current]:font-medium"
+        >
+          {IDIOMAS[a.idioma].nombre}
+        </a>
+      ))
+    }
+  </div>
+</div>
+
+<!-- Aviso solo si su idioma tiene versión propia: el resto lo ofrece el navegador -->
+<div
+  id="i18n-sugerencia"
+  hidden
+  class="fixed bottom-4 inset-x-4 sm:left-auto sm:right-6 sm:w-80 neu rounded-2xl p-4 z-50 text-sm"
+  role="status"
+>
+  <p id="i18n-sugerencia-texto" class="text-base-600 dark:text-base-300 notranslate"></p>
+  <div class="mt-3 flex gap-2">
+    <a id="i18n-si" href="#" class="neu-sm neu-press rounded-xl px-3 py-1.5 font-medium text-acento-500 notranslate">
+      {dic.traducir}
+    </a>
+    <button id="i18n-no" class="rounded-xl px-3 py-1.5 text-base-500 notranslate">{dic.noGracias}</button>
+  </div>
+</div>
+
+<script>
+  // Sin imports de datos: los idiomas publicados ya están en el menú renderizado.
+  // Así el cliente no arrastra el caché de traducciones (192 KB) sin necesidad.
+  const RECHAZADO = 'mtn:i18n-no';
+  const actual = document.getElementById('i18n')!.dataset.idiomaActual!;
+
+  const boton = document.getElementById('i18n-boton')!;
+  const menu = document.getElementById('i18n-menu') as HTMLElement;
+  boton.addEventListener('click', () => (menu.hidden = !menu.hidden));
+  document.addEventListener('click', (e) => {
+    if (!(e.target as Element).closest('#i18n')) menu.hidden = true;
+  });
+
+  // Si el visitante habla un idioma que SÍ tiene página propia, se le ofrece esa
+  // URL (mejor que traducir: es contenido real e indexado). Para el resto no
+  // hacemos nada — el navegador ya le habrá ofrecido traducir por su cuenta.
+  const nav = (navigator.language || actual).toLowerCase().split('-')[0];
+
+  if (nav !== actual && !localStorage.getItem(RECHAZADO)) {
+    const destino = menu.querySelector<HTMLAnchorElement>(`a[hreflang^="${nav}"]`);
+    if (destino) {
+      const aviso = document.getElementById('i18n-sugerencia') as HTMLElement;
+      const nombre = new Intl.DisplayNames([nav], { type: 'language' }).of(nav) ?? nav;
+      document.getElementById('i18n-sugerencia-texto')!.textContent =
+        `Esta página también existe en ${nombre}.`;
+      (document.getElementById('i18n-si') as HTMLAnchorElement).href = destino.href;
+      aviso.hidden = false;
+
+      document.getElementById('i18n-no')!.addEventListener('click', () => {
+        localStorage.setItem(RECHAZADO, '1');
+        aviso.hidden = true;
+      });
+    }
+  }
+</script>

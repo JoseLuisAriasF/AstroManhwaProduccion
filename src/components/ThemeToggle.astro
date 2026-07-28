@@ -1,0 +1,50 @@
+---
+import { idiomaDeRuta, t } from '@/lib/i18n';
+
+const dic = t(idiomaDeRuta(Astro.url.pathname));
+
+const opciones = [
+  { valor: 'light', etiqueta: dic.temaClaro, icono: 'M12 3v2m0 14v2m9-9h-2M5 12H3m14.7-6.7-1.4 1.4M7.7 16.3l-1.4 1.4m12.4 0-1.4-1.4M7.7 7.7 6.3 6.3M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0' },
+  { valor: 'dark', etiqueta: dic.temaOscuro, icono: 'M20 13.5A8 8 0 1 1 10.5 4a6.5 6.5 0 0 0 9.5 9.5Z' },
+  { valor: 'system', etiqueta: dic.temaSistema, icono: 'M4 5h16v10H4zM9 19h6M12 15v4' },
+];
+---
+
+<div class="neu-inset rounded-xl p-1 flex gap-0.5" role="group" aria-label={dic.tema}>
+  {
+    opciones.map((o) => (
+      <button
+        type="button"
+        data-tema={o.valor}
+        title={o.etiqueta}
+        aria-label={`${dic.tema}: ${o.etiqueta}`}
+        class="size-8 grid place-items-center rounded-lg text-base-500 transition-all duration-200 aria-pressed:neu-sm aria-pressed:text-acento-500"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" class="size-4">
+          <path d={o.icono} />
+        </svg>
+      </button>
+    ))
+  }
+</div>
+
+<script>
+  const raiz = document.documentElement;
+  // `button[...]`, no `[data-tema]`: el <html> también lleva ese atributo.
+  const botones = document.querySelectorAll<HTMLButtonElement>('button[data-tema]');
+
+  function aplicar(tema: string) {
+    localStorage.setItem('mtn:tema', tema);
+    raiz.dataset.tema = tema;
+    const oscuro =
+      tema === 'dark' || (tema === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+    raiz.classList.toggle('dark', oscuro);
+    botones.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tema === tema)));
+  }
+
+  botones.forEach((b) => b.addEventListener('click', () => aplicar(b.dataset.tema!)));
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if (raiz.dataset.tema === 'system') aplicar('system');
+  });
+  aplicar(localStorage.getItem('mtn:tema') || 'system');
+</script>

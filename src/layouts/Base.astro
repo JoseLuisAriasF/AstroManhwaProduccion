@@ -1,0 +1,124 @@
+---
+import '@/styles/global.css';
+import Header from '@/components/Header.astro';
+import Footer from '@/components/Footer.astro';
+import { IDIOMAS, IDIOMA_BASE, idiomaDeRuta, t } from '@/lib/i18n';
+import { alternativas } from '@/lib/publicables';
+
+interface Props {
+  titulo: string;
+  descripcion: string;
+  imagen?: string;
+  tipo?: 'website' | 'article' | 'book';
+  jsonLd?: Record<string, unknown>;
+  anchoCompleto?: boolean;
+}
+
+const {
+  titulo,
+  descripcion,
+  imagen = '/og-default.svg',
+  tipo = 'website',
+  jsonLd,
+  anchoCompleto = false,
+} = Astro.props;
+
+const idioma = idiomaDeRuta(Astro.url.pathname);
+const meta = IDIOMAS[idioma];
+const dic = t(idioma);
+
+const canonical = new URL(Astro.url.pathname, Astro.site).toString();
+const imagenAbs = new URL(imagen, Astro.site).toString();
+const idiomasAlternos = alternativas(Astro.url.pathname);
+const SITIO = 'ManhwaToNovel';
+---
+
+<!doctype html>
+<html lang={meta.htmlLang} dir={meta.dir} class="scroll-pt-24">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{titulo}</title>
+    <meta name="description" content={descripcion} />
+    <link rel="canonical" href={canonical} />
+    <link rel="sitemap" href="/sitemap-index.xml" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+
+    {/* Una etiqueta por idioma con URL propia + x-default al idioma base. */}
+    {
+      idiomasAlternos.map((a) => (
+        <link rel="alternate" hreflang={a.hreflang} href={new URL(a.href, Astro.site).toString()} />
+      ))
+    }
+    <link
+      rel="alternate"
+      hreflang="x-default"
+      href={new URL(idiomasAlternos.find((a) => a.idioma === IDIOMA_BASE)!.href, Astro.site).toString()}
+    />
+
+    <meta property="og:type" content={tipo} />
+    <meta property="og:site_name" content={SITIO} />
+    <meta property="og:title" content={titulo} />
+    <meta property="og:description" content={descripcion} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={imagenAbs} />
+    <meta property="og:locale" content={meta.ogLocale} />
+    {
+      idiomasAlternos
+        .filter((a) => a.idioma !== idioma)
+        .map((a) => <meta property="og:locale:alternate" content={IDIOMAS[a.idioma].ogLocale} />)
+    }
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={titulo} />
+    <meta name="twitter:description" content={descripcion} />
+    <meta name="twitter:image" content={imagenAbs} />
+
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Literata:opsz,wght@7..72,400;7..72,500&display=swap"
+    />
+
+    {jsonLd && <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />}
+
+    <slot name="head" />
+
+    {/* Anti-FOUC: corre antes del primer pintado */}
+    <script is:inline>
+      (() => {
+        const t = localStorage.getItem('mtn:tema') || 'system';
+        const oscuro =
+          t === 'dark' ||
+          (t === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.classList.toggle('dark', oscuro);
+        document.documentElement.dataset.tema = t;
+        const tam = localStorage.getItem('mtn:tamano');
+        if (tam) document.documentElement.style.setProperty('--tamano-lectura', tam);
+      })();
+    </script>
+  </head>
+
+  <body class="min-h-dvh flex flex-col">
+    <a
+      href="#contenido"
+      class="sr-only focus:not-sr-only focus:absolute focus:top-3 focus:left-3 focus:z-50 neu rounded-xl px-4 py-2"
+      >{dic.saltarContenido}</a
+    >
+    <Header />
+    <main
+      id="contenido"
+      class:list={[
+        'flex-1 w-full mx-auto px-4 sm:px-6 py-8',
+        anchoCompleto ? 'max-w-6xl' : 'max-w-4xl',
+      ]}
+    >
+      <slot />
+    </main>
+    <Footer />
+
+    <script>
+      import { init } from '@/lib/progress';
+      init();
+    </script>
+  </body>
+</html>

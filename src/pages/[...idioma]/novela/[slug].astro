@@ -1,0 +1,181 @@
+---
+import Base from '@/layouts/Base.astro';
+import ManhwaToNovelBridge from '@/components/ManhwaToNovelBridge.astro';
+import ListaCapitulos from '@/components/ListaCapitulos.astro';
+import SyncExplanationBanner from '@/components/SyncExplanationBanner.astro';
+import { getCapitulos, getEquivalencias, getNovelas } from '@/lib/api';
+import { IDIOMAS, idiomaDeRuta, ruta, t } from '@/lib/i18n';
+import { paramsDeIdioma } from '@/lib/publicables';
+
+export async function getStaticPaths() {
+  const novelas = await getNovelas();
+  return paramsDeIdioma().flatMap(({ idioma }) =>
+    novelas.map((novela) => ({ params: { idioma, slug: novela.slug } })),
+  );
+}
+
+const idioma = idiomaDeRuta(Astro.url.pathname);
+const dic = t(idioma);
+const { slug } = Astro.params;
+
+const novelas = await getNovelas(idioma);
+const novela = novelas.find((n) => n.slug === slug)!;
+const capitulos = await getCapitulos(novela.slug, idioma);
+const anclas = await getEquivalencias(novela.slug);
+
+const base = ruta(idioma, `/novela/${novela.slug}`);
+const url = new URL(base, Astro.site).toString();
+
+// Cómo la busca la gente: el título en inglés suele ser la consulta más común
+// fuera de Latinoamérica, así que va también en el <title>.
+const [tituloIngles] = novela.titulosAlternativos;
+const alternos = novela.titulosAlternativos.join(', ');
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'Book',
+  '@id': url,
+  name: novela.titulo,
+  alternateName: novela.titulosAlternativos,
+  url,
+  description: novela.sinopsis,
+  image: new URL(novela.portadaUrl, Astro.site).toString(),
+  inLanguage: IDIOMAS[idioma].htmlLang,
+  bookFormat: 'https://schema.org/EBook',
+  genre: novela.categorias,
+  numberOfPages: capitulos.length,
+  author: { '@type': 'Organization', name: 'ManhwaToNovel' },
+  potentialAction: {
+    '@type': 'ReadAction',
+    target: {
+      '@type': 'EntryPoint',
+      urlTemplate: `${url}/capitulo-1`,
+      actionPlatform: [
+        'https://schema.org/DesktopWebPlatform',
+        'https://schema.org/MobileWebPlatform',
+      ],
+    },
+  },
+};
+---
+
+<Base
+  titulo={dic.seoNovelaTitulo(novela.titulo, tituloIngles)}
+  descripcion={dic.seoNovelaDesc(novela.titulo, alternos, capitulos.length)}
+  imagen={novela.portadaUrl}
+  tipo="book"
+  jsonLd={jsonLd}
+>
+  <nav class="text-sm text-base-400 mb-5" aria-label="breadcrumb">
+    <a href={ruta(idioma)} class="hover:text-acento-500">{dic.navInicio}</a>
+    <span class="mx-1.5">/</span>
+    <a href={ruta(idioma, '/novelas')} class="hover:text-acento-500">{dic.navNovelas}</a>
+    <span class="mx-1.5">/</span>
+    <span class="text-base-500">{novela.titulo}</span>
+  </nav>
+
+  <article class="neu rounded-2xl p-5 sm:p-6 flex flex-col sm:flex-row gap-6">
+    <img
+      src={novela.portadaUrl}
+      alt={novela.titulo}
+      width="224"
+      height="320"
+      fetchpriority="high"
+      decoding="async"
+      class="w-40 sm:w-56 self-center sm:self-start aspect-[7/10] object-cover rounded-2xl neu-sm"
+    />
+
+    <div class="min-w-0 flex-1">
+      <div class="flex items-center gap-2 text-xs font-medium">
+        <span
+          class:list={[
+            'neu-inset rounded-lg px-2 py-1',
+            novela.estado === 'En emisión' ? 'text-emerald-500' : 'text-base-500',
+          ]}>{novela.estado === 'En emisión' ? dic.enEmision : dic.finalizado}</span
+        >
+        <span class="text-base-400 tabular-nums">{dic.nCapitulos(capitulos.length)}</span>
+      </div>
+
+      <h1 class="mt-2 text-2xl sm:text-3xl font-bold tracking-tight text-base-800 dark:text-base-50 text-balance">
+        {novela.titulo}
+      </h1>
+
+      {/* Texto visible, no meta keywords: es lo que Google indexa de verdad. */}
+      <p class="mt-2 text-sm text-base-500">
+        <span class="text-base-400">{dic.tambienConocida}</span>{' '}
+        <span class="text-base-600 dark:text-base-300">
+          {novela.titulosAlternativos.join(' · ')}
+        </span>
+      </p>
+
+      <div class="mt-3 flex flex-wrap gap-2">
+        {
+          novela.categorias.map((c) => (
+            <span class="text-xs text-base-500 neu-inset rounded-lg px-2 py-1">{c}</span>
+          ))
+        }
+      </div>
+
+      <p class="mt-4 text-base-600 dark:text-base-300 leading-relaxed text-pretty">{novela.sinopsis}</p>
+
+      <div class="mt-5 flex flex-wrap gap-3">
+        <a
+          href={`${base}/capitulo-1`}
+          data-empezar
+          data-base={base}
+          class="neu-sm neu-press rounded-xl px-4 py-2.5 text-sm font-medium text-acento-500"
+        >
+          {dic.empezarALeer}
+        </a>
+        <button
+          data-favorito
+          data-slug={novela.slug}
+          aria-pressed="false"
+          class="neu-sm neu-press rounded-xl px-4 py-2.5 text-sm font-medium flex items-center gap-2 aria-pressed:text-acento-500"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" class="size-4">
+            <path d="M6 4h12v16l-6-4-6 4z" />
+          </svg>
+          <span data-favorito-texto>{dic.guardar}</span>
+        </button>
+      </div>
+    </div>
+  </article>
+
+  <div class="mt-6 grid gap-6">
+    <ManhwaToNovelBridge slug={novela.slug} anclas={anclas} />
+    <SyncExplanationBanner />
+    <ListaCapitulos capitulos={capitulos} slug={novela.slug} />
+  </div>
+</Base>
+
+<script>
+  import { get, toggleFavorito, ultimoLeido } from '@/lib/progress';
+  import { idiomaDeRuta, t } from '@/lib/i18n';
+
+  const dic = t(idiomaDeRuta(location.pathname));
+  const boton = document.querySelector<HTMLButtonElement>('[data-favorito]')!;
+  const slug = boton.dataset.slug!;
+  const texto = boton.querySelector('[data-favorito-texto]')!;
+  const empezar = document.querySelector<HTMLAnchorElement>('[data-empezar]')!;
+  const base = empezar.dataset.base!;
+
+  function pintar() {
+    const fav = get(slug).esFavorito;
+    boton.setAttribute('aria-pressed', String(fav));
+    texto.textContent = fav ? dic.guardada : dic.guardar;
+
+    const n = ultimoLeido(slug);
+    if (n !== null) {
+      empezar.href = `${base}/capitulo-${n + 1}`;
+      empezar.textContent = dic.continuarEnCap(n + 1);
+    }
+  }
+
+  boton.addEventListener('click', () => {
+    toggleFavorito(slug);
+    pintar();
+  });
+  window.addEventListener('progress:synced', pintar);
+  pintar();
+</script>

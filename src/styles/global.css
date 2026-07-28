@@ -1,0 +1,114 @@
+@import 'tailwindcss';
+@config '../../tailwind.config.mjs';
+
+/* Modo oscuro por clase en <html> (lo aplica el script anti-FOUC del layout) */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  /* Superficie y sombras: los dos únicos valores que cambian entre temas */
+  :root {
+    --superficie: #eef0f4;
+    --sombra-clara: rgba(255, 255, 255, 0.9);
+    --sombra-oscura: rgba(163, 172, 189, 0.45);
+  }
+  .dark {
+    --superficie: #171b24;
+    --sombra-clara: rgba(255, 255, 255, 0.035);
+    --sombra-oscura: rgba(0, 0, 0, 0.55);
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background: var(--superficie);
+    font-family: theme(fontFamily.sans);
+    color: theme(colors.base.700);
+    -webkit-font-smoothing: antialiased;
+  }
+  .dark body {
+    color: theme(colors.base.300);
+  }
+
+  ::selection {
+    background: color-mix(in oklab, theme(colors.acento.400) 35%, transparent);
+  }
+
+  :focus-visible {
+    outline: 2px solid theme(colors.acento.500);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  /* Superficie elevada */
+  .neu {
+    background: var(--superficie);
+    border: 1px solid color-mix(in oklab, var(--sombra-oscura) 30%, transparent);
+    box-shadow: theme(boxShadow.neu);
+  }
+
+  .neu-sm {
+    background: var(--superficie);
+    border: 1px solid color-mix(in oklab, var(--sombra-oscura) 25%, transparent);
+    box-shadow: theme(boxShadow.neu-sm);
+  }
+
+  /* Superficie hundida: inputs, tracks, chips */
+  .neu-inset {
+    background: var(--superficie);
+    border: 1px solid color-mix(in oklab, var(--sombra-oscura) 20%, transparent);
+    box-shadow: theme(boxShadow.neu-inset);
+  }
+
+  /* Hundido al pulsar */
+  .neu-press {
+    transition:
+      box-shadow 180ms ease,
+      transform 180ms ease;
+  }
+  .neu-press:active {
+    box-shadow: theme(boxShadow.neu-inset);
+    transform: translateY(1px);
+  }
+
+  /* Cuerpo del capítulo: tipografía de lectura larga */
+  .prosa-lectura {
+    font-family: theme(fontFamily.serif);
+    font-size: var(--tamano-lectura, 1.125rem);
+    line-height: 1.85;
+    max-width: 68ch;
+  }
+  .prosa-lectura p {
+    margin-block: 1.15em;
+    text-wrap: pretty;
+  }
+}
+
+/* Check animado estilo Things 3: el trazo se dibuja al marcar */
+@keyframes trazo-check {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.check-trazo {
+  stroke-dasharray: 22;
+  stroke-dashoffset: 22;
+}
+[data-leido='true'] .check-trazo {
+  animation: trazo-check 320ms cubic-bezier(0.65, 0, 0.35, 1) forwards;
+}
+

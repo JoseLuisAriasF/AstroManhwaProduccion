@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 350 500" width="350" height="500" role="img" aria-label="Nivel Máximo Desde el Primer Día">
+<defs>
+<linearGradient id="fondo" x1="0.15" y1="0" x2="0.85" y2="1"><stop offset="0" stop-color="#3f7d88"/><stop offset="0.55" stop-color="#122a2f"/><stop offset="1" stop-color="#0d1017"/></linearGradient>
+<linearGradient id="velo" x1="0" y1="0.45" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity="0.72"/></linearGradient>
+<linearGradient id="lomo" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#000" stop-opacity="0.45"/><stop offset="1" stop-color="#000" stop-opacity="0"/></linearGradient>
+<radialGradient id="halo" cx="0.72" cy="0.22" r="0.55"><stop offset="0" stop-color="#7fd6e0" stop-opacity="0.55"/><stop offset="1" stop-color="#7fd6e0" stop-opacity="0"/></radialGradient>
+</defs>
+<rect width="350" height="500" fill="url(#fondo)"/>
+<rect width="350" height="500" fill="url(#halo)"/>
+<g opacity="0.14" stroke="#fff" stroke-width="1" fill="none">
+<circle cx="252" cy="140" r="58"/><circle cx="252" cy="140" r="86"/><circle cx="252" cy="140" r="118"/>
+</g>
+<path d="M0 330 C90 285 190 355 350 300 L350 500 L0 500 Z" fill="#000" opacity="0.18"/>
+<rect width="350" height="500" fill="url(#velo)"/>
+<rect x="0" y="0" width="14" height="500" fill="url(#lomo)"/>
+<rect x="18" y="18" width="314" height="464" rx="10" fill="none" stroke="#fff" stroke-opacity="0.16"/>
+<rect x="40" y="42" width="86" height="22" rx="11" fill="#fff" fill-opacity="0.12"/>
+<text x="83" y="57" text-anchor="middle" font-family="Inter,Segoe UI,sans-serif" font-size="10" letter-spacing="2.5" fill="#fff" opacity="0.85">NOVELA</text>
+<text x="40" y="402" font-family="Inter,Segoe UI,sans-serif" font-size="27" font-weight="700" fill="#fff" letter-spacing="-0.4">Nivel Máximo</text><text x="40" y="436" font-family="Inter,Segoe UI,sans-serif" font-size="27" font-weight="700" fill="#fff" letter-spacing="-0.4">Desde el Primer</text><text x="40" y="470" font-family="Inter,Segoe UI,sans-serif" font-size="27" font-weight="700" fill="#fff" letter-spacing="-0.4">Día</text>
+<text x="40" y="512" font-family="Inter,Segoe UI,sans-serif" font-size="13" fill="#fff" opacity="0.55">Max Level From Day One</text>
+</svg>
