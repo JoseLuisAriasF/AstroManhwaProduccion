@@ -37,7 +37,7 @@ const href = ruta(idioma, `/novela/${novela.slug}`);
           novela.estado === 'En emisión' ? 'text-emerald-500' : 'text-base-500',
         ]}>{novela.estado === 'En emisión' ? dic.enEmision : dic.finalizado}</span
       >
-      {totalCapitulos && <span class="text-base-400 tabular-nums">{totalCapitulos} {dic.capitulosCorto}</span>}
+      {totalCapitulos ? <span class="text-base-400 tabular-nums">{totalCapitulos} {dic.capitulosCorto}</span> : null}
     </div>
 
     <h3 class="mt-1.5 font-semibold leading-snug text-base-800 dark:text-base-100">
