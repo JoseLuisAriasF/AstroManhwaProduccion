@@ -102,11 +102,13 @@ const jsonLd = {
 
       <dl class="mt-8 flex justify-center gap-3 flex-wrap text-sm">
         {
-          [
-            [conTotales.length, dic.statNovelas],
-            [conTotales.reduce((s, n) => s + n.total, 0), dic.statCapitulos],
-            ['100%', dic.statGratis],
-          ].map(([valor, etiqueta]) => (
+          (
+            [
+              [conTotales.length, dic.statNovelas],
+              [conTotales.reduce((s, n) => s + n.total, 0), dic.statCapitulos],
+              ['100%', dic.statGratis],
+            ] as const
+          ).filter(([valor]) => valor !== 0).map(([valor, etiqueta]) => (
             <div class="neu-sm rounded-xl px-4 py-2">
               <dt class="sr-only">{etiqueta}</dt>
               <dd>
@@ -160,7 +162,7 @@ const jsonLd = {
                 {novela.titulo}
               </h3>
               <p class="text-xs text-base-400 mt-1 line-clamp-1">{novela.titulosAlternativos[0]}</p>
-              <p class="text-xs text-base-400 tabular-nums mt-1">{dic.nCapitulos(total)}</p>
+              {total > 0 && <p class="text-xs text-base-400 tabular-nums mt-1">{dic.nCapitulos(total)}</p>}
             </div>
           </a>
         ))
