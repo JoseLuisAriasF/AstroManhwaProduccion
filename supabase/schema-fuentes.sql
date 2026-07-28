@@ -15,6 +15,9 @@ create table if not exists public.fuentes (
   sel_titulo text not null,        -- texto del título dentro del item
   sel_enlace text not null,        -- <a> con el href al capítulo
   sel_fecha text,                  -- opcional
+  -- Solo se indexan títulos que empiezan con este prefijo (case-sensitive).
+  -- Sirve para descartar spinoffs, side stories, anuncios, etc. Null = todo.
+  titulo_prefijo text,
   novela_slug text not null,       -- a qué novela del catálogo pertenece
   activa boolean not null default true,
   ultimo_scrape timestamptz,

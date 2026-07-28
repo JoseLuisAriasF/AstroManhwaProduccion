@@ -42,6 +42,7 @@ async function scrapearFuente(f) {
       const titulo = item.find(f.sel_titulo).first().text().trim();
       const href = item.find(f.sel_enlace).first().attr('href');
       if (!titulo || !href) return;
+      if (f.titulo_prefijo && !titulo.startsWith(f.titulo_prefijo)) return;
       encontrados.push({
         fuente_id: f.id,
         novela_slug: f.novela_slug,
