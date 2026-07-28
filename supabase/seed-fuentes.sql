@@ -2,7 +2,7 @@
 -- Selectores verificados contra el HTML real de maehwasup (tema de bloques WP).
 
 insert into public.fuentes
-  (nombre, url_listado, paginas, sel_item, sel_titulo, sel_enlace, sel_fecha, novela_slug)
+  (nombre, url_listado, paginas, sel_item, sel_titulo, sel_enlace, sel_fecha, titulo_prefijo, novela_slug)
 values
   ('Maehwasup',
    'https://maehwasup.com/page/{page}/',
@@ -11,5 +11,6 @@ values
    'h2.wp-block-post-title',
    'h2.wp-block-post-title a',
    '.wp-block-post-date',
+   'Chapter ',  -- descarta "Special Spinoff", "Side Story", etc.
    'return-of-the-mount-hua')
 on conflict (url_listado, novela_slug) do nothing;
