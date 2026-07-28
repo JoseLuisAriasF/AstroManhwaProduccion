@@ -11,5 +11,5 @@ values
    'h2.wp-block-post-title',
    'h2.wp-block-post-title a',
    '.wp-block-post-date',
-   'el-regreso-del-espadachin-solitario')
+   'return-of-the-mount-hua')
 on conflict (url_listado, novela_slug) do nothing;
