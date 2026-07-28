@@ -24,6 +24,10 @@ const novela = novelas.find((n) => n.slug === slug)!;
 const capitulos = await getCapitulos(novela.slug, idioma);
 const externos = await getCapitulosExternos(novela.slug);
 const anclas = await getEquivalencias(novela.slug);
+// Sin capítulos internos, la novela vive fuera: oculto el lector propio,
+// el sync, el puente manhwa↔novela y el CTA de "empezar a leer" (rompería
+// en /capitulo-1). La página muestra la ficha + los enlaces externos.
+const hayLecturaInterna = capitulos.length > 0;
 
 const base = ruta(idioma, `/novela/${novela.slug}`);
 const url = new URL(base, Astro.site).toString();
@@ -95,7 +99,7 @@ const jsonLd = {
             novela.estado === 'En emisión' ? 'text-emerald-500' : 'text-base-500',
           ]}>{novela.estado === 'En emisión' ? dic.enEmision : dic.finalizado}</span
         >
-        <span class="text-base-400 tabular-nums">{dic.nCapitulos(capitulos.length)}</span>
+        {hayLecturaInterna && <span class="text-base-400 tabular-nums">{dic.nCapitulos(capitulos.length)}</span>}
       </div>
 
       <h1 class="mt-2 text-2xl sm:text-3xl font-bold tracking-tight text-base-800 dark:text-base-50 text-balance">
@@ -121,14 +125,16 @@ const jsonLd = {
       <p class="mt-4 text-base-600 dark:text-base-300 leading-relaxed text-pretty">{novela.sinopsis}</p>
 
       <div class="mt-5 flex flex-wrap gap-3">
-        <a
-          href={`${base}/capitulo-1`}
-          data-empezar
-          data-base={base}
-          class="neu-sm neu-press rounded-xl px-4 py-2.5 text-sm font-medium text-acento-500"
-        >
-          {dic.empezarALeer}
-        </a>
+        {hayLecturaInterna && (
+          <a
+            href={`${base}/capitulo-1`}
+            data-empezar
+            data-base={base}
+            class="neu-sm neu-press rounded-xl px-4 py-2.5 text-sm font-medium text-acento-500"
+          >
+            {dic.empezarALeer}
+          </a>
+        )}
         <button
           data-favorito
           data-slug={novela.slug}
@@ -145,9 +151,13 @@ const jsonLd = {
   </article>
 
   <div class="mt-6 grid gap-6">
-    <ManhwaToNovelBridge slug={novela.slug} anclas={anclas} />
-    <SyncExplanationBanner />
-    <ListaCapitulos capitulos={capitulos} slug={novela.slug} />
+    {hayLecturaInterna && (
+      <>
+        <ManhwaToNovelBridge slug={novela.slug} anclas={anclas} />
+        <SyncExplanationBanner />
+        <ListaCapitulos capitulos={capitulos} slug={novela.slug} />
+      </>
+    )}
     <CapitulosExternos capitulos={externos} fuente="Maehwasup" />
   </div>
 </Base>

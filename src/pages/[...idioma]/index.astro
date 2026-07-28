@@ -168,12 +168,11 @@ const jsonLd = {
     </div>
   </section>
 
-  <!-- Últimos capítulos -->
-  <section id="recientes" class="mb-10">
-    <h2 class="font-semibold text-base-800 dark:text-base-100 mb-4">{dic.ultimosCapitulos}</h2>
-    <ul class="grid sm:grid-cols-2 gap-2">
-      {
-        recientes.map(({ novela, capitulo }) => (
+  {recientes.length > 0 && (
+    <section id="recientes" class="mb-10">
+      <h2 class="font-semibold text-base-800 dark:text-base-100 mb-4">{dic.ultimosCapitulos}</h2>
+      <ul class="grid sm:grid-cols-2 gap-2">
+        {recientes.map(({ novela, capitulo }) => (
           <li>
             <a
               href={`${ruta(idioma, `/novela/${novela.slug}`)}/capitulo-${capitulo.numero}`}
@@ -190,10 +189,10 @@ const jsonLd = {
               </time>
             </a>
           </li>
-        ))
-      }
-    </ul>
-  </section>
+        ))}
+      </ul>
+    </section>
+  )}
 
   <!-- Catálogo -->
   <section>
@@ -264,7 +263,9 @@ const jsonLd = {
   const input = document.getElementById('buscador') as HTMLInputElement;
   const vacio = document.getElementById('sin-resultados') as HTMLElement;
   const titulo = document.getElementById('titulo-catalogo') as HTMLElement;
-  const secciones = ['continuar', 'tendencias', 'recientes'].map((id) => document.getElementById(id)!);
+  const secciones = ['continuar', 'tendencias', 'recientes']
+    .map((id) => document.getElementById(id))
+    .filter((s): s is HTMLElement => s !== null);
   const visiblePrevio = new Map(secciones.map((s) => [s, !s.hidden]));
 
   input.addEventListener('input', () => {
