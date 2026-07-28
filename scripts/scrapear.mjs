@@ -26,14 +26,17 @@ export function numeroDe(titulo) {
 
 async function scrapearFuente(f) {
   const encontrados = [];
+  // f.paginas es TECHO de seguridad, no cuenta fija. El loop corta antes
+  // cuando la página no devuelve items o el servidor responde con error.
   for (let p = 1; p <= f.paginas; p++) {
     const pagina = f.url_listado.replace('{page}', String(p));
-    const res = await fetch(pagina, { headers: { 'User-Agent': UA } });
+    const res = await fetch(pagina, { headers: { 'User-Agent': UA }, redirect: 'follow' });
     if (!res.ok) {
-      console.warn(`  ${pagina} → HTTP ${res.status}, se detiene esta fuente`);
+      console.log(`  página ${p} → HTTP ${res.status}, se detiene aquí`);
       break;
     }
     const $ = cheerio.load(await res.text());
+    const antes = encontrados.length;
     $(f.sel_item).each((_, el) => {
       const item = $(el);
       const titulo = item.find(f.sel_titulo).first().text().trim();
@@ -46,9 +49,15 @@ async function scrapearFuente(f) {
         titulo,
         url: new URL(href, pagina).href,
         fecha_texto: f.sel_fecha ? item.find(f.sel_fecha).first().text().trim() || null : null,
+        aprobado: true, // publicable por defecto; el admin desmarca lo que no quiera
       });
     });
-    await espera(2000); // cortesía con el servidor de origen
+    const enEstaPagina = encontrados.length - antes;
+    if (enEstaPagina === 0) {
+      console.log(`  página ${p} vacía, fin del listado`);
+      break;
+    }
+    await espera(1500); // cortesía con el servidor de origen
   }
 
   if (encontrados.length) {

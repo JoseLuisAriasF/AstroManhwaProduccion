@@ -32,9 +32,21 @@ create table if not exists public.capitulos_externos (
   url text not null,               -- enlace a la fuente original
   fecha_texto text,
   visto_en timestamptz not null default now(),
-  aprobado boolean not null default false,  -- el admin decide qué se publica
+  aprobado boolean not null default true,  -- publicable por defecto; el admin desmarca lo que no quiera
   unique (fuente_id, url)
 );
+
+-- Anclas manhwa ↔ novela: entre anclas se interpola linealmente en el sitio.
+-- Se administran a mano (Table Editor o el admin Blazor del usuario).
+create table if not exists public.equivalencias (
+  novela_slug text not null,
+  capitulo_manhwa int not null,
+  capitulo_novela int not null,
+  primary key (novela_slug, capitulo_manhwa)
+);
+
+alter table public.equivalencias enable row level security;
+create policy "lectura publica" on public.equivalencias for select using (true);
 
 create index if not exists capitulos_externos_novela_idx
   on public.capitulos_externos (novela_slug, numero desc);
