@@ -117,7 +117,10 @@ const dic = t(idiomaDeRuta(Astro.url.pathname));
       const q = filtro.value.trim();
       filas.forEach((f) => {
         const cap = f.dataset.cap!;
-        f.hidden = q !== '' && (cap === '' || !cap.startsWith(q));
+        // El atributo `hidden` no gana contra el `display: flex` de Tailwind
+        // en la misma clase, así que forzamos display inline.
+        const ocultar = q !== '' && (cap === '' || !cap.startsWith(q));
+        f.style.display = ocultar ? 'none' : '';
       });
     });
   }
