@@ -11,7 +11,9 @@ interface Props {
 const { slug, anclas, compacto = false } = Astro.props;
 const idioma = idiomaDeRuta(Astro.url.pathname);
 const dic = t(idioma);
-const maxManhwa = anclas.length ? Math.max(...anclas.map((a) => a.capituloManhwa)) : 0;
+const nums = anclas.map((a) => a.capituloManhwa);
+const minManhwa = nums.length ? Math.min(...nums) : 1;
+const maxManhwa = nums.length ? Math.max(...nums) : 0;
 ---
 
 {
@@ -43,13 +45,14 @@ const maxManhwa = anclas.length ? Math.max(...anclas.map((a) => a.capituloManhwa
           <span class="text-sm text-base-500 whitespace-nowrap">{dic.puenteEtiqueta}</span>
           <input
             type="number"
-            min="1"
-            max={maxManhwa + 50}
-            placeholder={String(maxManhwa || 86)}
+            min={minManhwa}
+            max={maxManhwa}
+            value={maxManhwa || 1}
             data-cruce-input
             aria-label={dic.puenteAria}
             class="w-20 bg-transparent outline-none text-base-800 dark:text-base-100 font-medium tabular-nums"
           />
+          <span class="text-xs text-base-400 tabular-nums whitespace-nowrap">{minManhwa}–{maxManhwa}</span>
         </label>
 
         <button data-cruce-ir class="neu-sm neu-press rounded-xl px-4 py-2 text-sm font-medium text-acento-500" disabled>
