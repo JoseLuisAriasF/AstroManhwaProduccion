@@ -151,9 +151,11 @@ const jsonLd = {
   </article>
 
   <div class="mt-6 grid gap-6">
+    {/* Puente manhwa↔novela: el valor agregado del sitio. Se muestra si hay
+        anclas, aunque no exista lector interno (usa la lista externa). */}
+    <ManhwaToNovelBridge slug={novela.slug} anclas={anclas} />
     {hayLecturaInterna && (
       <>
-        <ManhwaToNovelBridge slug={novela.slug} anclas={anclas} />
         <SyncExplanationBanner />
         <ListaCapitulos capitulos={capitulos} slug={novela.slug} />
       </>
