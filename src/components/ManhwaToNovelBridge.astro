@@ -45,7 +45,7 @@ const maxManhwa = anclas.length ? Math.max(...anclas.map((a) => a.capituloManhwa
             type="number"
             min="1"
             max={maxManhwa + 50}
-            placeholder={String(Math.min(86, maxManhwa))}
+            placeholder={String(maxManhwa || 86)}
             data-cruce-input
             aria-label={dic.puenteAria}
             class="w-20 bg-transparent outline-none text-base-800 dark:text-base-100 font-medium tabular-nums"
