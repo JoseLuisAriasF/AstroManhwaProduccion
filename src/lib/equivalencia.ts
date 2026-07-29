@@ -14,16 +14,10 @@ export function manhwaANovela(anclas: EquivalenciaManhwa[], capManhwa: number): 
   const exacto = a.find((e) => e.capituloManhwa === capManhwa);
   if (exacto) return exacto.capituloNovela;
 
-  // Antes del primer ancla: extrapola con la pendiente del PRIMER tramo,
-  // simétrico al comportamiento hacia adelante. Con anclas 145→207 y
-  // 150→210 la pendiente es 0.6, así manhwa 100 ≈ novela 180.
-  if (capManhwa < a[0].capituloManhwa) {
-    if (a.length === 1) return a[0].capituloNovela;
-    const p = a[1];
-    const pendiente =
-      (p.capituloNovela - a[0].capituloNovela) / (p.capituloManhwa - a[0].capituloManhwa);
-    return Math.max(1, Math.round(a[0].capituloNovela - (a[0].capituloManhwa - capManhwa) * pendiente));
-  }
+  // Fuera del rango de anclas: null. Extrapolar con pendiente local da
+  // resultados absurdos (el manhwa avanza a distinto ritmo en distintas
+  // partes de la historia). Mejor decir "no tenemos suficientes datos".
+  if (capManhwa < a[0].capituloManhwa) return null;
 
   for (let i = 0; i < a.length - 1; i++) {
     const lo = a[i];
@@ -34,12 +28,6 @@ export function manhwaANovela(anclas: EquivalenciaManhwa[], capManhwa: number): 
     }
   }
 
-  // Más allá de la última ancla: extrapola con la pendiente del último tramo.
-  const ultimo = a[a.length - 1];
-  if (a.length === 1) return ultimo.capituloNovela;
-  const previo = a[a.length - 2];
-  const pendiente =
-    (ultimo.capituloNovela - previo.capituloNovela) /
-    (ultimo.capituloManhwa - previo.capituloManhwa);
-  return Math.round(ultimo.capituloNovela + (capManhwa - ultimo.capituloManhwa) * pendiente);
+  // Más allá de la última ancla: null. Misma lógica que hacia atrás.
+  return null;
 }
