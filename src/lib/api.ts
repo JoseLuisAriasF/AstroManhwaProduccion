@@ -64,8 +64,8 @@ export async function getEquivalencias(slug: string): Promise<EquivalenciaManhwa
     .eq('novela_slug', slug)
     .order('capitulo_manhwa');
   if (error) {
-    console.warn(`[equivalencias:${slug}] ${error.message}`);
-    return [];
+    console.warn(`[equivalencias:${slug}] ${error.message} — usando mock`);
+    return equivalencias[slug] ?? [];
   }
   return (data ?? []).map((e) => ({
     capituloManhwa: e.capitulo_manhwa,

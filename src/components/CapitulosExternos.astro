@@ -1,31 +1,50 @@
 ---
 import type { CapituloExterno } from '@/types/novela';
+import { idiomaDeRuta, t } from '@/lib/i18n';
 
 interface Props {
   capitulos: CapituloExterno[];
   fuente: string;
+  slug: string;
 }
 
-const { capitulos, fuente } = Astro.props;
+const { capitulos, fuente, slug } = Astro.props;
+const dic = t(idiomaDeRuta(Astro.url.pathname));
 ---
 
 {
   capitulos.length > 0 && (
-    <section aria-label="Capítulos en la fuente original">
-      <div class="flex items-baseline gap-3 mb-2">
+    <section aria-label="Capítulos en la fuente original" data-caps-externos data-slug={slug}>
+      <div class="flex items-center gap-3 mb-2">
         <h2 class="font-semibold text-base-800 dark:text-base-100">Últimos capítulos publicados</h2>
         <span class="text-sm text-base-400 tabular-nums">({capitulos.length})</span>
+        <label class="neu-inset rounded-xl px-3 py-1.5 ml-auto flex items-center gap-2">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" class="size-4 text-base-400">
+            <circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" stroke-linecap="round" />
+          </svg>
+          <input
+            type="search"
+            data-filtro
+            placeholder={dic.filtroCapitulo}
+            aria-label={dic.filtrarCapitulos}
+            class="w-24 bg-transparent outline-none text-sm"
+          />
+        </label>
       </div>
 
       {/* Decir de dónde sale cada enlace no es letra chica: es el sitio. */}
       <p class="text-sm text-base-500 mb-4">
         Índice de lo que ha publicado <strong class="text-base-600 dark:text-base-300">{fuente}</strong>.
-        Los capítulos se leen en su sitio: cada enlace lleva allí.
+        Los capítulos se leen en su sitio: cada enlace lleva allí y se marca como leído al hacer click.
       </p>
 
       <ol class="grid gap-2">
         {capitulos.map((c) => (
-          <li class="neu-sm rounded-xl flex items-center gap-3 px-3 py-2">
+          <li
+            data-cap={c.numero ?? ''}
+            data-leido="false"
+            class="neu-sm rounded-xl flex items-center gap-3 px-3 py-2 transition-opacity duration-200"
+          >
             <a
               href={c.url}
               target="_blank"
@@ -59,3 +78,47 @@ const { capitulos, fuente } = Astro.props;
     </section>
   )
 }
+
+<script>
+  import { leido, marcarLeido } from '@/lib/progress';
+
+  const lista = document.querySelector<HTMLElement>('[data-caps-externos]');
+  if (lista) {
+    const slug = lista.dataset.slug!;
+    const filas = [...lista.querySelectorAll<HTMLElement>('[data-cap]')];
+
+    // Filas con `numero` conocido pueden marcarse; las de numero null son
+    // spinoffs/tocantes sin equivalencia numérica y quedan fuera del tracking.
+    const conNumero = filas.filter((f) => f.dataset.cap !== '');
+
+    const pintar = () =>
+      conNumero.forEach((f) => {
+        const l = leido(slug, +f.dataset.cap!);
+        f.dataset.leido = String(l);
+        f.style.opacity = l ? '0.6' : '';
+      });
+    pintar();
+
+    // Click en el enlace → marca leído. Como es target=_blank la navegación
+    // no cancela el handler y la escritura en localStorage llega antes del blur.
+    conNumero.forEach((f) => {
+      f.querySelector('a')?.addEventListener('click', () => {
+        marcarLeido(slug, +f.dataset.cap!);
+      });
+    });
+
+    window.addEventListener('progress:change', pintar);
+    window.addEventListener('progress:synced', pintar);
+
+    // Buscador por número. Los spinoffs sin número solo aparecen cuando la
+    // búsqueda está vacía (nada para hacer match).
+    const filtro = lista.querySelector<HTMLInputElement>('[data-filtro]')!;
+    filtro.addEventListener('input', () => {
+      const q = filtro.value.trim();
+      filas.forEach((f) => {
+        const cap = f.dataset.cap!;
+        f.hidden = q !== '' && (cap === '' || !cap.startsWith(q));
+      });
+    });
+  }
+</script>

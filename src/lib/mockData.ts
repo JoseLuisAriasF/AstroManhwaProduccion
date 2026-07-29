@@ -9,8 +9,9 @@ export const novelas: Novela[] = [
   {
     id: 'n1',
     slug: 'return-of-the-mount-hua',
-    titulo: 'Return of the Mount Hua Sect',
+    titulo: 'Regreso de la Secta del Monte Hua',
     titulosAlternativos: [
+      'Return of the Mount Hua Sect',
       'Return of the Blossoming Blade',
       'Hwasan Jaerim',
       '화산귀환',
@@ -24,7 +25,10 @@ export const novelas: Novela[] = [
   },
 ];
 
-export const equivalencias: Record<string, EquivalenciaManhwa[]> = {};
+/** Fallback si Supabase aún no tiene la tabla `equivalencias`. */
+export const equivalencias: Record<string, EquivalenciaManhwa[]> = {
+  'return-of-the-mount-hua': [{ capituloManhwa: 173, capituloNovela: 240 }],
+};
 
 export function capitulosDe(_slug: string): Capitulo[] {
   return [];

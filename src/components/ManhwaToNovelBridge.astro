@@ -80,14 +80,20 @@ const maxManhwa = anclas.length ? Math.max(...anclas.map((a) => a.capituloManhwa
     function calcular() {
       const cap = parseInt(input.value, 10);
       destino = Number.isFinite(cap) ? manhwaANovela(anclas, cap) : null;
-      boton.disabled = destino === null;
       salida.hidden = destino === null;
-      if (destino === null) return;
+      if (destino === null) {
+        boton.disabled = true;
+        return;
+      }
 
       const exacta = anclas.some((a) => a.capituloManhwa === cap);
+      const enPagina = !!document.querySelector(`[data-cap="${destino}"]`);
+      // Sin fuente indexada para ese capítulo, "Ir" iría a 404: se deshabilita.
+      boton.disabled = !enPagina;
       salida.innerHTML =
         dic.puenteResultado(cap, destino) +
-        (exacta ? '' : ` <span class="text-base-400">${dic.puenteAproximado}</span>`);
+        (exacta ? '' : ` <span class="text-base-400">${dic.puenteAproximado}</span>`) +
+        (enPagina ? '' : ' <span class="text-base-400">(aún no indexado en esta fuente)</span>');
 
       // Resalta el capítulo en la lista, si está en esta página.
       document
@@ -98,8 +104,14 @@ const maxManhwa = anclas.length ? Math.max(...anclas.map((a) => a.capituloManhwa
 
     input.addEventListener('input', calcular);
     input.addEventListener('keydown', (e) => e.key === 'Enter' && boton.click());
+    // Si el capítulo destino está en la página (lista externa o interna) hace
+    // scroll y lo resalta. Si no, navega al lector interno. Cubre ambos casos
+    // sin que la Bridge tenga que saber cuál está activo.
     boton.addEventListener('click', () => {
-      if (destino !== null) location.href = `${base}/capitulo-${destino}`;
+      if (destino === null) return;
+      const el = document.querySelector(`[data-cap="${destino}"]`);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      else location.href = `${base}/capitulo-${destino}`;
     });
   });
 </script>

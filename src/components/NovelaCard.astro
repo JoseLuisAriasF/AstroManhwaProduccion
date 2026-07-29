@@ -5,9 +5,11 @@ import type { Novela } from '@/types/novela';
 interface Props {
   novela: Novela;
   totalCapitulos?: number;
+  /** Ej: "1–1948" o "1–50, 53–67". Vacío = no se muestra. */
+  rangos?: string;
 }
 
-const { novela, totalCapitulos } = Astro.props;
+const { novela, totalCapitulos, rangos } = Astro.props;
 const idioma = idiomaDeRuta(Astro.url.pathname);
 const dic = t(idioma);
 const href = ruta(idioma, `/novela/${novela.slug}`);
@@ -38,6 +40,7 @@ const href = ruta(idioma, `/novela/${novela.slug}`);
         ]}>{novela.estado === 'En emisión' ? dic.enEmision : dic.finalizado}</span
       >
       {totalCapitulos ? <span class="text-base-400 tabular-nums">{totalCapitulos} {dic.capitulosCorto}</span> : null}
+      {rangos ? <span class="text-base-400 tabular-nums truncate" title={`Capítulos ${rangos}`}>cap. {rangos}</span> : null}
     </div>
 
     <h3 class="mt-1.5 font-semibold leading-snug text-base-800 dark:text-base-100">
