@@ -14,10 +14,10 @@ export function manhwaANovela(anclas: EquivalenciaManhwa[], capManhwa: number): 
   const exacto = a.find((e) => e.capituloManhwa === capManhwa);
   if (exacto) return exacto.capituloNovela;
 
-  // Fuera del rango de anclas verificadas: null. Preferimos "no sé" sobre
-  // "adivino mal". El sitio muestra el input clampeado al rango real.
-  if (capManhwa < a[0].capituloManhwa) return null;
-  if (capManhwa > a[a.length - 1].capituloManhwa) return null;
+  // Antes del primer ancla no debería pasar: la primera ancla es (1, 1)
+  // (asumido explícitamente en las equivalencias). Si aun así llega algo
+  // menor, devuelve el primer ancla.
+  if (capManhwa < a[0].capituloManhwa) return a[0].capituloNovela;
 
   for (let i = 0; i < a.length - 1; i++) {
     const lo = a[i];
@@ -28,5 +28,12 @@ export function manhwaANovela(anclas: EquivalenciaManhwa[], capManhwa: number): 
     }
   }
 
-  return null; // no debería llegar: los tres casos anteriores cubren el rango
+  // Más allá de la última ancla: extrapola con la pendiente del último tramo.
+  const ultimo = a[a.length - 1];
+  if (a.length === 1) return ultimo.capituloNovela;
+  const previo = a[a.length - 2];
+  const pendiente =
+    (ultimo.capituloNovela - previo.capituloNovela) /
+    (ultimo.capituloManhwa - previo.capituloManhwa);
+  return Math.round(ultimo.capituloNovela + (capManhwa - ultimo.capituloManhwa) * pendiente);
 }
