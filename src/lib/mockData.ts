@@ -28,7 +28,6 @@ export const novelas: Novela[] = [
 /** Fallback si Supabase aún no tiene la tabla `equivalencias`. */
 export const equivalencias: Record<string, EquivalenciaManhwa[]> = {
   'return-of-the-mount-hua': [
-    { capituloManhwa: 1, capituloNovela: 1 }, // el cap 1 del manhwa es el 1 de la novela
     { capituloManhwa: 145, capituloNovela: 207 },
     { capituloManhwa: 150, capituloNovela: 210 }, // manhwa 150 abarca novela 210-211
     { capituloManhwa: 155, capituloNovela: 218 },

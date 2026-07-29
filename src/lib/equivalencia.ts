@@ -14,10 +14,16 @@ export function manhwaANovela(anclas: EquivalenciaManhwa[], capManhwa: number): 
   const exacto = a.find((e) => e.capituloManhwa === capManhwa);
   if (exacto) return exacto.capituloNovela;
 
-  // Antes del primer ancla no debería pasar: la primera ancla es (1, 1)
-  // (asumido explícitamente en las equivalencias). Si aun así llega algo
-  // menor, devuelve el primer ancla.
-  if (capManhwa < a[0].capituloManhwa) return a[0].capituloNovela;
+  // Antes del primer ancla: extrapola con la pendiente del PRIMER tramo,
+  // simétrico al comportamiento hacia adelante. Con anclas 145→207 y
+  // 150→210 la pendiente es 0.6, así manhwa 100 ≈ novela 180.
+  if (capManhwa < a[0].capituloManhwa) {
+    if (a.length === 1) return a[0].capituloNovela;
+    const p = a[1];
+    const pendiente =
+      (p.capituloNovela - a[0].capituloNovela) / (p.capituloManhwa - a[0].capituloManhwa);
+    return Math.max(1, Math.round(a[0].capituloNovela - (a[0].capituloManhwa - capManhwa) * pendiente));
+  }
 
   for (let i = 0; i < a.length - 1; i++) {
     const lo = a[i];
