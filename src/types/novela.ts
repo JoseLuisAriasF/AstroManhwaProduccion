@@ -54,6 +54,9 @@ export interface CapituloExterno {
    */
   idioma: string;
   tipo: 'manhwa' | 'novela';
+  /** Qué fuente (scan) lo publicó. La ficha agrupa por scan, como zonascans. */
+  fuenteId: string;
+  fuenteNombre: string;
 }
 
 export interface UserProgress {

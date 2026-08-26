@@ -61,7 +61,10 @@ export async function scrapearFuente(db, f) {
       ...nuevos.map((i) => ({
         fuente_id: f.id,
         obra_slug: f.obra_slug,
-        numero: i.numero,
+        // La columna es int y el ".5" existe (272.5, 113.5). Se trunca aquí,
+        // donde convergen todos los adaptadores, en vez de en cada uno: el
+        // título conserva el "272.5" visible y el número queda en 272.
+        numero: Number.isFinite(i.numero) ? Math.trunc(i.numero) : null,
         titulo: i.titulo,
         url: i.url,
         fecha_texto: i.fecha_texto,

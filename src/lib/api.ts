@@ -113,21 +113,39 @@ export async function getCapitulo(slug: string, numero: number, idioma: Idioma =
   return c && localizarCapitulo(c, idioma);
 }
 
+/**
+ * Toda la tabla `equivalencias` en UNA lectura, agrupada por slug. Con cientos
+ * de obras, preguntar una por una eran cientos de requests en el build; así es
+ * una sola. La tabla es diminuta (anclas a mano), cabe entera en memoria.
+ */
+let equivalenciasCache: Promise<Map<string, EquivalenciaManhwa[]>> | null = null;
+
+function cargarEquivalencias(): Promise<Map<string, EquivalenciaManhwa[]>> {
+  equivalenciasCache ??= (async () => {
+    const mapa = new Map<string, EquivalenciaManhwa[]>();
+    if (!supabase) {
+      for (const [slug, eqs] of Object.entries(equivalencias)) mapa.set(slug, eqs);
+      return mapa;
+    }
+    try {
+      const filas = await todasLasFilas<any>('equivalencias', 'novela_slug, capitulo_manhwa, capitulo_novela', (q) =>
+        q.order('capitulo_manhwa'),
+      );
+      for (const e of filas) {
+        const lista = mapa.get(e.novela_slug) ?? mapa.set(e.novela_slug, []).get(e.novela_slug)!;
+        lista.push({ capituloManhwa: e.capitulo_manhwa, capituloNovela: e.capitulo_novela });
+      }
+    } catch (e) {
+      console.warn(`[equivalencias] ${(e as Error).message} — usando mock`);
+      for (const [slug, eqs] of Object.entries(equivalencias)) mapa.set(slug, eqs);
+    }
+    return mapa;
+  })();
+  return equivalenciasCache;
+}
+
 export async function getEquivalencias(slug: string): Promise<EquivalenciaManhwa[]> {
-  if (!supabase) return equivalencias[slug] ?? [];
-  const { data, error } = await supabase
-    .from('equivalencias')
-    .select('capitulo_manhwa, capitulo_novela')
-    .eq('novela_slug', slug)
-    .order('capitulo_manhwa');
-  if (error) {
-    console.warn(`[equivalencias:${slug}] ${error.message} — usando mock`);
-    return equivalencias[slug] ?? [];
-  }
-  return (data ?? []).map((e) => ({
-    capituloManhwa: e.capitulo_manhwa,
-    capituloNovela: e.capitulo_novela,
-  }));
+  return (await cargarEquivalencias()).get(slug) ?? equivalencias[slug] ?? [];
 }
 
 /**
@@ -135,62 +153,127 @@ export async function getEquivalencias(slug: string): Promise<EquivalenciaManhwa
  * RLS solo deja leer los aprobados, así que la anon key basta.
  * Sin credenciales devuelve [] y la sección simplemente no se pinta.
  */
-// ponytail: una consulta por obra. Con ~500 obras son ~500 requests por build
-// (memoizados, así que uno por obra y no uno por página × idioma). Si el build
-// se hace lento, cambiar a una sola lectura de toda la tabla agrupada por slug.
-const externosCache = new Map<string, Promise<CapituloExterno[]>>();
-
-export async function getCapitulosExternos(slug: string): Promise<CapituloExterno[]> {
-  if (!supabase) {
-    console.warn(`[externos:${slug}] SIN CLIENTE — falta PUBLIC_SUPABASE_URL / PUBLIC_SUPABASE_ANON_KEY en el build`);
-    return [];
-  }
-  // Cada obra aparece en el índice, en el catálogo y en su ficha, × 7 idiomas.
-  // El memo convierte esas ~10 lecturas idénticas por obra en una sola.
-  if (!externosCache.has(slug)) {
-    externosCache.set(
-      slug,
-      todasLasFilas<CapituloExterno>('capitulos_externos', 'numero, titulo, url, fecha_texto, idioma, tipo', (q) =>
-        q
-          .eq('obra_slug', slug)
-          .eq('aprobado', true)
-          .order('numero', { ascending: false, nullsFirst: false }),
-      ).catch((e: Error) => {
-        console.warn(`[externos:${slug}] ${e.message}`);
-        return [] as CapituloExterno[];
-      }),
-    );
-  }
-  return externosCache.get(slug)!;
+/**
+ * TODA la tabla `capitulos_externos` en una sola pasada paginada, agrupada por
+ * slug y ordenada por número desc. Antes era una consulta por obra: con ~950
+ * obras, ~950 requests que hacían el build de Cloudflare rozar el límite de 20
+ * min. Ahora son unas pocas páginas de 1000 filas. Los 40k+ capítulos son filas
+ * chicas (metadata + enlace), caben de sobra en memoria.
+ */
+/** id de fuente → su nombre, en una lectura. RLS deja leer el nombre a anon. */
+let nombresFuenteCache: Promise<Map<string, string>> | null = null;
+function cargarNombresFuente(): Promise<Map<string, string>> {
+  nombresFuenteCache ??= (async () => {
+    const mapa = new Map<string, string>();
+    try {
+      const filas = await todasLasFilas<any>('fuentes', 'id, nombre', (q) => q);
+      for (const f of filas) mapa.set(f.id, f.nombre);
+    } catch (e) {
+      console.warn(`[fuentes] ${(e as Error).message}`);
+    }
+    return mapa;
+  })();
+  return nombresFuenteCache;
 }
 
+let externosCache: Promise<Map<string, CapituloExterno[]>> | null = null;
+
+function cargarExternos(): Promise<Map<string, CapituloExterno[]>> {
+  externosCache ??= (async () => {
+    const mapa = new Map<string, CapituloExterno[]>();
+    if (!supabase) {
+      console.warn('[externos] SIN CLIENTE — falta PUBLIC_SUPABASE_URL / PUBLIC_SUPABASE_ANON_KEY en el build');
+      return mapa;
+    }
+    try {
+      const nombres = await cargarNombresFuente();
+      const filas = await todasLasFilas<any>(
+        'capitulos_externos',
+        'obra_slug, numero, titulo, url, fecha_texto, idioma, tipo, fuente_id',
+        (q) => q.eq('aprobado', true).order('numero', { ascending: false, nullsFirst: false }),
+      );
+      for (const f of filas) {
+        const lista = mapa.get(f.obra_slug) ?? mapa.set(f.obra_slug, []).get(f.obra_slug)!;
+        lista.push({ ...f, fuenteId: f.fuente_id, fuenteNombre: nombres.get(f.fuente_id) ?? '' });
+      }
+      console.log(`[externos] ${filas.length} capítulos en ${mapa.size} obras`);
+    } catch (e) {
+      console.warn(`[externos] ${(e as Error).message}`);
+    }
+    return mapa;
+  })();
+  return externosCache;
+}
+
+export async function getCapitulosExternos(slug: string): Promise<CapituloExterno[]> {
+  return (await cargarExternos()).get(slug) ?? [];
+}
+
+export interface FuenteVersion {
+  fuenteId: string;
+  nombre: string;
+  tipo: 'manhwa' | 'novela';
+  idioma: string;
+  dominio: string;
+  capitulos: CapituloExterno[];
+  ultimo: number;
+  /**
+   * Cuántos capítulos anunciar en la tarjeta. Para fuentes con lista completa
+   * es el nº indexado; para las "link-out" (Olympus), que traen una sola fila
+   * con el total en `numero`, es ese total. Por eso es el máximo de los dos.
+   */
+  total: number;
+  /** Link-out: una fuente que no lista capítulos, solo enlaza a la serie. */
+  soloEnlace: boolean;
+}
+
+const dominioDe = (u: string) => {
+  try {
+    return new URL(u).hostname.replace(/^www\./, '');
+  } catch {
+    return '';
+  }
+};
+
 /**
- * Las versiones disponibles de una obra, de la más adelantada a la menos:
- * "novela · en · 1948 caps", "manhwa · es · 173 caps"…
+ * Los capítulos de una obra agrupados POR SCAN, como zonascans: cada fuente es
+ * su propia tarjeta —"Samurai Scan · manhwa · es · 240 caps"— con sus capítulos
+ * y su enlace al sitio original. El lector elige el scan y lee ahí.
  *
- * Ese orden es el producto. El lector llega buscando el capítulo 174 del
- * manhwa en español, que no existe todavía, y aquí ve que la novela en inglés
- * ya va por el 1948.
+ * Orden: primero por número de capítulos (la fuente más completa arriba). Así
+ * la respuesta a "¿dónde hay más?" queda de primera, que es a lo que se viene.
  */
-export function versiones(externos: CapituloExterno[]) {
+export function fuentesDe(externos: CapituloExterno[]): FuenteVersion[] {
   const grupos = new Map<string, CapituloExterno[]>();
   for (const c of externos) {
-    const clave = `${c.tipo}|${c.idioma}`;
-    if (!grupos.has(clave)) grupos.set(clave, []);
-    grupos.get(clave)!.push(c);
+    if (!grupos.has(c.fuenteId)) grupos.set(c.fuenteId, []);
+    grupos.get(c.fuenteId)!.push(c);
   }
-  return [...grupos]
-    .map(([clave, capitulos]) => {
-      const [tipo, idioma] = clave.split('|');
+  return [...grupos.values()]
+    .map((capitulos) => {
+      const c0 = capitulos[0];
       const numeros = capitulos.map((c) => c.numero).filter((n): n is number => n !== null);
+      const ultimo = numeros.length ? Math.max(...numeros) : 0;
       return {
-        tipo: tipo as 'manhwa' | 'novela',
-        idioma,
+        fuenteId: c0.fuenteId,
+        nombre: c0.fuenteNombre || dominioDe(c0.url),
+        tipo: c0.tipo,
+        idioma: c0.idioma,
+        dominio: dominioDe(c0.url),
         capitulos,
-        ultimo: numeros.length ? Math.max(...numeros) : 0,
+        ultimo,
+        total: Math.max(capitulos.length, ultimo),
+        // Una sola fila cuyo enlace no apunta a un capítulo concreto sino a la
+        // serie: es una fuente link-out (Olympus). Se muestra como "Ver serie".
+        soloEnlace: capitulos.length === 1 && ultimo > 1,
       };
     })
-    .sort((a, b) => b.ultimo - a.ultimo);
+    .sort((a, b) => b.total - a.total);
+}
+
+/** Qué formatos existen de la obra, para el aviso "Manhwa · Novela". */
+export function formatos(externos: CapituloExterno[]): ('manhwa' | 'novela')[] {
+  return [...new Set(externos.map((c) => c.tipo))].sort();
 }
 
 export { manhwaANovela } from './equivalencia';

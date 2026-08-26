@@ -49,15 +49,32 @@ create table if not exists public.equivalencias (
 );
 
 alter table public.equivalencias enable row level security;
+drop policy if exists "lectura publica" on public.equivalencias;
 create policy "lectura publica" on public.equivalencias for select using (true);
 
-create index if not exists capitulos_externos_novela_idx
-  on public.capitulos_externos (novela_slug, numero desc);
+-- schema-catalogo.sql renombra novela_slug → obra_slug. Este índice se crea
+-- sobre la columna que exista, para que re-correr este archivo después de la
+-- migración no reviente con "column novela_slug does not exist".
+do $$
+declare col text;
+begin
+  select column_name into col
+  from information_schema.columns
+  where table_schema = 'public' and table_name = 'capitulos_externos'
+    and column_name in ('obra_slug', 'novela_slug')
+  order by column_name = 'obra_slug' desc
+  limit 1;
+  execute format(
+    'create index if not exists capitulos_externos_novela_idx on public.capitulos_externos (%I, numero desc)',
+    col
+  );
+end $$;
 
 alter table public.fuentes enable row level security;
 alter table public.capitulos_externos enable row level security;
 
 -- El sitio (anon) solo lee lo aprobado. El scraper escribe con service_role,
 -- que salta RLS por diseño: esa clave vive únicamente en GitHub Secrets.
+drop policy if exists "lectura publica de aprobados" on public.capitulos_externos;
 create policy "lectura publica de aprobados" on public.capitulos_externos
   for select using (aprobado = true);

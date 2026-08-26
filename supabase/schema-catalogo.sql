@@ -56,7 +56,7 @@ create table if not exists public.obras (
 create table if not exists public.sitios (
   id uuid primary key default gen_random_uuid(),
   nombre text not null,
-  plataforma text not null default 'css' check (plataforma in ('madara','mangareader','css','mangadex','sheet')),
+  plataforma text not null default 'css' check (plataforma in ('madara','mangareader','css','mangadex','sheet','wetriedtls','olympus','blogger','manhwaweb')),
   tipo text not null default 'manhwa' check (tipo in ('manhwa','novela')),
   idioma text not null default 'es',
   -- Listado de series con {page} como marcador de paginación.
@@ -128,5 +128,35 @@ do $$
 begin
   alter table public.sitios drop constraint if exists sitios_plataforma_check;
   alter table public.sitios add constraint sitios_plataforma_check
-    check (plataforma in ('madara','mangareader','css','mangadex','sheet'));
+    check (plataforma in ('madara','mangareader','css','mangadex','sheet','wetriedtls','olympus','blogger','manhwaweb'));
 end $$;
+
+-- ── Anclas manhwa ↔ novela ───────────────────────────────────────────────────
+-- Vive originalmente en schema-fuentes.sql, pero se recrea aquí para que correr
+-- SOLO este archivo deje el catálogo completo y no falte la tabla del puente.
+-- El sitio cae al mock si no existe, así que esto solo silencia el aviso y deja
+-- el puente listo por si algún día se cargan anclas a mano.
+create table if not exists public.equivalencias (
+  novela_slug text not null,
+  capitulo_manhwa int not null,
+  capitulo_novela int not null,
+  primary key (novela_slug, capitulo_manhwa)
+);
+
+alter table public.equivalencias enable row level security;
+
+drop policy if exists "lectura publica" on public.equivalencias;
+create policy "lectura publica" on public.equivalencias
+  for select using (true);
+
+-- Que PostgREST la vea al instante, sin esperar el refresco automático.
+notify pgrst, 'reload schema';
+
+-- ── Nombre de la fuente visible al sitio ─────────────────────────────────────
+-- La ficha agrupa los capítulos POR SCAN (estilo zonascans: "Samurai Scan ·
+-- 240 caps"), y para eso necesita el nombre de la fuente. Es solo una etiqueta
+-- pública (el nombre del scan), así que se deja leer a cualquiera. Los INSERT/
+-- UPDATE siguen siendo solo del admin por la otra policy.
+drop policy if exists "lectura publica de fuentes" on public.fuentes;
+create policy "lectura publica de fuentes" on public.fuentes
+  for select using (true);

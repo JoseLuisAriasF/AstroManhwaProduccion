@@ -18,6 +18,7 @@
  */
 import { createClient } from '@supabase/supabase-js';
 import { PLATAFORMAS, espera, slugify, utiles } from './plataformas.mjs';
+import { IndiceObras } from './emparejar.mjs';
 
 // Solo se parte en el PRIMER '=': las URLs de listado traen query string
 // (?m_orderby=latest) y partir en todos se comía medio parámetro.
@@ -30,6 +31,20 @@ const args = Object.fromEntries(
 );
 
 const CORTESIA = 1500; // ms entre páginas del mismo sitio
+
+/** Trae una tabla entera saltando el corte de 1000 filas por request. */
+async function todasLasFilas(db, tabla, columnas) {
+  const TAM = 1000;
+  const todas = [];
+  for (let desde = 0; ; desde += TAM) {
+    const { data, error } = await db.from(tabla).select(columnas).range(desde, desde + TAM - 1);
+    if (error) throw new Error(error.message);
+    if (!data?.length) break;
+    todas.push(...data);
+    if (data.length < TAM) break;
+  }
+  return todas;
+}
 
 /** Sustituye {page} y, si no hay marcador, devuelve la URL tal cual. */
 const pagina = (plantilla, p) => plantilla.replace('{page}', String(p));
@@ -83,34 +98,52 @@ const aFuente = (sitio, serie, slug) => ({
   activa: true,
 });
 
-async function descubrirSitio(db, sitio, seco) {
+/** Todos los nombres por los que se conoce una serie, para emparejar. */
+const nombresDe = (s) => [s.titulo, s.slugBase, ...(s.titulosAlt ?? [])].filter(Boolean);
+
+async function descubrirSitio(db, sitio, indice, seco) {
   const series = await seriesDe(sitio, { limite: Number(args.limite) || Infinity });
   if (!series.length) return 0;
 
   const obras = [];
   const fuentes = [];
   const slugs = new Set();
+  let emparejadas = 0;
   for (const s of series) {
+    // ¿Ya existe esta obra bajo otro nombre o de otra fuente? Si una scan la
+    // tiene como "Regreso de la Secta del Monte Hua" y MangaDex como "Return
+    // of the Mount Hua Sect", ambas caen en el mismo slug y sus capítulos —
+    // manhwa y novela, es y en— se juntan en una sola ficha.
+    const existente = indice.buscar(nombresDe(s));
     // `slugBase` es la identidad de la obra, igual en todos los idiomas; el
     // título visible sí es el localizado. Las scans no lo traen y caen al título.
-    const slug = slugify(s.slugBase ?? s.titulo);
-    if (!slug || slugs.has(slug)) continue; // dos entradas al mismo título
+    const slug = existente ?? slugify(s.slugBase ?? s.titulo);
+    if (!slug || slugs.has(slug)) continue; // dos entradas al mismo título en este sitio
     slugs.add(slug);
-    obras.push({
-      slug,
-      tipo: sitio.tipo,
-      titulo: s.titulo,
-      portada_url: s.portadaUrl || '',
-      // Las scans no dan más que título y portada. MangaDex sí trae títulos en
-      // otros idiomas, estado y géneros, y esos campos entran ya rellenos.
-      // Los títulos alternativos son los que traen tráfico de otros idiomas.
-      ...(s.titulosAlt?.length ? { titulos_alternativos: s.titulosAlt } : {}),
-      ...(s.estado ? { estado: s.estado } : {}),
-      ...(s.categorias?.length ? { categorias: s.categorias } : {}),
-      // sinopsis vacía a propósito: ver el comentario en schema-catalogo.sql.
-    });
+
+    if (existente) {
+      emparejadas++; // la obra ya existe: solo se añade la fuente, no se recrea
+    } else {
+      obras.push({
+        slug,
+        tipo: sitio.tipo,
+        titulo: s.titulo,
+        portada_url: s.portadaUrl || '',
+        // Las scans no dan más que título y portada. MangaDex sí trae títulos en
+        // otros idiomas, estado y géneros, y esos campos entran ya rellenos.
+        // Los títulos alternativos son los que traen tráfico de otros idiomas.
+        ...(s.titulosAlt?.length ? { titulos_alternativos: s.titulosAlt } : {}),
+        ...(s.estado ? { estado: s.estado } : {}),
+        ...(s.categorias?.length ? { categorias: s.categorias } : {}),
+        // sinopsis vacía a propósito: ver el comentario en schema-catalogo.sql.
+      });
+    }
+    // Registrar sus nombres para que las siguientes series (de este sitio o del
+    // siguiente en la misma corrida) también emparejen con ella.
+    indice.registrar(slug, nombresDe(s));
     fuentes.push(aFuente(sitio, s, slug));
   }
+  if (emparejadas) console.log(`    ${emparejadas} emparejadas con obras existentes`);
 
   if (seco) {
     console.log(`    [seco] ${obras.length} obras / ${fuentes.length} fuentes`);
@@ -172,11 +205,18 @@ if (import.meta.main) {
   const { data: sitios, error } = await db.from('sitios').select('*').eq('activo', true);
   if (error) throw new Error(error.message);
 
+  // El índice arranca con TODO el catálogo ya conocido, para que una fuente
+  // nueva empareje con obras descubiertas en corridas anteriores.
+  const indice = new IndiceObras();
+  const previas = await todasLasFilas(db, 'obras', 'slug, titulo, titulos_alternativos');
+  for (const o of previas) indice.registrar(o.slug, [o.titulo, ...(o.titulos_alternativos ?? [])]);
+  console.log(`índice: ${previas.length} obras conocidas`);
+
   let total = 0;
   for (const sitio of sitios ?? []) {
     console.log(`→ ${sitio.nombre} · ${sitio.tipo} · ${sitio.idioma} · ${sitio.plataforma}`);
     try {
-      total += await descubrirSitio(db, sitio, args.seco === 'true');
+      total += await descubrirSitio(db, sitio, indice, args.seco === 'true');
     } catch (e) {
       console.error(`  falló: ${e.message}`); // un sitio roto no tumba el resto
     }

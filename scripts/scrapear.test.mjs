@@ -127,6 +127,102 @@ assert.equal(mdCaps[1].numero, 11, 'el 11.5 trunca a 11');
 assert.equal(mdCaps[1].titulo, 'Capítulo 11.5', 'sin título propio, se compone uno');
 assert.equal(mdCaps[0].fecha_texto, '2026-01-02');
 
+// ── wetriedtls: sintetiza el índice del total en SSR ─────────────────────────
+paginas['https://wt.test/robots.txt'] = 'User-agent: *';
+paginas['https://wt.test/series/una-novela'] = `<html><head>
+    <meta property="og:title" content="Una Novela - We Tried TLS">
+    <meta property="og:image" content="https://wt.test/tapa.png"></head>
+    <body><span>Total chapters</span><span class="x">43</span></body></html>`;
+
+const wtSeries = await PLATAFORMAS.wetriedtls.series('https://wt.test/series/una-novela');
+assert.equal(wtSeries.length, 1);
+assert.equal(wtSeries[0].titulo, 'Una Novela', 'el "- We Tried TLS" se recorta del título');
+assert.equal(wtSeries[0].portadaUrl, 'https://wt.test/tapa.png');
+
+const wtCaps = await PLATAFORMAS.wetriedtls.capitulos('https://wt.test/series/una-novela');
+assert.equal(wtCaps.length, 43, 'un capítulo por número, del total');
+assert.equal(wtCaps[0].numero, 43, 'ordenados de mayor a menor');
+assert.equal(wtCaps[0].url, 'https://wt.test/series/una-novela/chapter-43');
+assert.equal(wtCaps[42].numero, 1, 'empieza en 1');
+
+// ── olympus: catálogo por API + fuente link-out ─────────────────────────────
+json['https://olympusxyz.com/robots.txt'] = 'User-agent: *';
+json['https://olympusxyz.com/api/series?page=1'] = {
+  data: {
+    series: {
+      last_page: 1,
+      data: [
+        { id: 5, name: 'Rayito', slug: 'rayito-20260825-110510525', cover: 'https://o.test/c.webp', type: 'comic', chapter_count: 417 },
+        { id: 6, name: 'Una Novela', slug: 'una-novela-x', cover: '', type: 'novel', chapter_count: 88 },
+      ],
+    },
+  },
+};
+// Filtra por tipo del sitio: un sitio 'manhwa' solo ve los type=comic.
+const olySeries = await PLATAFORMAS.olympus.series('https://olympusxyz.com/api/series?page=1', { tipo: 'manhwa' });
+assert.equal(olySeries.length, 1, 'solo el comic, no la novela');
+assert.equal(olySeries[0].titulo, 'Rayito');
+assert.equal(
+  olySeries[0].url,
+  'https://olympusxyz.com/series/comic-rayito-20260825-110510525#caps=417',
+  'URL pública = comic- + slug, con el total en el fragmento',
+);
+
+const olyCaps = await PLATAFORMAS.olympus.capitulos(olySeries[0].url);
+assert.equal(olyCaps.length, 1, 'link-out: una sola entrada a la serie');
+assert.equal(olyCaps[0].numero, 417, 'lee el total del fragmento');
+assert.equal(olyCaps[0].url, 'https://olympusxyz.com/series/comic-rayito-20260825-110510525', 'enlace sin el #caps');
+
+const olyNov = await PLATAFORMAS.olympus.series('https://olympusxyz.com/api/series?page=1', { tipo: 'novela' });
+assert.equal(olyNov.length, 1, 'como novela, solo el type=novel');
+assert.equal(olyNov[0].titulo, 'Una Novela');
+
+// ── manhwaweb: link-out desde el backend, filtrando por tipo ─────────────────
+json['https://manhwawebbackend-production.up.railway.app/manhwa/library?page=1'] = {
+  next: true,
+  data: [
+    { real_id: 'rey_123', name_esp: 'El Rey', the_real_name: 'The King', _imagen: 'https://mw.test/k.jpg', _tipo: 'manhwa', _numero_cap: '212.5' },
+    { real_id: 'nov_9', name_esp: 'Una Novela MW', _tipo: 'novela', _numero_cap: 40 },
+  ],
+};
+const mwSeries = await PLATAFORMAS.manhwaweb.series(
+  'https://manhwawebbackend-production.up.railway.app/manhwa/library?page=1',
+  { tipo: 'manhwa' },
+);
+assert.equal(mwSeries.length, 1, 'como manhwa, excluye la novela');
+assert.equal(mwSeries[0].titulo, 'El Rey', 'prefiere name_esp');
+assert.equal(mwSeries[0].url, 'https://manhwaweb.com/manhwa/rey_123#caps=212', 'trunca el 212.5 y enlaza a la serie');
+const mwCaps = await PLATAFORMAS.manhwaweb.capitulos(mwSeries[0].url);
+assert.equal(mwCaps[0].numero, 212);
+assert.equal(mwCaps[0].url, 'https://manhwaweb.com/manhwa/rey_123', 'enlace limpio');
+
+// ── blogger: series desde las etiquetas (Novela), capítulos desde el feed ────
+const BLOG = 'https://b.test';
+json[`${BLOG}/robots.txt`] = 'User-agent: *';
+json[`${BLOG}/feeds/posts/default?alt=json&max-results=1`] = {
+  feed: { category: [{ term: 'Monte Hua (Novela)' }, { term: 'Solo Manhwa (Manhwa)' }, { term: 'Ruido suelto' }] },
+};
+const catUrl = `${BLOG}/feeds/posts/default/-/${encodeURIComponent('Monte Hua (Novela)')}`;
+json[`${catUrl}?alt=json&max-results=150&start-index=1`] = {
+  feed: {
+    entry: [
+      { title: { $t: 'Monte Hua (Novela) Capítulo 2' }, link: [{ rel: 'alternate', href: `${BLOG}/c2.html` }], published: { $t: '2026-01-02T00:00:00Z' } },
+      { title: { $t: 'Monte Hua (Novela) Capítulo 1' }, link: [{ rel: 'alternate', href: `${BLOG}/c1.html` }], published: { $t: '2026-01-01T00:00:00Z' } },
+    ],
+  },
+};
+json[`${catUrl}?alt=json&max-results=150&start-index=3`] = { feed: { entry: [] } };
+
+const blSeries = await PLATAFORMAS.blogger.series(`${BLOG}/feeds/posts/default`, { tipo: 'novela' });
+assert.equal(blSeries.length, 1, 'solo las etiquetas (Novela), no el ruido ni el manhwa');
+assert.equal(blSeries[0].titulo, 'Monte Hua', 'quita el marcador (Novela)');
+assert.equal(blSeries[0].url, catUrl);
+const blCaps = await PLATAFORMAS.blogger.capitulos(blSeries[0].url);
+assert.equal(blCaps.length, 2, 'pagina hasta vaciar');
+assert.equal(blCaps[0].numero, 2);
+assert.equal(blCaps[0].url, `${BLOG}/c2.html`);
+assert.equal(blCaps[0].fecha_texto, '2026-01-02');
+
 // ── robots.txt manda ─────────────────────────────────────────────────────────
 await assert.rejects(
   () => PLATAFORMAS.madara.series('https://x.test/wp-admin/algo'),
@@ -138,5 +234,38 @@ await assert.rejects(
 assert.deepEqual(utiles([{ titulo: '', url: 'u' }, { titulo: 't', url: null }, { titulo: 't', url: 'u' }]), [
   { titulo: 't', url: 'u' },
 ]);
+
+// ── el ".5" se trunca al escribir, no revienta la columna int ────────────────
+// (Regresión: leemiau daba data-num="272.5" y Postgres rechazaba el int.)
+{
+  const { scrapearFuente } = await import('./scrapear.mjs');
+  paginas['https://x.test/manga/media/'] = `<div id="chapterlist"><ul>
+      <li data-num="272.5"><a href="https://x.test/media-272-5/" data-chapter-title="Capítulo 272.5"></a></li>
+      <li data-num="272"><a href="https://x.test/media-272/" data-chapter-title="Capítulo 272"></a></li>
+    </ul></div>`;
+
+  let escrito = null;
+  const db = {
+    from: () => ({
+      upsert: async (filas) => ((escrito = filas), { error: null }),
+      update: () => ({ eq: async () => ({ error: null }) }),
+    }),
+  };
+  await scrapearFuente(db, {
+    id: 'f1',
+    obra_slug: 'media',
+    plataforma: 'mangareader',
+    url_listado: 'https://x.test/manga/media/',
+    idioma: 'es',
+    tipo: 'manhwa',
+  });
+  assert.equal(escrito.length, 2);
+  assert.equal(escrito[0].numero, 272, 'el 272.5 se guarda como 272');
+  assert.equal(escrito[0].titulo, 'Capítulo 272.5', 'el título conserva el .5');
+  assert.ok(
+    Number.isInteger(escrito[0].numero) && Number.isInteger(escrito[1].numero),
+    'ningún numero llega a la columna int como decimal',
+  );
+}
 
 console.log('ok');

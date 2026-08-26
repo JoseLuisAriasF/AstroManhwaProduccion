@@ -411,7 +411,163 @@ const sheet = {
   },
 };
 
-export const PLATAFORMAS = { madara, mangareader, css, mangadex, sheet };
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * wetriedtls: Next.js, novelas con capítulos muy adelantados
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Su catálogo se pinta con JavaScript (no hay listado en el HTML del servidor),
+ * pero la PÁGINA DE CADA SERIE sí trae en SSR el título, la portada y el total
+ * de capítulos. Y las URLs de capítulo son deterministas: /series/<slug>/chapter-N.
+ *
+ * Por eso aquí una "fuente" es UNA serie concreta, no un catálogo: se añade la
+ * novela que interesa por su URL. El índice de capítulos se sintetiza del total
+ * (1..N); no se descarga ni una línea del texto, solo se enlaza a la fuente.
+ *
+ * ponytail: numeración contigua 1..N asumida. Si la serie tiene side-stories o
+ * capítulos ".5", esos enlaces darían 404 en el origen (que los ignora sin más).
+ * Basta para un índice; afinar solo si alguna novela lo pide.
+ */
+const wetriedtls = {
+  async series(url) {
+    const $ = await traer(url);
+    const titulo = ($('meta[property="og:title"]').attr('content') || $('title').text())
+      .replace(/\s*[-–|]\s*We Tried TLS\s*$/i, '')
+      .trim();
+    return titulo ? [{ titulo, url, portadaUrl: $('meta[property="og:image"]').attr('content') || '' }] : [];
+  },
+  async capitulos(url) {
+    const $ = await traer(url);
+    let total = 0;
+    $('span').each((_, el) => {
+      if ($(el).text().trim().toLowerCase() === 'total chapters') {
+        total = Number($(el).next().text().replace(/[^\d]/g, '')) || 0;
+      }
+    });
+    const base = url.replace(/\/+$/, '');
+    const caps = [];
+    for (let n = total; n >= 1; n--) {
+      caps.push({ numero: n, titulo: `Chapter ${n}`, url: `${base}/chapter-${n}`, fecha_texto: null });
+    }
+    return caps;
+  },
+};
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * olympus: Nuxt con API de catálogo, sin lista de capítulos
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Su /api/series lista el catálogo (nombre, portada, total, tipo), pero NO
+ * expone la lista de capítulos, y las URLs de capítulo usan ids internos que no
+ * se pueden enumerar. La URL pública de una serie es `comic-` + el slug de la
+ * API (con su timestamp): /series/comic-<slug>.
+ *
+ * Igual que hace zonascans, esta fuente es un "enlace a la serie": una tarjeta
+ * con el conteo de capítulos que lleva a la página de Olympus, donde se lee.
+ * No se listan los capítulos uno a uno porque Olympus no los da.
+ */
+/**
+ * Fuente "link-out": no expone la lista de capítulos, solo el total. La URL de
+ * la serie lleva el conteo en el fragmento (#caps=N) que `series()` puso; el
+ * lector nunca lo ve (el navegador ignora el fragmento). Devuelve una sola
+ * entrada que la ficha pinta como tarjeta con su conteo y el enlace a la serie.
+ * Es lo que hace zonascans con Olympus/ManhwaWeb: no lista, enlaza.
+ */
+async function capitulosEnlace(url) {
+  const [limpia, frag = ''] = url.split('#');
+  const n = Math.trunc(Number(new URLSearchParams(frag).get('caps'))) || 0;
+  if (!n) return [];
+  return [{ numero: n, titulo: `Serie completa · ${n} capítulos`, url: limpia, fecha_texto: null }];
+}
+
+const OLYMPUS = 'https://olympusxyz.com';
+
+const olympus = {
+  async series(url, sitio) {
+    const j = await traerJson(url); // url = /api/series?page=N
+    const data = j?.data?.series?.data ?? [];
+    // El catálogo mezcla cómics y novelas; se filtra por el tipo del sitio.
+    const quiere = sitio?.tipo === 'novela' ? 'novel' : 'comic';
+    return data
+      .filter((s) => (s.type ?? 'comic') === quiere && s.slug)
+      .map((s) => ({
+        titulo: s.name,
+        // Página pública = comic- + el slug de la API. El #caps lo lee capitulos().
+        url: `${OLYMPUS}/series/comic-${s.slug}#caps=${s.chapter_count || 0}`,
+        portadaUrl: s.cover || '',
+      }));
+  },
+  capitulos: capitulosEnlace,
+};
+
+// manhwaweb: SPA con backend público. También agregador (link-out), como Olympus.
+const MW_API = 'https://manhwawebbackend-production.up.railway.app';
+const MW_WEB = 'https://manhwaweb.com';
+
+const manhwaweb = {
+  async series(url, sitio) {
+    const j = await traerJson(url); // url = MW_API/manhwa/library?page=N
+    const data = j?.data ?? [];
+    const quiereNovela = sitio?.tipo === 'novela';
+    return data
+      .filter((x) => (x._tipo === 'novela') === quiereNovela && x.real_id)
+      .map((x) => ({
+        titulo: x.name_esp || x.the_real_name || '',
+        url: `${MW_WEB}/manhwa/${x.real_id}#caps=${Math.trunc(Number(x._numero_cap)) || 0}`,
+        portadaUrl: x._imagen || '',
+      }));
+  },
+  capitulos: capitulosEnlace,
+};
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * blogger: blogs de Blogger que publican un capítulo por post
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Blogger expone un feed JSON público y estable. El patrón habitual: cada post
+ * es un capítulo y su ETIQUETA (categoría) es la serie —"El Regreso ... (Novela)
+ * Capítulo 65" con la etiqueta "El Regreso ... (Novela)". El feed lista todas
+ * las etiquetas de una vez, así que las series se sacan sin recorrer nada.
+ *
+ * Solo se toman las etiquetas con marcador de tipo entre paréntesis —(Novela),
+ * (Manhwa)…—; el resto de un blog así suele ser ruido (títulos sueltos usados
+ * como etiqueta). El texto del capítulo nunca se copia: se enlaza al post.
+ */
+const MARCA_TIPO = /\s*\((novela|novel|manhwa|manga|manhua)\)\s*/i;
+const esNovela = (cat) => /\((novela|novel)\)/i.test(cat);
+
+const blogger = {
+  async series(url, sitio) {
+    const base = url.replace(/\/feeds\/.*$/, ''); // origen del blog
+    const j = await traerJson(`${base}/feeds/posts/default?alt=json&max-results=1`);
+    const cats = (j?.feed?.category ?? []).map((c) => c.term).filter((c) => MARCA_TIPO.test(c));
+    const quiere = sitio?.tipo === 'manhwa' ? (c) => !esNovela(c) : esNovela;
+    return cats.filter(quiere).map((cat) => ({
+      titulo: cat.replace(MARCA_TIPO, ' ').trim(),
+      url: `${base}/feeds/posts/default/-/${encodeURIComponent(cat)}`,
+      portadaUrl: '',
+    }));
+  },
+  async capitulos(url) {
+    const caps = [];
+    // El feed devuelve tandas (~60); se avanza con start-index hasta vaciar.
+    for (let start = 1, iter = 0; iter < 500; iter++) {
+      const j = await traerJson(`${url}?alt=json&max-results=150&start-index=${start}`);
+      const entradas = j?.feed?.entry ?? [];
+      if (!entradas.length) break;
+      for (const e of entradas) {
+        const titulo = e.title?.$t ?? '';
+        const link = (e.link ?? []).find((l) => l.rel === 'alternate')?.href;
+        if (!link) continue;
+        caps.push({ numero: numeroDe(titulo), titulo, url: link, fecha_texto: e.published?.$t?.slice(0, 10) ?? null });
+      }
+      start += entradas.length;
+      await espera(250);
+    }
+    return caps;
+  },
+};
+
+export const PLATAFORMAS = { madara, mangareader, css, mangadex, sheet, wetriedtls, olympus, blogger, manhwaweb };
 
 /** Descarta lo que no sirve para indexar: sin título o sin enlace. */
 export const utiles = (items) => items.filter((i) => i.titulo && i.url);

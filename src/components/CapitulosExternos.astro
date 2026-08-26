@@ -2,39 +2,34 @@
 import type { CapituloExterno } from '@/types/novela';
 import { IDIOMAS, esIdioma, idiomaDeRuta, t } from '@/lib/i18n';
 
-interface Version {
+interface Fuente {
+  fuenteId: string;
+  nombre: string;
   tipo: 'manhwa' | 'novela';
   idioma: string;
+  dominio: string;
   ultimo: number;
+  total: number;
+  soloEnlace: boolean;
   capitulos: CapituloExterno[];
 }
 
 interface Props {
-  versiones: Version[];
+  fuentes: Fuente[];
   slug: string;
 }
 
-const { versiones, slug } = Astro.props;
+const { fuentes, slug } = Astro.props;
 const dic = t(idiomaDeRuta(Astro.url.pathname));
 
-/** "Novela · English" — el nombre del idioma en su propio idioma. */
-const nombre = (v: Version) =>
-  `${v.tipo === 'manhwa' ? 'Manhwa' : 'Novela'} · ${esIdioma(v.idioma) ? IDIOMAS[v.idioma].nombre : v.idioma.toUpperCase()}`;
-
-const clave = (v: Version) => `${v.tipo}-${v.idioma}`;
-const dominio = (u: string) => {
-  try {
-    return new URL(u).hostname.replace(/^www\./, '');
-  } catch {
-    return '';
-  }
-};
+const idiomaNombre = (i: string) => (esIdioma(i) ? IDIOMAS[i].nombre : i.toUpperCase());
+const etiquetaTipo = (tipo: 'manhwa' | 'novela') => (tipo === 'manhwa' ? 'Manhwa' : 'Novela');
 ---
 
 {
-  versiones.length > 0 && (
-    <section aria-label="Capítulos en las fuentes originales" data-caps-externos data-slug={slug}>
-      <div class="flex items-center gap-3 mb-2">
+  fuentes.length > 0 && (
+    <section aria-label="Fuentes donde leer" data-caps-externos data-slug={slug}>
+      <div class="flex items-center gap-3 mb-3">
         <h2 class="font-semibold text-base-800 dark:text-base-100">Dónde leerla</h2>
         <label class="neu-inset rounded-xl px-3 py-1.5 ml-auto flex items-center gap-2">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" class="size-4 text-base-400">
@@ -51,36 +46,50 @@ const dominio = (u: string) => {
       </div>
 
       {/*
-        Las versiones vienen ordenadas por capítulo más alto. Esa primera
-        pestaña es la respuesta a "¿dónde hay más?", que es a lo que vino
-        el lector: el manhwa en español va por el 173 y la novela en inglés
-        por el 1948.
+        Una tarjeta por scan, como zonascans. Se pican para elegir la fuente;
+        vienen ordenadas por número de capítulos, la más completa primero.
       */}
-      <div class="flex flex-wrap gap-2 mb-3" role="tablist">
-        {versiones.map((v, i) => (
+      <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4" role="tablist">
+        {fuentes.map((f, i) => (
           <button
             role="tab"
-            data-version={clave(v)}
+            data-fuente={f.fuenteId}
             aria-selected={i === 0 ? 'true' : 'false'}
-            class="neu-sm neu-press rounded-xl px-3 py-1.5 text-sm aria-selected:text-acento-500"
+            class="neu-sm neu-press rounded-2xl p-3 text-left flex flex-col gap-1 aria-selected:ring-2 aria-selected:ring-acento-500/60"
           >
-            {nombre(v)}
-            <span class="ml-1.5 text-xs text-base-400 tabular-nums">{v.ultimo || v.capitulos.length}</span>
+            <div class="flex items-center gap-2">
+              <span
+                class:list={[
+                  'text-[11px] font-medium rounded-lg px-2 py-0.5 neu-inset',
+                  f.tipo === 'novela' ? 'text-acento-500' : 'text-emerald-500',
+                ]}
+              >
+                {etiquetaTipo(f.tipo)}
+              </span>
+              <span class="text-[11px] text-base-400">{idiomaNombre(f.idioma)}</span>
+            </div>
+            <span class="font-semibold text-base-800 dark:text-base-100 truncate">{f.nombre}</span>
+            <span class="text-sm text-base-400 tabular-nums">
+              {f.total} {dic.capitulosCorto}
+              {!f.soloEnlace && f.ultimo > 0 && <span class="text-base-500"> · último {f.ultimo}</span>}
+            </span>
           </button>
         ))}
       </div>
 
-      {versiones.map((v, i) => (
-        <div data-panel={clave(v)} hidden={i !== 0}>
+      {fuentes.map((f, i) => (
+        <div data-panel={f.fuenteId} hidden={i !== 0}>
           {/* Decir de dónde sale cada enlace no es letra chica: es el sitio. */}
-          <p class="text-sm text-base-500 mb-4">
-            {v.capitulos.length} capítulos indexados en{' '}
-            <strong class="text-base-600 dark:text-base-300">{dominio(v.capitulos[0].url)}</strong>. Se leen
-            allí: cada enlace lleva a la fuente original y se marca como leído al hacer click.
+          <p class="text-sm text-base-500 mb-3">
+            {etiquetaTipo(f.tipo)} en {idiomaNombre(f.idioma)}, {f.total} capítulos en{' '}
+            <strong class="text-base-600 dark:text-base-300">{f.dominio}</strong>.
+            {f.soloEnlace
+              ? ' Esta fuente no lista los capítulos aquí: el enlace lleva a su página, donde se elige y se lee.'
+              : ' Se leen allí: cada enlace lleva a la fuente original y se marca como leído al hacer click.'}
           </p>
 
           <ol class="grid gap-2">
-            {v.capitulos.map((c) => (
+            {f.capitulos.map((c) => (
               <li
                 data-cap={c.numero ?? ''}
                 data-leido="false"
@@ -107,7 +116,7 @@ const dominio = (u: string) => {
                   >
                     <path d="M7 17 17 7M9 7h8v8" />
                   </svg>
-                  <span class="sr-only">(se abre en {dominio(c.url)})</span>
+                  <span class="sr-only">(se abre en {f.dominio})</span>
                 </a>
 
                 {c.fecha_texto && (
@@ -134,8 +143,8 @@ const dominio = (u: string) => {
     // spinoffs/tocantes sin equivalencia numérica y quedan fuera del tracking.
     const conNumero = filas.filter((f) => f.dataset.cap !== '');
 
-    // El progreso es por obra, no por versión: leer el capítulo 40 del manhwa
-    // en inglés lo marca también en la lista en español. Es el mismo capítulo.
+    // El progreso es por obra, no por scan: leer el capítulo 40 en una fuente
+    // lo marca también en las demás. Es el mismo capítulo de la misma historia.
     const pintar = () =>
       conNumero.forEach((f) => {
         const l = leido(slug, +f.dataset.cap!);
@@ -155,26 +164,24 @@ const dominio = (u: string) => {
     window.addEventListener('progress:change', pintar);
     window.addEventListener('progress:synced', pintar);
 
-    // Pestañas: manhwa/es, novela/en…
-    const pestañas = [...lista.querySelectorAll<HTMLButtonElement>('[data-version]')];
-    pestañas.forEach((b) =>
+    // Tarjetas de scan: al elegir una, se muestra su lista de capítulos.
+    const tarjetas = [...lista.querySelectorAll<HTMLButtonElement>('[data-fuente]')];
+    tarjetas.forEach((b) =>
       b.addEventListener('click', () => {
-        pestañas.forEach((o) => o.setAttribute('aria-selected', String(o === b)));
+        tarjetas.forEach((o) => o.setAttribute('aria-selected', String(o === b)));
         lista.querySelectorAll<HTMLElement>('[data-panel]').forEach((p) => {
-          p.hidden = p.dataset.panel !== b.dataset.version;
+          p.hidden = p.dataset.panel !== b.dataset.fuente;
         });
       }),
     );
 
-    // Buscador por número. Los spinoffs sin número solo aparecen cuando la
-    // búsqueda está vacía (nada para hacer match).
+    // Buscador por número, dentro del scan visible. Los spinoffs sin número
+    // solo aparecen cuando la búsqueda está vacía (nada para hacer match).
     const filtro = lista.querySelector<HTMLInputElement>('[data-filtro]')!;
     filtro.addEventListener('input', () => {
       const q = filtro.value.trim();
       filas.forEach((f) => {
         const cap = f.dataset.cap!;
-        // El atributo `hidden` no gana contra el `display: flex` de Tailwind
-        // en la misma clase, así que forzamos display inline.
         const ocultar = q !== '' && (cap === '' || !cap.startsWith(q));
         f.style.display = ocultar ? 'none' : '';
       });

@@ -32,6 +32,35 @@ values
   ('MangaDex pt', 'mangadex', 'manhwa', 'pt',
    'https://api.mangadex.org/manga?limit=100&offset={page}&availableTranslatedLanguage[]=pt-br&originalLanguage[]=ko&order[followedCount]=desc&includes[]=cover_art&contentRating[]=safe&contentRating[]=suggestive', 30, true),
 
+  -- Olympus: catálogo en español (cómics y novelas). No expone la lista de
+  -- capítulos, así que —igual que zonascans— cada serie es una tarjeta que
+  -- enlaza a Olympus para leer. `type` en la API filtra comic vs novel; el
+  -- adaptador lo cruza con el `tipo` de estas filas.
+  ('Olympus', 'olympus', 'manhwa', 'es',
+   'https://olympusxyz.com/api/series?page={page}&order[followedCount]=desc', 60, true),
+  ('Olympus (novelas)', 'olympus', 'novela', 'es',
+   'https://olympusxyz.com/api/series?page={page}&order[followedCount]=desc', 60, true),
+
+  -- manhwaweb: agregador con backend público. Link-out como Olympus. El
+  -- catálogo (nombre, portada, tipo, total) sale de /manhwa/library; se enlaza
+  -- a su página de serie. Una fila para manhwa, otra para novelas.
+  ('ManhwaWeb', 'manhwaweb', 'manhwa', 'es',
+   'https://manhwawebbackend-production.up.railway.app/manhwa/library?page={page}', 200, true),
+  ('ManhwaWeb (novelas)', 'manhwaweb', 'novela', 'es',
+   'https://manhwawebbackend-production.up.railway.app/manhwa/library?page={page}', 200, true),
+
+  -- animeshoy12: blog de Blogger, un post por capítulo, etiqueta = serie. Son
+  -- ~2.700 novelas en español con lista de capítulos completa (no link-out).
+  ('Animeshoy', 'blogger', 'novela', 'es',
+   'https://animeshoy12.blogspot.com/feeds/posts/default', 1, true),
+
+  -- wetriedtls: novelas en inglés con capítulos muy adelantados. Su catálogo
+  -- es client-side, así que NO se descubre entero: se añade UNA novela por fila
+  -- (url_series = la página de la serie). El emparejado la une con la misma
+  -- obra si ya existe en MangaDex u otra fuente. Añade las que te interesen.
+  ('We Tried TLS · Alone Against the Tower', 'wetriedtls', 'novela', 'en',
+   'https://wetriedtls.com/series/alone-against-the-tower', 1, true),
+
   -- toonflip: Google Sheet servida por Apps Script. 52 obras, títulos en
   -- tailandés, enlaces a lectores tailandeses. Añadido porque se pidió, pero
   -- desactivado (activo=false): su público no es el de este sitio en español.
