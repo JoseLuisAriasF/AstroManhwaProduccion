@@ -91,7 +91,9 @@ async function descubrirSitio(db, sitio, seco) {
   const fuentes = [];
   const slugs = new Set();
   for (const s of series) {
-    const slug = slugify(s.titulo);
+    // `slugBase` es la identidad de la obra, igual en todos los idiomas; el
+    // título visible sí es el localizado. Las scans no lo traen y caen al título.
+    const slug = slugify(s.slugBase ?? s.titulo);
     if (!slug || slugs.has(slug)) continue; // dos entradas al mismo título
     slugs.add(slug);
     obras.push({
@@ -99,6 +101,12 @@ async function descubrirSitio(db, sitio, seco) {
       tipo: sitio.tipo,
       titulo: s.titulo,
       portada_url: s.portadaUrl || '',
+      // Las scans no dan más que título y portada. MangaDex sí trae títulos en
+      // otros idiomas, estado y géneros, y esos campos entran ya rellenos.
+      // Los títulos alternativos son los que traen tráfico de otros idiomas.
+      ...(s.titulosAlt?.length ? { titulos_alternativos: s.titulosAlt } : {}),
+      ...(s.estado ? { estado: s.estado } : {}),
+      ...(s.categorias?.length ? { categorias: s.categorias } : {}),
       // sinopsis vacía a propósito: ver el comentario en schema-catalogo.sql.
     });
     fuentes.push(aFuente(sitio, s, slug));

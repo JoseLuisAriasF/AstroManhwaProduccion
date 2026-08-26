@@ -90,6 +90,16 @@ export async function traer(url, { metodo = 'GET', ms = 20000 } = {}) {
   return cheerio.load(await res.text());
 }
 
+export async function traerJson(url, { ms = 20000 } = {}) {
+  if (!(await permitido(url))) throw new Error(`robots.txt lo prohíbe: ${url}`);
+  const res = await fetch(url, {
+    headers: { 'User-Agent': UA, Accept: 'application/json' },
+    signal: AbortSignal.timeout(ms),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
 /** La portada real detrás del lazy-load. Descarta los placeholders en data:. */
 function imagen($, el) {
   const img = $(el).find('img').first();
@@ -219,7 +229,189 @@ const css = {
   },
 };
 
-export const PLATAFORMAS = { madara, mangareader, css };
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * MangaDex: API pública, no scraping
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Es la fuente más valiosa de las cuatro y la única que no depende de que un
+ * tema de WordPress no cambie mañana. Un endpoint documentado, sin HTML frágil,
+ * y —lo importante para este sitio— el feed de capítulos se pide POR IDIOMA:
+ * una fila de `sitios` por idioma y la misma obra aparece con 158 capítulos en
+ * español y 320 en inglés, que es justo la comparación que la ficha enseña.
+ *
+ * Trae además títulos alternativos, estado y géneros ya normalizados, así que
+ * las obras nacen con la metadata que en las scans hay que rellenar a mano.
+ *
+ * Solo se guardan metadata y el enlace a mangadex.org. Las páginas de cada
+ * capítulo viven en /at-home/, que su robots.txt prohíbe y aquí nunca se toca.
+ */
+const API = 'https://api.mangadex.org';
+
+/**
+ * MangaDex nombra al portugués `pt-br`. La BD guarda el código del sitio ('pt')
+ * para que la ficha muestre "Português" y no "PT-BR", y la traducción ocurre
+ * solo aquí, al hablar con la API. El resto de nuestros idiomas coincide.
+ */
+const IDIOMA_MD = { pt: 'pt-br' };
+const aMangaDex = (i) => IDIOMA_MD[i] ?? i;
+
+/** El título en el idioma del sitio si existe; si no, inglés; si no, el que haya. */
+function mejorTitulo(attrs, idioma) {
+  const alt = Object.assign({}, ...(attrs.altTitles ?? []));
+  const md = aMangaDex(idioma);
+  return (
+    attrs.title?.[idioma] ||
+    alt[idioma] ||
+    attrs.title?.[md] ||
+    alt[md] ||
+    attrs.title?.en ||
+    alt.en ||
+    Object.values(attrs.title ?? {})[0] ||
+    ''
+  );
+}
+
+const mangadex = {
+  async series(url, sitio) {
+    // `descubrir.mjs` sustituye {page} por 1, 2, 3…, pero la API pagina por
+    // offset absoluto. La conversión vive aquí para que el resto del pipeline
+    // siga tratando a MangaDex como a cualquier otro sitio.
+    const u = new URL(url);
+    const limite = Number(u.searchParams.get('limit')) || 100;
+    const p = Number(u.searchParams.get('offset')) || 1;
+    u.searchParams.set('offset', String((p - 1) * limite));
+
+    const j = await traerJson(u.href);
+    const idioma = sitio?.idioma ?? 'es';
+    return (j.data ?? []).map((m) => {
+      const a = m.attributes;
+      const portada = m.relationships?.find((r) => r.type === 'cover_art')?.attributes?.fileName;
+      const titulo = mejorTitulo(a, idioma);
+      return {
+        titulo,
+        // El slug SIEMPRE sale del título en inglés, no del localizado. Sin
+        // esto, las filas es/en/pt crearían tres obras distintas de la misma
+        // historia ("Lector omnisciente", "Omniscient Reader's Viewpoint"…) y
+        // se perdería la comparación entre idiomas, que es todo el producto.
+        slugBase: mejorTitulo(a, 'en') || titulo,
+        url: `https://mangadex.org/title/${m.id}`,
+        // .256.jpg: la miniatura. La original pesa megas y aquí solo se enlaza.
+        portadaUrl: portada ? `https://uploads.mangadex.org/covers/${m.id}/${portada}.256.jpg` : '',
+        titulosAlt: [
+          ...new Set(
+            (a.altTitles ?? []).flatMap((t) => Object.values(t)).filter((t) => t && t !== titulo),
+          ),
+        ].slice(0, 8),
+        estado: a.status === 'ongoing' ? 'En emisión' : 'Finalizado',
+        categorias: (a.tags ?? [])
+          .filter((t) => t.attributes?.group === 'genre')
+          .map((t) => t.attributes.name.es || t.attributes.name.en)
+          .slice(0, 6),
+      };
+    });
+  },
+
+  async capitulos(url, f) {
+    const id = url.match(/title\/([0-9a-f-]{36})/i)?.[1];
+    if (!id) throw new Error(`no es una URL de MangaDex: ${url}`);
+    const idioma = f?.idioma ?? 'es';
+
+    // El feed corta a 500. Se pagina hasta agotarlo: hay obras con 1.000+.
+    const capitulos = [];
+    for (let offset = 0; ; offset += 500) {
+      const j = await traerJson(
+        `${API}/manga/${id}/feed?limit=500&offset=${offset}` +
+          `&translatedLanguage[]=${aMangaDex(idioma)}&order[chapter]=desc&includes[]=scanlation_group`,
+      );
+      capitulos.push(...(j.data ?? []));
+      if (capitulos.length >= (j.total ?? 0) || !j.data?.length) break;
+      await espera(300); // la API pide ~5 req/s; esto va muy por debajo
+    }
+
+    // Un mismo capítulo lo suben varios grupos. Sin esto, "cap. 12" saldría
+    // tres veces en la lista. Gana el primero, que es el más reciente.
+    const porNumero = new Map();
+    for (const c of capitulos) {
+      const clave = c.attributes.chapter ?? `x-${c.id}`;
+      if (porNumero.has(clave)) continue;
+      porNumero.set(clave, {
+        numero: c.attributes.chapter ? Math.trunc(Number(c.attributes.chapter)) || null : null,
+        titulo: c.attributes.title || `Capítulo ${c.attributes.chapter ?? '?'}`,
+        url: `https://mangadex.org/chapter/${c.id}`,
+        fecha_texto: c.attributes.publishAt?.slice(0, 10) ?? null,
+      });
+    }
+    return [...porNumero.values()];
+  },
+};
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * sheet: agregador respaldado por una Google Sheet (Apps Script)
+ * ─────────────────────────────────────────────────────────────────────────────
+ * El patrón de toonflip y muchos agregadores caseros: una hoja de cálculo
+ * servida como JSON, un array plano de filas {title, image, links, chapter}.
+ * No hay índice de capítulos, solo el ÚLTIMO número y los enlaces a los sitios
+ * donde leerlo. Encaja igual en el modelo: cada fila es una obra, y sus enlaces
+ * son "dónde leerla" (una entrada por sitio espejo, marcada con el capítulo).
+ *
+ * La hoja entera es un solo request, así que se memoiza: 52 obras no son 52
+ * descargas. La clave es el endpoint sin fragmento.
+ */
+const sheetCache = new Map();
+async function hoja(endpoint) {
+  if (!sheetCache.has(endpoint)) sheetCache.set(endpoint, traerJson(endpoint));
+  const filas = await sheetCache.get(endpoint);
+  return Array.isArray(filas) ? filas : [];
+}
+
+// La primera línea del título suele ser el nombre local y la segunda el inglés.
+const primeraLinea = (t) => String(t).split(/\\n|\n/)[0].trim();
+
+const sheet = {
+  async series(url) {
+    // url = endpoint del Apps Script. El fragmento identifica la fila en
+    // capitulos(); aquí se ignora y se lee la hoja completa.
+    const endpoint = url.split('#')[0];
+    return (await hoja(endpoint))
+      .filter((f) => f.title && f.links)
+      .map((f) => ({
+        titulo: primeraLinea(f.title),
+        // Cada obra "vive" en el endpoint + su título: así capitulos() la
+        // reencuentra sin un segundo esquema de identidad.
+        url: `${endpoint}#${encodeURIComponent(primeraLinea(f.title))}`,
+        // r2:... son referencias a un bucket privado que necesita firma; no son
+        // URLs servibles, así que se descartan y la portada la pone el admin.
+        portadaUrl: /^https?:\/\//.test(f.image ?? '') ? f.image : '',
+      }));
+  },
+
+  async capitulos(url) {
+    const [endpoint, frag] = url.split('#');
+    const titulo = decodeURIComponent(frag ?? '');
+    const fila = (await hoja(endpoint)).find((f) => primeraLinea(f.title) === titulo);
+    if (!fila) return [];
+    const numero = numeroDe(fila.chapter) ?? numeroDe(String(fila.chapter));
+    // Un "capítulo" por sitio espejo: es lo único que la hoja sabe. El lector
+    // ve "Cap. 52 · readtoon.com" y elige dónde leer, igual que en toonflip.
+    return (fila.links ?? '')
+      .split(',')
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .map((link) => {
+        let host = '';
+        try {
+          host = new URL(link).hostname.replace(/^www\./, '');
+        } catch {
+          return null;
+        }
+        return { numero, titulo: `Capítulo ${fila.chapter} · ${host}`, url: link, fecha_texto: null };
+      })
+      .filter(Boolean);
+  },
+};
+
+export const PLATAFORMAS = { madara, mangareader, css, mangadex, sheet };
 
 /** Descarta lo que no sirve para indexar: sin título o sin enlace. */
 export const utiles = (items) => items.filter((i) => i.titulo && i.url);

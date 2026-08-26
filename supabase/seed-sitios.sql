@@ -10,15 +10,35 @@
 --   actual pero se come la ruta: /son/page/2/ acaba en la portada y el
 --   descubridor no encuentra nada. Ese es justo el fallo que --probar detecta.
 
-insert into public.sitios (nombre, plataforma, tipo, idioma, url_series, paginas)
+insert into public.sitios (nombre, plataforma, tipo, idioma, url_series, paginas, activo)
 values
   -- Verificados el 26-08-2026 con --probar.
   ('Samurai Scan', 'madara',      'manhwa', 'es',
-   'https://samurai.j5z.xyz/son/page/{page}/?m_orderby=latest',  40),
+   'https://samurai.j5z.xyz/son/page/{page}/?m_orderby=latest',  40, true),
   ('Leemiau',      'mangareader', 'manhwa', 'es',
-   'https://leemiau.com/manga/?page={page}&order=update',        40),
+   'https://leemiau.com/manga/?page={page}&order=update',        40, true),
   ('Legion Scans', 'mangareader', 'manhwa', 'es',
-   'https://legionscans.com/wp/manga/?page={page}&order=update', 40)
+   'https://legionscans.com/wp/manga/?page={page}&order=update', 40, true),
+
+  -- MangaDex: API pública, una fila POR IDIOMA. Es de donde sale el catálogo
+  -- de verdad y la comparación entre idiomas (Eleceed: 8 caps en es, 103 en
+  -- en, 293 en pt). `originalLanguage[]=ko` deja solo manhwa coreano; quítalo
+  -- para incluir manhua chino y manga japonés.
+  -- 100 obras por página × 30 = hasta 3.000 obras por idioma.
+  ('MangaDex es', 'mangadex', 'manhwa', 'es',
+   'https://api.mangadex.org/manga?limit=100&offset={page}&availableTranslatedLanguage[]=es&originalLanguage[]=ko&order[followedCount]=desc&includes[]=cover_art&contentRating[]=safe&contentRating[]=suggestive', 30, true),
+  ('MangaDex en', 'mangadex', 'manhwa', 'en',
+   'https://api.mangadex.org/manga?limit=100&offset={page}&availableTranslatedLanguage[]=en&originalLanguage[]=ko&order[followedCount]=desc&includes[]=cover_art&contentRating[]=safe&contentRating[]=suggestive', 30, true),
+  ('MangaDex pt', 'mangadex', 'manhwa', 'pt',
+   'https://api.mangadex.org/manga?limit=100&offset={page}&availableTranslatedLanguage[]=pt-br&originalLanguage[]=ko&order[followedCount]=desc&includes[]=cover_art&contentRating[]=safe&contentRating[]=suggestive', 30, true),
+
+  -- toonflip: Google Sheet servida por Apps Script. 52 obras, títulos en
+  -- tailandés, enlaces a lectores tailandeses. Añadido porque se pidió, pero
+  -- desactivado (activo=false): su público no es el de este sitio en español.
+  -- Sirve de plantilla para cualquier otro agregador con backend de hoja.
+  ('toonflip', 'sheet', 'manhwa', 'th',
+   'https://script.google.com/macros/s/AKfycbzN70fdzRb5_rp95CPgkcRBBAjMkrQFtbdD1tWcNNScsW6qFGhr5-LQ-klfT2hFxNR4IQ/exec',
+   1, false)
 on conflict (url_series) do nothing;
 
 -- Quién puede editar el catálogo desde /admin. Este correo es lo ÚNICO que

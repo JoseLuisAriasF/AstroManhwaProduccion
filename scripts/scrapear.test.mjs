@@ -74,6 +74,59 @@ const caps2 = await PLATAFORMAS.mangareader.capitulos('https://x.test/manga/dos/
 assert.equal(caps2[0].numero, 33);
 assert.equal(caps2[0].titulo, 'Capítulo 33', 'título desde data-chapter-title');
 
+// ── MangaDex: offset, idioma, slug estable y capítulos duplicados ───────────
+const obra = {
+  id: '11111111-2222-3333-4444-555555555555',
+  attributes: {
+    title: { 'ko-ro': 'Jeonjijeok' },
+    altTitles: [{ en: "Omniscient Reader's Viewpoint" }, { es: 'Lector omnisciente' }],
+    status: 'ongoing',
+    tags: [{ attributes: { group: 'genre', name: { en: 'Action', es: 'Acción' } } }],
+  },
+  relationships: [{ type: 'cover_art', attributes: { fileName: 'tapa.jpg' } }],
+};
+
+const json = {
+  'https://api.mangadex.org/robots.txt': 'User-agent: *\nDisallow: /at-home/',
+  // offset=2 en la plantilla (página 2) con limit=100 → offset real 100.
+  'https://api.mangadex.org/manga?limit=100&offset=100': { data: [obra], total: 1 },
+  // pt del sitio tiene que salir como pt-br al hablar con la API.
+  'https://api.mangadex.org/manga/11111111-2222-3333-4444-555555555555/feed?limit=500&offset=0&translatedLanguage[]=pt-br&order[chapter]=desc&includes[]=scanlation_group': {
+    total: 3,
+    data: [
+      { id: 'c1', attributes: { chapter: '12', title: 'Doce', publishAt: '2026-01-02T00:00:00Z' } },
+      // Mismo capítulo, otro grupo de scanlation: no debe salir dos veces.
+      { id: 'c2', attributes: { chapter: '12', title: 'Doce (otro grupo)', publishAt: '2026-01-01T00:00:00Z' } },
+      { id: 'c3', attributes: { chapter: '11.5', title: null, publishAt: '2025-12-30T00:00:00Z' } },
+    ],
+  },
+};
+
+globalThis.fetch = async (url) => {
+  if (url in paginas) return { ok: true, status: 200, text: async () => paginas[url] };
+  if (url in json)
+    return { ok: true, status: 200, text: async () => JSON.stringify(json[url]), json: async () => json[url] };
+  return { ok: false, status: 404, text: async () => '', json: async () => ({}) };
+};
+
+const md = await PLATAFORMAS.mangadex.series(
+  'https://api.mangadex.org/manga?limit=100&offset={page}'.replace('{page}', '2'),
+  { idioma: 'es' },
+);
+assert.equal(md.length, 1);
+assert.equal(md[0].titulo, 'Lector omnisciente', 'título en el idioma del sitio');
+assert.equal(slugify(md[0].slugBase), 'omniscient-reader-s-viewpoint', 'el slug sale del inglés, no del es');
+assert.equal(md[0].portadaUrl, 'https://uploads.mangadex.org/covers/' + obra.id + '/tapa.jpg.256.jpg');
+assert.equal(md[0].estado, 'En emisión');
+assert.deepEqual(md[0].categorias, ['Acción']);
+
+const mdCaps = await PLATAFORMAS.mangadex.capitulos(`https://mangadex.org/title/${obra.id}`, { idioma: 'pt' });
+assert.equal(mdCaps.length, 2, 'el capítulo 12 duplicado se colapsa en uno');
+assert.equal(mdCaps[0].numero, 12);
+assert.equal(mdCaps[1].numero, 11, 'el 11.5 trunca a 11');
+assert.equal(mdCaps[1].titulo, 'Capítulo 11.5', 'sin título propio, se compone uno');
+assert.equal(mdCaps[0].fecha_texto, '2026-01-02');
+
 // ── robots.txt manda ─────────────────────────────────────────────────────────
 await assert.rejects(
   () => PLATAFORMAS.madara.series('https://x.test/wp-admin/algo'),

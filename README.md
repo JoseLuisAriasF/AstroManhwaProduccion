@@ -18,6 +18,7 @@ npm run build    # dist/ listo para Cloudflare Pages
 | `src/lib/mockData.ts` | Catálogo de respaldo. Solo se usa si `obras` está vacía o no hay credenciales. |
 | `scripts/plataformas.mjs` | **Adaptadores de sitio.** `madara`, `mangareader` y `css`. Lo único que hay que tocar cuando una scan cambia su HTML. |
 | `scripts/descubrir.mjs` | Recorre el catálogo de cada sitio y crea sus obras y fuentes. Trae `--probar`. |
+| `scripts/detectar.mjs` | De un dominio suelto a una fila de `sitios` lista para pegar. No escribe en la BD. |
 | `src/pages/admin.astro` | Panel de administración. Página estática; quien manda es RLS. |
 | `src/lib/api.ts` | **Única puerta a los datos.** Todo async: cambiar mock → Supabase no toca ninguna página. |
 | `src/lib/equivalencia.ts` | Conversión capítulo de manhwa → capítulo de novela (interpola entre anclas). |
@@ -53,20 +54,45 @@ Imprime las series que encuentra y los capítulos de la primera. Si sale la list
 el sitio se añade desde `/admin` o con un INSERT (ver `supabase/seed-sitios.sql`)
 y esa noche entra solo.
 
-### Por qué hay solo tres plataformas
-
-La mayoría de las scans corren uno de dos temas de WordPress, y todas las
-instalaciones de un tema comparten el mismo HTML:
+### Las cuatro plataformas
 
 | `plataforma` | Cuándo | Qué hace falta |
 |---|---|---|
-| `madara` | El tema más común. Pide los capítulos por AJAX. | Solo la URL del listado. |
-| `mangareader` | El otro grande (leemiau, legionscans…). | Solo la URL del listado. |
-| `css` | Todo lo demás. | Los selectores, en la fila de `sitios`. |
+| `mangadex` | **La fuente principal.** API pública, catálogo enorme, feed por idioma. | Solo la URL del endpoint. |
+| `madara` | El tema de WordPress más común en scans. Capítulos por AJAX. | Solo la URL del listado. |
+| `mangareader` | El otro tema grande (leemiau, legionscans…). | Solo la URL del listado. |
+| `css` | Sitios sueltos con HTML propio. | Los selectores, en la fila de `sitios`. |
 
-Un sitio nuevo de las dos primeras familias es **una URL**: sin selectores, sin
+Un sitio nuevo de las tres primeras familias es **una URL**: sin selectores, sin
 deploy. Cuando una scan rediseña su HTML se arregla en `plataformas.mjs` y
 quedan arreglados todos los sitios de esa familia a la vez.
+
+**MangaDex es la que carga el catálogo.** Una fila por idioma y la misma obra
+aparece con su cuenta real en cada uno — medido: *Eleceed* tiene 8 capítulos en
+español, 103 en inglés y 293 en portugués. Trae además títulos alternativos,
+estado y géneros ya rellenos, y su `robots.txt` solo prohíbe `/at-home/`, que es
+el servidor de imágenes y aquí no se toca.
+
+Su `slug` sale **siempre del título en inglés**, nunca del localizado. Sin eso,
+las filas es/en/pt crearían tres obras distintas de la misma historia («Lector
+omnisciente», «Omniscient Reader's Viewpoint»…) y se perdería la comparación
+entre idiomas, que es todo el producto.
+
+### Qué sitios NO se pueden indexar
+
+Buena parte del sector se ha pasado a SPAs: el HTML que llega es un cascarón
+vacío y el catálogo lo pinta JavaScript después. Comprobado con `detectar.mjs`:
+
+| Sitio | Qué es |
+|---|---|
+| libribar.com | 474 bytes de cascarón JS |
+| manhwaweb.com, asurascans.com | React |
+| olympusbiblioteca (→olympusxyz), lectortmoo.com | Nuxt |
+
+Para esos no sirve ningún selector: harían falta su API JSON (una por sitio) o
+un navegador headless. **No se han añadido a propósito** — MangaDex cubre ese
+catálogo mejor y sin mantenimiento. `node scripts/detectar.mjs dominio.com`
+distingue los dos casos en segundos.
 
 > ⚠ Usa el dominio real, no el de marca. `samuraiscan.com/son/page/2/` redirige
 > a su host actual **pero se come la ruta** y acaba en la portada: el descubridor

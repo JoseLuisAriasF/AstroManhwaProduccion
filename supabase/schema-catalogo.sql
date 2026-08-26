@@ -56,7 +56,7 @@ create table if not exists public.obras (
 create table if not exists public.sitios (
   id uuid primary key default gen_random_uuid(),
   nombre text not null,
-  plataforma text not null default 'css' check (plataforma in ('madara','mangareader','css')),
+  plataforma text not null default 'css' check (plataforma in ('madara','mangareader','css','mangadex','sheet')),
   tipo text not null default 'manhwa' check (tipo in ('manhwa','novela')),
   idioma text not null default 'es',
   -- Listado de series con {page} como marcador de paginación.
@@ -89,6 +89,7 @@ create index if not exists fuentes_obra_idx on public.fuentes (obra_slug);
 --   insert into public.admins values ('joseluisariasflores01@gmail.com');
 create table if not exists public.admins (email text primary key);
 alter table public.admins enable row level security;
+drop policy if exists "un admin se ve a si mismo" on public.admins;
 create policy "un admin se ve a si mismo" on public.admins
   for select using (auth.jwt() ->> 'email' = email);
 
@@ -101,15 +102,31 @@ alter table public.obras enable row level security;
 alter table public.sitios enable row level security;
 
 -- El sitio (anon) lee lo publicado; el admin lo lee y lo escribe todo.
+drop policy if exists "lectura publica de obras" on public.obras;
 create policy "lectura publica de obras" on public.obras
   for select using (publicada = true or public.es_admin());
+drop policy if exists "admin escribe obras" on public.obras;
 create policy "admin escribe obras" on public.obras
   for all using (public.es_admin()) with check (public.es_admin());
 
+drop policy if exists "admin gestiona sitios" on public.sitios;
 create policy "admin gestiona sitios" on public.sitios
   for all using (public.es_admin()) with check (public.es_admin());
+drop policy if exists "admin gestiona fuentes" on public.fuentes;
 create policy "admin gestiona fuentes" on public.fuentes
   for all using (public.es_admin()) with check (public.es_admin());
 -- El admin necesita ver también lo NO aprobado para poder aprobarlo.
+drop policy if exists "admin gestiona capitulos" on public.capitulos_externos;
 create policy "admin gestiona capitulos" on public.capitulos_externos
   for all using (public.es_admin()) with check (public.es_admin());
+
+-- ── Migración de plataformas ─────────────────────────────────────────────────
+-- El CHECK de `plataforma` vive inline en el CREATE, que `if not exists` no
+-- vuelve a aplicar. Este ALTER sí actualiza una tabla ya creada, para añadir
+-- 'mangadex' y 'sheet' sin recrear nada. Idempotente.
+do $$
+begin
+  alter table public.sitios drop constraint if exists sitios_plataforma_check;
+  alter table public.sitios add constraint sitios_plataforma_check
+    check (plataforma in ('madara','mangareader','css','mangadex','sheet'));
+end $$;
