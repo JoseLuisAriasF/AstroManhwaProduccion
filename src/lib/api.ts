@@ -38,12 +38,69 @@ function localizarCapitulo(c: Capitulo, idioma: Idioma): Capitulo {
   };
 }
 
+/**
+ * Trae todas las filas de una tabla saltando el corte de 1000 por request que
+ * impone Supabase Cloud. Sin esto, el catálogo se queda mudo en la obra 1001.
+ */
+async function todasLasFilas<T>(tabla: string, columnas: string, filtrar: (q: any) => any): Promise<T[]> {
+  const TAMAÑO = 1000;
+  const todas: T[] = [];
+  for (let desde = 0; ; desde += TAMAÑO) {
+    const { data, error } = await filtrar(supabase!.from(tabla).select(columnas)).range(
+      desde,
+      desde + TAMAÑO - 1,
+    );
+    if (error) throw new Error(error.message);
+    if (!data?.length) break;
+    todas.push(...(data as T[]));
+    if (data.length < TAMAÑO) break;
+  }
+  return todas;
+}
+
+/**
+ * El catálogo, una sola vez por build. Cada página lo pide y son cientos de
+ * páginas × 7 idiomas: sin este memo serían miles de requests idénticos.
+ *
+ * Si no hay Supabase —o la tabla `obras` está vacía— cae a mockData y el sitio
+ * compila igual. Es lo que permite clonar el repo y correr `npm run dev` sin
+ * credenciales.
+ */
+let catalogoCache: Promise<Novela[]> | null = null;
+
+function catalogo(): Promise<Novela[]> {
+  catalogoCache ??= (async () => {
+    if (!supabase) return novelas;
+    try {
+      const filas = await todasLasFilas<any>('obras', '*', (q) =>
+        q.eq('publicada', true).order('destacada', { ascending: false }).order('titulo'),
+      );
+      if (!filas.length) return novelas;
+      return filas.map((o) => ({
+        id: o.slug,
+        slug: o.slug,
+        tipo: o.tipo,
+        titulo: o.titulo,
+        titulosAlternativos: o.titulos_alternativos ?? [],
+        sinopsis: o.sinopsis ?? '',
+        portadaUrl: o.portada_url || '/portadas/espadachin.svg',
+        estado: o.estado,
+        categorias: o.categorias ?? [],
+      })) as Novela[];
+    } catch (e) {
+      console.warn(`[catalogo] ${(e as Error).message} — usando mock`);
+      return novelas;
+    }
+  })();
+  return catalogoCache;
+}
+
 export async function getNovelas(idioma: Idioma = IDIOMA_BASE): Promise<Novela[]> {
-  return novelas.map((n) => localizarNovela(n, idioma));
+  return (await catalogo()).map((n) => localizarNovela(n, idioma));
 }
 
 export async function getNovela(slug: string, idioma: Idioma = IDIOMA_BASE) {
-  const n = novelas.find((x) => x.slug === slug);
+  const n = (await catalogo()).find((x) => x.slug === slug);
   return n && localizarNovela(n, idioma);
 }
 
@@ -78,32 +135,62 @@ export async function getEquivalencias(slug: string): Promise<EquivalenciaManhwa
  * RLS solo deja leer los aprobados, así que la anon key basta.
  * Sin credenciales devuelve [] y la sección simplemente no se pinta.
  */
+// ponytail: una consulta por obra. Con ~500 obras son ~500 requests por build
+// (memoizados, así que uno por obra y no uno por página × idioma). Si el build
+// se hace lento, cambiar a una sola lectura de toda la tabla agrupada por slug.
+const externosCache = new Map<string, Promise<CapituloExterno[]>>();
+
 export async function getCapitulosExternos(slug: string): Promise<CapituloExterno[]> {
   if (!supabase) {
     console.warn(`[externos:${slug}] SIN CLIENTE — falta PUBLIC_SUPABASE_URL / PUBLIC_SUPABASE_ANON_KEY en el build`);
     return [];
   }
-  // Supabase Cloud corta a 1000 filas por request; paginamos en el cliente.
-  const TAMAÑO = 1000;
-  const todos: CapituloExterno[] = [];
-  for (let desde = 0; ; desde += TAMAÑO) {
-    const { data, error } = await supabase
-      .from('capitulos_externos')
-      .select('numero, titulo, url, fecha_texto')
-      .eq('novela_slug', slug)
-      .eq('aprobado', true)
-      .order('numero', { ascending: false, nullsFirst: false })
-      .range(desde, desde + TAMAÑO - 1);
-    if (error) {
-      console.warn(`[externos:${slug}] error: ${error.message}`);
-      return todos;
-    }
-    if (!data?.length) break;
-    todos.push(...data);
-    if (data.length < TAMAÑO) break;
+  // Cada obra aparece en el índice, en el catálogo y en su ficha, × 7 idiomas.
+  // El memo convierte esas ~10 lecturas idénticas por obra en una sola.
+  if (!externosCache.has(slug)) {
+    externosCache.set(
+      slug,
+      todasLasFilas<CapituloExterno>('capitulos_externos', 'numero, titulo, url, fecha_texto, idioma, tipo', (q) =>
+        q
+          .eq('obra_slug', slug)
+          .eq('aprobado', true)
+          .order('numero', { ascending: false, nullsFirst: false }),
+      ).catch((e: Error) => {
+        console.warn(`[externos:${slug}] ${e.message}`);
+        return [] as CapituloExterno[];
+      }),
+    );
   }
-  console.log(`[externos:${slug}] ${todos.length} filas`);
-  return todos;
+  return externosCache.get(slug)!;
+}
+
+/**
+ * Las versiones disponibles de una obra, de la más adelantada a la menos:
+ * "novela · en · 1948 caps", "manhwa · es · 173 caps"…
+ *
+ * Ese orden es el producto. El lector llega buscando el capítulo 174 del
+ * manhwa en español, que no existe todavía, y aquí ve que la novela en inglés
+ * ya va por el 1948.
+ */
+export function versiones(externos: CapituloExterno[]) {
+  const grupos = new Map<string, CapituloExterno[]>();
+  for (const c of externos) {
+    const clave = `${c.tipo}|${c.idioma}`;
+    if (!grupos.has(clave)) grupos.set(clave, []);
+    grupos.get(clave)!.push(c);
+  }
+  return [...grupos]
+    .map(([clave, capitulos]) => {
+      const [tipo, idioma] = clave.split('|');
+      const numeros = capitulos.map((c) => c.numero).filter((n): n is number => n !== null);
+      return {
+        tipo: tipo as 'manhwa' | 'novela',
+        idioma,
+        capitulos,
+        ultimo: numeros.length ? Math.max(...numeros) : 0,
+      };
+    })
+    .sort((a, b) => b.ultimo - a.ultimo);
 }
 
 export { manhwaANovela } from './equivalencia';

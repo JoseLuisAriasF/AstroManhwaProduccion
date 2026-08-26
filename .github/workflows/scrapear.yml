@@ -1,14 +1,21 @@
 name: Indexar fuentes
 
-# Una vez al día. cron va en UTC: 06:00 UTC ≈ 01:00 Perú.
+# cron va en UTC: 06:00 UTC ≈ 01:00 Perú.
 on:
   schedule:
-    - cron: '0 6 * * *'
+    - cron: '0 6 * * 1-6' # capítulos, de lunes a sábado
+    - cron: '0 5 * * 0'   # domingo: además, catálogo completo de cada sitio
   workflow_dispatch: # botón manual en la pestaña Actions
+    inputs:
+      descubrir:
+        description: 'Recorrer también el catálogo de cada sitio'
+        type: boolean
+        default: false
 
 jobs:
-  scrapear:
+  indexar:
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -16,7 +23,20 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: node scripts/scrapear.mjs
+
+      # Obras nuevas de cada sitio. Los domingos (y a mano) porque un catálogo
+      # no cambia a diario, y recorrerlo son cientos de peticiones a sitios ajenos.
+      - name: Descubrir obras
+        if: github.event.schedule == '0 5 * * 0' || github.event.inputs.descubrir == 'true'
+        run: node scripts/descubrir.mjs
+        env:
+          PUBLIC_SUPABASE_URL: ${{ secrets.PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+
+      # Capítulos nuevos. --max acota la corrida: las fuentes se atienden por
+      # antigüedad, así que lo que no entra hoy entra mañana.
+      - name: Indexar capítulos
+        run: node scripts/scrapear.mjs --max=400
         env:
           PUBLIC_SUPABASE_URL: ${{ secrets.PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}

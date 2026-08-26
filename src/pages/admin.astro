@@ -1,0 +1,352 @@
+---
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * PANEL DE ADMINISTRACIÓN
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Página estática que habla con Supabase desde el navegador. No hay servidor,
+ * no hay build especial y no hay una segunda app que mantener.
+ *
+ * Lo que impide que cualquiera edite el catálogo NO es esta página: es RLS.
+ * Las políticas de schema-catalogo.sql solo dejan escribir a los correos de la
+ * tabla `admins`. Si un desconocido abre /admin, inicia sesión y pulsa guardar,
+ * Postgres le devuelve un error. Por eso la página puede ser pública.
+ *
+ * Alta de admin, una sola vez, en el SQL Editor:
+ *   insert into public.admins values ('joseluisariasflores01@gmail.com');
+ */
+import '@/styles/global.css';
+---
+
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Admin · ManhwaToNovel</title>
+  </head>
+  <body class="min-h-dvh bg-base-100 dark:bg-base-900 text-base-800 dark:text-base-100">
+    <main class="mx-auto max-w-4xl p-4 sm:p-8 grid gap-6">
+      <header class="flex items-center gap-3">
+        <h1 class="text-xl font-bold">Admin</h1>
+        <span data-quien class="text-sm text-base-400"></span>
+        <button data-entrar class="neu-sm rounded-xl px-3 py-1.5 text-sm ml-auto">Entrar con Google</button>
+        <button data-salir hidden class="neu-sm rounded-xl px-3 py-1.5 text-sm ml-auto">Salir</button>
+      </header>
+
+      <p data-aviso class="neu-inset rounded-xl px-4 py-3 text-sm text-base-500"></p>
+
+      <section data-panel hidden class="grid gap-6">
+        <!-- ── Obras ─────────────────────────────────────────────────────── -->
+        <div class="grid gap-3">
+          <div class="flex items-center gap-3">
+            <h2 class="font-semibold">Obras</h2>
+            <span data-conteo class="text-sm text-base-400 tabular-nums"></span>
+            <input
+              data-buscar
+              type="search"
+              placeholder="Buscar por título…"
+              class="neu-inset rounded-xl px-3 py-1.5 text-sm ml-auto w-48 bg-transparent outline-none"
+            />
+          </div>
+          <ul data-obras class="grid gap-2"></ul>
+        </div>
+
+        <!-- ── Editor de una obra ────────────────────────────────────────── -->
+        <form data-editor hidden class="neu rounded-2xl p-4 grid gap-3">
+          <div class="flex items-start gap-4">
+            <img data-vista alt="" class="w-24 aspect-[7/10] object-cover rounded-xl neu-sm bg-base-200" />
+            <div class="grid gap-2 flex-1 min-w-0">
+              <label class="grid gap-1 text-sm">
+                URL de la portada
+                <input name="portada_url" class="neu-inset rounded-xl px-3 py-2 bg-transparent outline-none" />
+              </label>
+              <label class="grid gap-1 text-sm">
+                Título
+                <input name="titulo" required class="neu-inset rounded-xl px-3 py-2 bg-transparent outline-none" />
+              </label>
+            </div>
+          </div>
+
+          <label class="grid gap-1 text-sm">
+            Títulos alternativos <span class="text-base-400">(uno por línea — es lo que trae tráfico de otros idiomas)</span>
+            <textarea name="titulos_alternativos" rows="3" class="neu-inset rounded-xl px-3 py-2 bg-transparent outline-none"></textarea>
+          </label>
+
+          <label class="grid gap-1 text-sm">
+            Sinopsis <span class="text-base-400">(se traduce a los 7 idiomas en el build; déjala vacía si no la vas a revisar)</span>
+            <textarea name="sinopsis" rows="4" class="neu-inset rounded-xl px-3 py-2 bg-transparent outline-none"></textarea>
+          </label>
+
+          <div class="grid sm:grid-cols-3 gap-3 text-sm">
+            <label class="grid gap-1">
+              Tipo
+              <select name="tipo" class="neu-inset rounded-xl px-3 py-2 bg-transparent outline-none">
+                <option value="manhwa">manhwa</option>
+                <option value="novela">novela</option>
+                <option value="ambos">ambos</option>
+              </select>
+            </label>
+            <label class="grid gap-1">
+              Estado
+              <select name="estado" class="neu-inset rounded-xl px-3 py-2 bg-transparent outline-none">
+                <option>En emisión</option>
+                <option>Finalizado</option>
+              </select>
+            </label>
+            <label class="grid gap-1">
+              Categorías <span class="text-base-400">(coma)</span>
+              <input name="categorias" class="neu-inset rounded-xl px-3 py-2 bg-transparent outline-none" />
+            </label>
+          </div>
+
+          <div class="flex items-center gap-4 text-sm">
+            <label class="flex items-center gap-2"><input type="checkbox" name="publicada" /> Publicada</label>
+            <label class="flex items-center gap-2"><input type="checkbox" name="destacada" /> Destacada</label>
+            <button class="neu-sm rounded-xl px-4 py-2 ml-auto font-medium text-acento-500">Guardar</button>
+          </div>
+
+          <div class="grid gap-2 border-t border-base-200 dark:border-base-700 pt-3">
+            <h3 class="text-sm font-semibold">Fuentes de esta obra</h3>
+            <ul data-fuentes class="grid gap-2 text-sm"></ul>
+          </div>
+        </form>
+
+        <!-- ── Sitios ────────────────────────────────────────────────────── -->
+        <div class="grid gap-3">
+          <h2 class="font-semibold">
+            Sitios <span class="text-sm font-normal text-base-400">— cada uno se recorre entero cada noche</span>
+          </h2>
+          <ul data-sitios class="grid gap-2 text-sm"></ul>
+          <form data-nuevo-sitio class="neu rounded-2xl p-4 grid sm:grid-cols-2 gap-3 text-sm">
+            <input name="nombre" required placeholder="Nombre" class="neu-inset rounded-xl px-3 py-2 bg-transparent outline-none" />
+            <input
+              name="url_series"
+              required
+              placeholder="https://sitio.com/manga/page/{page}/"
+              class="neu-inset rounded-xl px-3 py-2 bg-transparent outline-none"
+            />
+            <select name="plataforma" class="neu-inset rounded-xl px-3 py-2 bg-transparent outline-none">
+              <option value="madara">madara</option>
+              <option value="mangareader">mangareader</option>
+              <option value="css">css (selectores a mano)</option>
+            </select>
+            <select name="tipo" class="neu-inset rounded-xl px-3 py-2 bg-transparent outline-none">
+              <option value="manhwa">manhwa</option>
+              <option value="novela">novela</option>
+            </select>
+            <input name="idioma" value="es" placeholder="idioma" class="neu-inset rounded-xl px-3 py-2 bg-transparent outline-none" />
+            <input name="paginas" type="number" value="5" min="1" class="neu-inset rounded-xl px-3 py-2 bg-transparent outline-none" />
+            <button class="neu-sm rounded-xl px-4 py-2 font-medium text-acento-500 sm:col-span-2">
+              Añadir sitio
+            </button>
+          </form>
+          <p class="text-xs text-base-400">
+            Antes de añadirlo, compruébalo sin escribir nada:
+            <code>node scripts/descubrir.mjs --probar='URL' --plataforma=madara</code>
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      import { loginConGoogle, logout, supabase } from '@/lib/supabaseClient';
+
+      const $ = <T extends HTMLElement>(s: string) => document.querySelector<T>(s)!;
+      const aviso = $('[data-aviso]');
+      const panel = $<HTMLElement>('[data-panel]');
+      const editor = $<HTMLFormElement>('[data-editor]');
+
+      const decir = (t: string) => (aviso.textContent = t);
+
+      if (!supabase) {
+        decir('Sin PUBLIC_SUPABASE_URL / PUBLIC_SUPABASE_ANON_KEY: el panel no puede conectarse.');
+      } else {
+        const db = supabase;
+        let obras: any[] = [];
+        let actual: any = null;
+
+        $('[data-entrar]').addEventListener('click', () => loginConGoogle());
+        $('[data-salir]').addEventListener('click', () => logout());
+
+        db.auth.onAuthStateChange((_e, sesion) => arrancar(sesion?.user?.email ?? null));
+        db.auth.getSession().then(({ data }) => arrancar(data.session?.user?.email ?? null));
+
+        async function arrancar(email: string | null) {
+          $('[data-quien]').textContent = email ?? '';
+          $('[data-entrar]').hidden = Boolean(email);
+          $('[data-salir]').hidden = !email;
+          if (!email) return decir('Inicia sesión para editar el catálogo.');
+
+          // Esto solo decide qué se dibuja. Quien de verdad manda es RLS: aunque
+          // alguien se saltara este if, el UPDATE le rebotaría en Postgres.
+          const { data: yo } = await db.from('admins').select('email').eq('email', email).maybeSingle();
+          if (!yo) {
+            return decir(
+              `${email} no está en la tabla admins. Añádelo en el SQL Editor: insert into public.admins values ('${email}');`,
+            );
+          }
+          decir('');
+          panel.hidden = false;
+          await Promise.all([cargarObras(), cargarSitios()]);
+        }
+
+        // ── Obras ──────────────────────────────────────────────────────────
+        async function cargarObras(q = '') {
+          let sel = db.from('obras').select('*').order('titulo').limit(100);
+          if (q) sel = sel.ilike('titulo', `%${q}%`);
+          const { data, error } = await sel;
+          if (error) return decir(error.message);
+          obras = data ?? [];
+          $('[data-conteo]').textContent = `${obras.length}${obras.length === 100 ? '+' : ''}`;
+          $('[data-obras]').innerHTML = obras
+            .map(
+              (o) => `<li><button data-slug="${o.slug}"
+                class="neu-sm rounded-xl px-3 py-2 w-full text-left flex items-center gap-3">
+                <span class="truncate">${o.titulo}</span>
+                <span class="text-xs text-base-400 ml-auto">${o.tipo}</span>
+                ${o.publicada ? '' : '<span class="text-xs text-amber-500">oculta</span>'}
+              </button></li>`,
+            )
+            .join('');
+          $('[data-obras]')
+            .querySelectorAll<HTMLButtonElement>('[data-slug]')
+            .forEach((b) => b.addEventListener('click', () => abrir(b.dataset.slug!)));
+        }
+
+        async function abrir(slug: string) {
+          actual = obras.find((o) => o.slug === slug);
+          editor.hidden = false;
+          const f = editor as any;
+          f.portada_url.value = actual.portada_url ?? '';
+          f.titulo.value = actual.titulo ?? '';
+          f.titulos_alternativos.value = (actual.titulos_alternativos ?? []).join('\n');
+          f.sinopsis.value = actual.sinopsis ?? '';
+          f.tipo.value = actual.tipo;
+          f.estado.value = actual.estado;
+          f.categorias.value = (actual.categorias ?? []).join(', ');
+          f.publicada.checked = actual.publicada;
+          f.destacada.checked = actual.destacada;
+          $<HTMLImageElement>('[data-vista]').src = actual.portada_url || '';
+          editor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          await cargarFuentes(slug);
+        }
+
+        // Vista previa en vivo: pegar una URL de portada y verla antes de guardar
+        // evita el caso clásico de publicar 200 obras con la imagen rota.
+        (editor as any).portada_url.addEventListener('input', (e: Event) => {
+          $<HTMLImageElement>('[data-vista]').src = (e.target as HTMLInputElement).value;
+        });
+
+        editor.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const f = editor as any;
+          const lista = (s: string, sep: string) =>
+            s.split(sep).map((x: string) => x.trim()).filter(Boolean);
+          const { error } = await db
+            .from('obras')
+            .update({
+              portada_url: f.portada_url.value.trim(),
+              titulo: f.titulo.value.trim(),
+              titulos_alternativos: lista(f.titulos_alternativos.value, '\n'),
+              sinopsis: f.sinopsis.value.trim(),
+              tipo: f.tipo.value,
+              estado: f.estado.value,
+              categorias: lista(f.categorias.value, ','),
+              publicada: f.publicada.checked,
+              destacada: f.destacada.checked,
+            })
+            .eq('slug', actual.slug);
+          decir(error ? `No se guardó: ${error.message}` : `Guardado. El sitio lo mostrará en el próximo build.`);
+          if (!error) await cargarObras($<HTMLInputElement>('[data-buscar]').value);
+        });
+
+        let debounce: number;
+        $('[data-buscar]').addEventListener('input', (e) => {
+          clearTimeout(debounce);
+          debounce = window.setTimeout(() => cargarObras((e.target as HTMLInputElement).value), 250);
+        });
+
+        // ── Fuentes ────────────────────────────────────────────────────────
+        async function cargarFuentes(slug: string) {
+          const { data } = await db.from('fuentes').select('*').eq('obra_slug', slug);
+          $('[data-fuentes]').innerHTML =
+            (data ?? [])
+              .map(
+                (f) => `<li class="neu-inset rounded-xl px-3 py-2 flex items-center gap-3">
+                  <label class="flex items-center gap-2">
+                    <input type="checkbox" data-fuente="${f.id}" ${f.activa ? 'checked' : ''}> ${f.nombre}
+                  </label>
+                  <span class="text-xs text-base-400">${f.tipo}/${f.idioma}</span>
+                  <a href="${f.url_listado}" target="_blank" rel="noopener nofollow"
+                     class="text-xs text-acento-500 ml-auto truncate max-w-[40%]">${f.url_listado}</a>
+                </li>`,
+              )
+              .join('') || '<li class="text-base-400">Ninguna todavía.</li>';
+          $('[data-fuentes]')
+            .querySelectorAll<HTMLInputElement>('[data-fuente]')
+            .forEach((c) =>
+              c.addEventListener('change', async () => {
+                const { error } = await db
+                  .from('fuentes')
+                  .update({ activa: c.checked })
+                  .eq('id', c.dataset.fuente);
+                if (error) {
+                  c.checked = !c.checked;
+                  decir(error.message);
+                }
+              }),
+            );
+        }
+
+        // ── Sitios ─────────────────────────────────────────────────────────
+        async function cargarSitios() {
+          const { data } = await db.from('sitios').select('*').order('nombre');
+          $('[data-sitios]').innerHTML =
+            (data ?? [])
+              .map(
+                (s) => `<li class="neu-inset rounded-xl px-3 py-2 flex items-center gap-3">
+                  <label class="flex items-center gap-2">
+                    <input type="checkbox" data-sitio="${s.id}" ${s.activo ? 'checked' : ''}> ${s.nombre}
+                  </label>
+                  <span class="text-xs text-base-400">${s.plataforma} · ${s.tipo}/${s.idioma}</span>
+                  <span class="text-xs text-base-400 ml-auto">${
+                    s.ultimo_descubrimiento ? new Date(s.ultimo_descubrimiento).toLocaleDateString() : 'sin recorrer'
+                  }</span>
+                </li>`,
+              )
+              .join('') || '<li class="text-base-400">Ninguno todavía.</li>';
+          $('[data-sitios]')
+            .querySelectorAll<HTMLInputElement>('[data-sitio]')
+            .forEach((c) =>
+              c.addEventListener('change', async () => {
+                const { error } = await db.from('sitios').update({ activo: c.checked }).eq('id', c.dataset.sitio);
+                if (error) {
+                  c.checked = !c.checked;
+                  decir(error.message);
+                }
+              }),
+            );
+        }
+
+        $<HTMLFormElement>('[data-nuevo-sitio]').addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const f = e.target as any;
+          const { error } = await db.from('sitios').insert({
+            nombre: f.nombre.value.trim(),
+            url_series: f.url_series.value.trim(),
+            plataforma: f.plataforma.value,
+            tipo: f.tipo.value,
+            idioma: f.idioma.value.trim(),
+            paginas: Number(f.paginas.value),
+          });
+          decir(error ? error.message : 'Sitio añadido. Se recorrerá en la próxima corrida nocturna.');
+          if (!error) {
+            f.reset();
+            await cargarSitios();
+          }
+        });
+      }
+    </script>
+  </body>
+</html>

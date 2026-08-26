@@ -1,23 +1,41 @@
 ---
 import type { CapituloExterno } from '@/types/novela';
-import { idiomaDeRuta, t } from '@/lib/i18n';
+import { IDIOMAS, esIdioma, idiomaDeRuta, t } from '@/lib/i18n';
+
+interface Version {
+  tipo: 'manhwa' | 'novela';
+  idioma: string;
+  ultimo: number;
+  capitulos: CapituloExterno[];
+}
 
 interface Props {
-  capitulos: CapituloExterno[];
-  fuente: string;
+  versiones: Version[];
   slug: string;
 }
 
-const { capitulos, fuente, slug } = Astro.props;
+const { versiones, slug } = Astro.props;
 const dic = t(idiomaDeRuta(Astro.url.pathname));
+
+/** "Novela · English" — el nombre del idioma en su propio idioma. */
+const nombre = (v: Version) =>
+  `${v.tipo === 'manhwa' ? 'Manhwa' : 'Novela'} · ${esIdioma(v.idioma) ? IDIOMAS[v.idioma].nombre : v.idioma.toUpperCase()}`;
+
+const clave = (v: Version) => `${v.tipo}-${v.idioma}`;
+const dominio = (u: string) => {
+  try {
+    return new URL(u).hostname.replace(/^www\./, '');
+  } catch {
+    return '';
+  }
+};
 ---
 
 {
-  capitulos.length > 0 && (
-    <section aria-label="Capítulos en la fuente original" data-caps-externos data-slug={slug}>
+  versiones.length > 0 && (
+    <section aria-label="Capítulos en las fuentes originales" data-caps-externos data-slug={slug}>
       <div class="flex items-center gap-3 mb-2">
-        <h2 class="font-semibold text-base-800 dark:text-base-100">Últimos capítulos publicados</h2>
-        <span class="text-sm text-base-400 tabular-nums">({capitulos.length})</span>
+        <h2 class="font-semibold text-base-800 dark:text-base-100">Dónde leerla</h2>
         <label class="neu-inset rounded-xl px-3 py-1.5 ml-auto flex items-center gap-2">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" class="size-4 text-base-400">
             <circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" stroke-linecap="round" />
@@ -32,49 +50,74 @@ const dic = t(idiomaDeRuta(Astro.url.pathname));
         </label>
       </div>
 
-      {/* Decir de dónde sale cada enlace no es letra chica: es el sitio. */}
-      <p class="text-sm text-base-500 mb-4">
-        Índice de lo que ha publicado <strong class="text-base-600 dark:text-base-300">{fuente}</strong>.
-        Los capítulos se leen en su sitio: cada enlace lleva allí y se marca como leído al hacer click.
-      </p>
-
-      <ol class="grid gap-2">
-        {capitulos.map((c) => (
-          <li
-            data-cap={c.numero ?? ''}
-            data-leido="false"
-            class="neu-sm rounded-xl flex items-center gap-3 px-3 py-2 transition-opacity duration-200"
+      {/*
+        Las versiones vienen ordenadas por capítulo más alto. Esa primera
+        pestaña es la respuesta a "¿dónde hay más?", que es a lo que vino
+        el lector: el manhwa en español va por el 173 y la novela en inglés
+        por el 1948.
+      */}
+      <div class="flex flex-wrap gap-2 mb-3" role="tablist">
+        {versiones.map((v, i) => (
+          <button
+            role="tab"
+            data-version={clave(v)}
+            aria-selected={i === 0 ? 'true' : 'false'}
+            class="neu-sm neu-press rounded-xl px-3 py-1.5 text-sm aria-selected:text-acento-500"
           >
-            <a
-              href={c.url}
-              target="_blank"
-              rel="noopener nofollow"
-              class="min-w-0 flex-1 flex items-baseline gap-2 py-0.5"
-            >
-              {c.numero !== null && (
-                <span class="font-medium tabular-nums text-base-700 dark:text-base-200">{c.numero}</span>
-              )}
-              <span class="truncate text-sm text-base-500">{c.titulo}</span>
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.7"
-                stroke-linecap="round"
-                class="size-3.5 shrink-0 text-base-400"
-                aria-hidden="true"
-              >
-                <path d="M7 17 17 7M9 7h8v8" />
-              </svg>
-              <span class="sr-only">(se abre en {fuente})</span>
-            </a>
-
-            {c.fecha_texto && (
-              <span class="shrink-0 text-[11px] text-base-400 hidden sm:block">{c.fecha_texto}</span>
-            )}
-          </li>
+            {nombre(v)}
+            <span class="ml-1.5 text-xs text-base-400 tabular-nums">{v.ultimo || v.capitulos.length}</span>
+          </button>
         ))}
-      </ol>
+      </div>
+
+      {versiones.map((v, i) => (
+        <div data-panel={clave(v)} hidden={i !== 0}>
+          {/* Decir de dónde sale cada enlace no es letra chica: es el sitio. */}
+          <p class="text-sm text-base-500 mb-4">
+            {v.capitulos.length} capítulos indexados en{' '}
+            <strong class="text-base-600 dark:text-base-300">{dominio(v.capitulos[0].url)}</strong>. Se leen
+            allí: cada enlace lleva a la fuente original y se marca como leído al hacer click.
+          </p>
+
+          <ol class="grid gap-2">
+            {v.capitulos.map((c) => (
+              <li
+                data-cap={c.numero ?? ''}
+                data-leido="false"
+                class="neu-sm rounded-xl flex items-center gap-3 px-3 py-2 transition-opacity duration-200"
+              >
+                <a
+                  href={c.url}
+                  target="_blank"
+                  rel="noopener nofollow"
+                  class="min-w-0 flex-1 flex items-baseline gap-2 py-0.5"
+                >
+                  {c.numero !== null && (
+                    <span class="font-medium tabular-nums text-base-700 dark:text-base-200">{c.numero}</span>
+                  )}
+                  <span class="truncate text-sm text-base-500">{c.titulo}</span>
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.7"
+                    stroke-linecap="round"
+                    class="size-3.5 shrink-0 text-base-400"
+                    aria-hidden="true"
+                  >
+                    <path d="M7 17 17 7M9 7h8v8" />
+                  </svg>
+                  <span class="sr-only">(se abre en {dominio(c.url)})</span>
+                </a>
+
+                {c.fecha_texto && (
+                  <span class="shrink-0 text-[11px] text-base-400 hidden sm:block">{c.fecha_texto}</span>
+                )}
+              </li>
+            ))}
+          </ol>
+        </div>
+      ))}
     </section>
   )
 }
@@ -91,6 +134,8 @@ const dic = t(idiomaDeRuta(Astro.url.pathname));
     // spinoffs/tocantes sin equivalencia numérica y quedan fuera del tracking.
     const conNumero = filas.filter((f) => f.dataset.cap !== '');
 
+    // El progreso es por obra, no por versión: leer el capítulo 40 del manhwa
+    // en inglés lo marca también en la lista en español. Es el mismo capítulo.
     const pintar = () =>
       conNumero.forEach((f) => {
         const l = leido(slug, +f.dataset.cap!);
@@ -109,6 +154,17 @@ const dic = t(idiomaDeRuta(Astro.url.pathname));
 
     window.addEventListener('progress:change', pintar);
     window.addEventListener('progress:synced', pintar);
+
+    // Pestañas: manhwa/es, novela/en…
+    const pestañas = [...lista.querySelectorAll<HTMLButtonElement>('[data-version]')];
+    pestañas.forEach((b) =>
+      b.addEventListener('click', () => {
+        pestañas.forEach((o) => o.setAttribute('aria-selected', String(o === b)));
+        lista.querySelectorAll<HTMLElement>('[data-panel]').forEach((p) => {
+          p.hidden = p.dataset.panel !== b.dataset.version;
+        });
+      }),
+    );
 
     // Buscador por número. Los spinoffs sin número solo aparecen cuando la
     // búsqueda está vacía (nada para hacer match).

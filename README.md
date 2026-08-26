@@ -15,7 +15,10 @@ npm run build    # dist/ listo para Cloudflare Pages
 | `tailwind.config.mjs` | Paleta (grises fríos + acento índigo) y sombras neumórficas. Cargado por `@config` desde `global.css`. |
 | `src/lib/i18n.ts` | **Idiomas del sitio.** Añadir uno aquí genera sus rutas, hreflang, sitemap y selector. |
 | `src/types/novela.ts` | `Novela`, `Capitulo`, `EquivalenciaManhwa`, `UserProgress`. |
-| `src/lib/mockData.ts` | Datos de prueba: 4 novelas, 480 capítulos generados, anclas manhwa↔novela. |
+| `src/lib/mockData.ts` | Catálogo de respaldo. Solo se usa si `obras` está vacía o no hay credenciales. |
+| `scripts/plataformas.mjs` | **Adaptadores de sitio.** `madara`, `mangareader` y `css`. Lo único que hay que tocar cuando una scan cambia su HTML. |
+| `scripts/descubrir.mjs` | Recorre el catálogo de cada sitio y crea sus obras y fuentes. Trae `--probar`. |
+| `src/pages/admin.astro` | Panel de administración. Página estática; quien manda es RLS. |
 | `src/lib/api.ts` | **Única puerta a los datos.** Todo async: cambiar mock → Supabase no toca ninguna página. |
 | `src/lib/equivalencia.ts` | Conversión capítulo de manhwa → capítulo de novela (interpola entre anclas). |
 | `src/lib/supabaseClient.ts` | Cliente + login con Google. **Incluye el paso a paso de OAuth en comentarios.** |
@@ -24,7 +27,80 @@ npm run build    # dist/ listo para Cloudflare Pages
 | `src/components/ManhwaToNovelBridge.astro` | «¿Vienes del manhwa?» → capítulo exacto de la novela. |
 | `src/components/SyncExplanationBanner.astro` | Explica local vs nube. Se cierra o desaparece al iniciar sesión. |
 | `supabase/schema.sql` | Tabla `progreso` + RLS. Pegar en el SQL Editor. |
+| `supabase/schema-catalogo.sql` | `obras`, `sitios`, `admins` y las políticas de escritura. Idempotente. |
 | `public/_headers` | `CDN-Cache-Control: s-maxage=86400, stale-while-revalidate` en el edge. |
+
+## El agregador: de un sitio a un catálogo
+
+El sitio no aloja capítulos. Indexa **dónde** están y enlaza a la fuente original.
+Nunca se descarga el texto de una novela ni las páginas de un manhwa: solo
+título, número, fecha y enlace. Eso es lo que separa a un índice de una copia.
+
+```
+sitios ──descubrir.mjs──▶ obras + fuentes ──scrapear.mjs──▶ capitulos_externos
+  │                          │                                    │
+un INSERT              una obra por serie                  metadata + enlace
+por sitio              una fuente por serie                 al sitio de origen
+```
+
+**Añadir un sitio entero son dos pasos.** Primero se comprueba sin escribir nada:
+
+```bash
+node scripts/descubrir.mjs --probar='https://sitio.com/manga/page/{page}/' --plataforma=madara
+```
+
+Imprime las series que encuentra y los capítulos de la primera. Si sale la lista,
+el sitio se añade desde `/admin` o con un INSERT (ver `supabase/seed-sitios.sql`)
+y esa noche entra solo.
+
+### Por qué hay solo tres plataformas
+
+La mayoría de las scans corren uno de dos temas de WordPress, y todas las
+instalaciones de un tema comparten el mismo HTML:
+
+| `plataforma` | Cuándo | Qué hace falta |
+|---|---|---|
+| `madara` | El tema más común. Pide los capítulos por AJAX. | Solo la URL del listado. |
+| `mangareader` | El otro grande (leemiau, legionscans…). | Solo la URL del listado. |
+| `css` | Todo lo demás. | Los selectores, en la fila de `sitios`. |
+
+Un sitio nuevo de las dos primeras familias es **una URL**: sin selectores, sin
+deploy. Cuando una scan rediseña su HTML se arregla en `plataformas.mjs` y
+quedan arreglados todos los sitios de esa familia a la vez.
+
+> ⚠ Usa el dominio real, no el de marca. `samuraiscan.com/son/page/2/` redirige
+> a su host actual **pero se come la ruta** y acaba en la portada: el descubridor
+> no encontraría nada y el fallo sería mudo. `--probar` lo detecta en 5 segundos.
+
+### Varias versiones de la misma obra
+
+Cada fuente lleva su `tipo` (manhwa/novela) y su `idioma`. La misma obra puede
+tener el manhwa en español por el capítulo 173 y la novela en inglés por el 1948,
+y la ficha las muestra como pestañas **ordenadas por la más adelantada**.
+
+Ese orden es el producto: el lector llega buscando el capítulo 174 en español,
+que todavía no existe, y ve que la novela en inglés ya va por el 1948.
+
+### El panel de administración
+
+`/admin` es una página estática que habla con Supabase desde el navegador. No hay
+servidor ni una segunda app. Lo que impide que cualquiera edite el catálogo no es
+la página, **es RLS**: solo los correos de la tabla `admins` pueden escribir.
+
+```sql
+insert into public.admins values ('joseluisariasflores01@gmail.com');
+```
+
+Desde ahí se cambia la portada de una obra (con vista previa antes de guardar),
+su título, sus títulos alternativos, categorías y estado; se publica o se oculta;
+se activan o desactivan fuentes; y se añaden sitios nuevos.
+
+Las portadas que trae el descubridor apuntan al sitio de origen. Sustituirlas por
+una copia propia es justo para lo que está el campo.
+
+> La **sinopsis se deja vacía a propósito** al descubrir. Una sinopsis copiada de
+> otro sitio y auto-traducida a 7 idiomas es exactamente el contenido duplicado
+> que hunde un sitio multiidioma. Se escribe a mano y entonces sí se traduce.
 
 ## Idiomas
 
@@ -103,16 +179,44 @@ Sin variables de Supabase el sitio compila y funciona igual, en modo invitado. S
 3. Variables de entorno: `SITE_URL`, `PUBLIC_SUPABASE_URL`, `PUBLIC_SUPABASE_ANON_KEY`.
 4. Apunta el dominio y actualiza el `Sitemap:` de `public/robots.txt`.
 
-## Pasar de mock a Supabase
+## Poner en marcha el catálogo
 
-Ejecuta `supabase/schema.sql`, descomenta las tablas de catálogo del final y reescribe las funciones de `src/lib/api.ts` con queries. Nada más cambia: las páginas ya consumen esa API.
+En el SQL Editor de Supabase, en este orden:
 
-## Check
+```
+schema.sql  →  schema-fuentes.sql  →  schema-catalogo.sql  →  seed-sitios.sql
+```
+
+Después, una vez:
+
+```sql
+insert into public.admins values ('joseluisariasflores01@gmail.com');
+```
+
+Y ya en local, para ver qué haría antes de tocar la BD:
 
 ```bash
+npm run descubrir -- --seco      # cuántas obras saldrían de cada sitio
+npm run descubrir                # las crea
+npm run scrapear                 # indexa sus capítulos
+```
+
+`api.ts` lee `obras` de Supabase y cae a `mockData.ts` si la tabla está vacía o
+no hay credenciales. Por eso `npm run dev` funciona en un repo recién clonado.
+
+## Checks
+
+```bash
+npm run test:scrapear                              # adaptadores, sin red
 node --experimental-strip-types src/lib/api.test.ts
 ```
 
+`test:scrapear` sustituye `fetch` por HTML fijo: comprueba los dos adaptadores,
+la numeración, el slug y que se respete `robots.txt`, sin depender de que los
+sitios de origen estén arriba hoy.
+
 ---
 
-Portadas en `public/portadas/` son placeholders SVG generados; reemplázalos por las portadas reales (una sola imagen por novela).
+Portadas en `public/portadas/` son placeholders SVG generados. Las obras
+descubiertas traen la portada del sitio de origen; sustituirlas por una copia
+propia desde `/admin` es lo recomendable.

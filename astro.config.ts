@@ -20,6 +20,9 @@ export default defineConfig({
   integrations: [
     sitemap({
       i18n: { defaultLocale: IDIOMA_BASE, locales: localesSitemap },
+      // /admin es una herramienta interna, no contenido. Fuera del sitemap
+      // (y con noindex en su <head>) para que no se rastree ni se indexe.
+      filter: (pagina) => !pagina.includes('/admin'),
     }),
   ],
   vite: { plugins: [tailwind()] },

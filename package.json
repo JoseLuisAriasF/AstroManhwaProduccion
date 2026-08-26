@@ -6,6 +6,7 @@
     "dev": "astro dev",
     "build": "astro build",
     "traducir": "node --env-file-if-exists=.env scripts/traducir.mjs",
+    "descubrir": "node --env-file-if-exists=.env scripts/descubrir.mjs",
     "scrapear": "node --env-file-if-exists=.env scripts/scrapear.mjs",
     "test:scrapear": "node scripts/scrapear.test.mjs",
     "verificar": "node --env-file-if-exists=.env scripts/verificar-supabase.mjs",

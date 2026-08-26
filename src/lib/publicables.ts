@@ -20,6 +20,12 @@ import { cobertura } from './traducir';
 
 const UMBRAL = 0.95;
 
+// ponytail: la compuerta mide el corpus de mockData, no las obras de Supabase.
+// Sigue siendo correcta porque de las obras descubiertas no se publica prosa —
+// la sinopsis nace vacía y el índice de capítulos no se traduce, es el título
+// literal de la fuente. En cuanto se escriban sinopsis a mano en `obras`, este
+// módulo tiene que medirlas también o /fr/ saldrá con texto en español.
+
 const textos = [
   ...novelas.flatMap((n) => [n.titulo, n.sinopsis]),
   ...novelas.flatMap((n) =>

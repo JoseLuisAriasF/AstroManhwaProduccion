@@ -39,6 +39,11 @@ const href = ruta(idioma, `/novela/${novela.slug}`);
           novela.estado === 'En emisión' ? 'text-emerald-500' : 'text-base-500',
         ]}>{novela.estado === 'En emisión' ? dic.enEmision : dic.finalizado}</span
       >
+      {/* Manhwa o novela: el catálogo ya mezcla las dos y hay que distinguirlas
+          de un vistazo. 'ambos' no se marca — su ficha lo enseña con pestañas. */}
+      {novela.tipo !== 'ambos' && (
+        <span class="rounded-lg px-2 py-0.5 neu-inset text-base-500 capitalize">{novela.tipo}</span>
+      )}
       {totalCapitulos ? <span class="text-base-400 tabular-nums">{totalCapitulos} {dic.capitulosCorto}</span> : null}
       {rangos ? <span class="text-base-400 tabular-nums truncate" title={`Capítulos ${rangos}`}>cap. {rangos}</span> : null}
     </div>

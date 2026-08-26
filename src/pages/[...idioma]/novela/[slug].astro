@@ -4,7 +4,7 @@ import ManhwaToNovelBridge from '@/components/ManhwaToNovelBridge.astro';
 import ListaCapitulos from '@/components/ListaCapitulos.astro';
 import CapitulosExternos from '@/components/CapitulosExternos.astro';
 import SyncExplanationBanner from '@/components/SyncExplanationBanner.astro';
-import { getCapitulos, getCapitulosExternos, getEquivalencias, getNovelas } from '@/lib/api';
+import { getCapitulos, getCapitulosExternos, getEquivalencias, getNovelas, versiones } from '@/lib/api';
 import { IDIOMAS, idiomaDeRuta, ruta, t } from '@/lib/i18n';
 import { paramsDeIdioma } from '@/lib/publicables';
 
@@ -23,6 +23,9 @@ const novelas = await getNovelas(idioma);
 const novela = novelas.find((n) => n.slug === slug)!;
 const capitulos = await getCapitulos(novela.slug, idioma);
 const externos = await getCapitulosExternos(novela.slug);
+// Agrupadas por tipo+idioma y ordenadas por el capítulo más alto: la primera
+// pestaña es siempre la versión más adelantada que existe de esta obra.
+const versionesDisponibles = versiones(externos);
 const anclas = await getEquivalencias(novela.slug);
 // Sin capítulos internos, la novela vive fuera: oculto el lector propio,
 // el sync, el puente manhwa↔novela y el CTA de "empezar a leer" (rompería
@@ -160,7 +163,7 @@ const jsonLd = {
         <ListaCapitulos capitulos={capitulos} slug={novela.slug} />
       </>
     )}
-    <CapitulosExternos capitulos={externos} fuente="Maehwasup" slug={novela.slug} />
+    <CapitulosExternos versiones={versionesDisponibles} slug={novela.slug} />
   </div>
 </Base>
 
@@ -172,8 +175,11 @@ const jsonLd = {
   const boton = document.querySelector<HTMLButtonElement>('[data-favorito]')!;
   const slug = boton.dataset.slug!;
   const texto = boton.querySelector('[data-favorito-texto]')!;
-  const empezar = document.querySelector<HTMLAnchorElement>('[data-empezar]')!;
-  const base = empezar.dataset.base!;
+  // Puede no existir: las obras que se leen fuera no tienen lector interno, y
+  // son la mayoría del catálogo. Sin este `?` el TypeError se lleva por delante
+  // también el botón de favorito, que sí está siempre.
+  const empezar = document.querySelector<HTMLAnchorElement>('[data-empezar]');
+  const base = empezar?.dataset.base;
 
   function pintar() {
     const fav = get(slug).esFavorito;
@@ -181,7 +187,7 @@ const jsonLd = {
     texto.textContent = fav ? dic.guardada : dic.guardar;
 
     const n = ultimoLeido(slug);
-    if (n !== null) {
+    if (n !== null && empezar && base) {
       empezar.href = `${base}/capitulo-${n + 1}`;
       empezar.textContent = dic.continuarEnCap(n + 1);
     }
