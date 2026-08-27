@@ -95,8 +95,30 @@ function catalogo(): Promise<Novela[]> {
   return catalogoCache;
 }
 
+/**
+ * Slugs con contenido de verdad: capítulos (externos o internos) o sinopsis.
+ * El descubridor mete miles de obras "publicadas" que aún no tienen NADA
+ * indexado; su ficha sería una página vacía. Publicar esas ~8.000 obras × 7
+ * idiomas eran 56.000 páginas fantasma que reventaban el tiempo de build de
+ * Cloudflare (y son thin content para Google). Aquí se filtran.
+ */
+let conContenidoCache: Promise<Set<string>> | null = null;
+function obrasConContenido(): Promise<Set<string>> {
+  conContenidoCache ??= (async () => {
+    const conCaps = new Set<string>((await cargarExternos()).keys());
+    for (const n of await catalogo()) {
+      if (n.sinopsis?.trim() || capitulosDe(n.slug).length) conCaps.add(n.slug);
+    }
+    return conCaps;
+  })();
+  return conContenidoCache;
+}
+
 export async function getNovelas(idioma: Idioma = IDIOMA_BASE): Promise<Novela[]> {
-  return (await catalogo()).map((n) => localizarNovela(n, idioma));
+  const publicables = await obrasConContenido();
+  return (await catalogo())
+    .filter((n) => publicables.has(n.slug))
+    .map((n) => localizarNovela(n, idioma));
 }
 
 export async function getNovela(slug: string, idioma: Idioma = IDIOMA_BASE) {
