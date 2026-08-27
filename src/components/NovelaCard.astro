@@ -8,9 +8,11 @@ interface Props {
   totalCapitulos?: number;
   /** Ej: "1–1948" o "1–50, 53–67". Vacío = no se muestra. */
   rangos?: string;
+  /** La obra tiene capítulos de manhwa Y de novela: se resalta, es el gancho del sitio. */
+  dobleFormato?: boolean;
 }
 
-const { novela, totalCapitulos, rangos } = Astro.props;
+const { novela, totalCapitulos, rangos, dobleFormato = false } = Astro.props;
 const idioma = idiomaDeRuta(Astro.url.pathname);
 const dic = t(idioma);
 // El catálogo vive solo en `es`; desde /en/novelas la tarjeta enlaza a la ficha
@@ -43,9 +45,11 @@ const href = ruta(idiomaFicha, `/novela/${novela.slug}`);
           novela.estado === 'En emisión' ? 'text-emerald-500' : 'text-base-500',
         ]}>{novela.estado === 'En emisión' ? dic.enEmision : dic.finalizado}</span
       >
-      {/* Manhwa o novela: el catálogo ya mezcla las dos y hay que distinguirlas
-          de un vistazo. 'ambos' no se marca — su ficha lo enseña con pestañas. */}
-      {novela.tipo !== 'ambos' && (
+      {/* El gancho del sitio: si hay manhwa Y novela, se resalta en acento.
+          Si no, se marca el único formato para distinguirlo de un vistazo. */}
+      {dobleFormato ? (
+        <span class="rounded-lg px-2 py-0.5 neu-inset font-semibold text-acento-500">Manhwa + Novela</span>
+      ) : (
         <span class="rounded-lg px-2 py-0.5 neu-inset text-base-500 capitalize">{novela.tipo}</span>
       )}
       {totalCapitulos ? <span class="text-base-400 tabular-nums">{totalCapitulos} {dic.capitulosCorto}</span> : null}
