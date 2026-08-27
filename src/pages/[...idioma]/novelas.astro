@@ -16,30 +16,46 @@ const novelas = await getNovelas(idioma);
 const conTotales = await Promise.all(
   novelas.map(async (n) => {
     const [caps, externos] = await Promise.all([getCapitulos(n.slug), getCapitulosExternos(n.slug)]);
+    const fmts = formatos(externos);
     // El gancho del sitio: tiene manhwa Y novela. El campo `tipo` no sirve (casi
     // nunca marca 'ambos'); la señal fiable es tener capítulos de los dos formatos.
-    return { novela: n, total: caps.length, ambos: formatos(externos).length === 2 };
+    return { novela: n, total: caps.length, formatos: fmts, ambos: fmts.length === 2 };
   }),
 );
+
+// Las de doble formato primero (es a lo que se viene); dentro, las más largas.
+conTotales.sort((a, b) => Number(b.ambos) - Number(a.ambos) || b.total - a.total);
+
 const categorias = [...new Set(novelas.flatMap((n) => n.categorias))].sort();
 const conDoble = conTotales.filter((n) => n.ambos).length;
+
+// Texto para la búsqueda: título + títulos alternativos (para encontrar por el
+// nombre en inglés/coreano aunque la ficha esté en español).
+const buscable = (n: { titulo: string; titulosAlternativos: string[] }) =>
+  [n.titulo, ...n.titulosAlternativos].join(' ').toLowerCase();
 ---
 
 <Base titulo={`${dic.catalogo} · ManhwaToNovel`} descripcion={dic.seoCatalogoDesc} anchoCompleto>
   <h1 class="text-2xl font-bold tracking-tight text-base-800 dark:text-base-50">{dic.catalogo}</h1>
+  <p class="mt-1 text-sm text-base-500" data-sub>
+    {conDoble} obras con <strong class="text-acento-500">manhwa y novela</strong>. Busca un título para ver el catálogo completo.
+  </p>
 
-  {/* Filtro estrella: solo las obras con manhwa Y novela, el gancho del sitio. */}
-  {conDoble > 0 && (
-    <button
-      data-doble
-      aria-pressed="false"
-      class="mt-5 neu-sm neu-press rounded-xl px-3 py-1.5 text-sm font-semibold aria-pressed:text-acento-500"
-    >
-      ✦ Manhwa + Novela ({conDoble})
-    </button>
-  )}
+  <label class="mt-5 neu-inset rounded-xl flex items-center gap-3 px-4 py-3">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" class="size-5 text-base-400 shrink-0">
+      <circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" stroke-linecap="round" />
+    </svg>
+    <input
+      id="buscador"
+      type="search"
+      placeholder="Buscar por título…"
+      aria-label="Buscar novela"
+      autocomplete="off"
+      class="w-full bg-transparent outline-none text-base-800 dark:text-base-100 placeholder:text-base-400"
+    />
+  </label>
 
-  <div class="mt-3 flex flex-wrap gap-2" data-filtros>
+  <div class="mt-4 flex flex-wrap gap-2" data-filtros>
     <button data-cat="" class="neu-sm neu-press rounded-xl px-3 py-1.5 text-sm aria-pressed:text-acento-500" aria-pressed="true">
       {dic.todas}
     </button>
@@ -54,29 +70,52 @@ const conDoble = conTotales.filter((n) => n.ambos).length;
 
   <div class="mt-6 grid sm:grid-cols-2 gap-4">
     {
-      conTotales.map(({ novela, total, ambos }) => (
-        <div data-cats={novela.categorias.join('|')} data-ambos={ambos ? '1' : ''}>
-          <NovelaCard novela={novela} totalCapitulos={total} dobleFormato={ambos} />
+      conTotales.map(({ novela, total, formatos, ambos }) => (
+        <div
+          data-cats={novela.categorias.join('|')}
+          data-ambos={ambos ? '1' : ''}
+          data-titulo={buscable(novela)}
+          hidden={!ambos}
+        >
+          <NovelaCard novela={novela} totalCapitulos={total} formatos={formatos} />
         </div>
       ))
     }
   </div>
+
+  <p id="sin-resultados" hidden class="mt-8 neu-inset rounded-2xl p-8 text-center text-base-500">
+    No hay resultados. Prueba otro título.
+  </p>
 </Base>
 
 <script>
+  const input = document.getElementById('buscador') as HTMLInputElement;
   const botones = document.querySelectorAll<HTMLButtonElement>('[data-cat]');
-  const toggleDoble = document.querySelector<HTMLButtonElement>('[data-doble]');
-  const tarjetas = document.querySelectorAll<HTMLElement>('[data-cats]');
+  const tarjetas = [...document.querySelectorAll<HTMLElement>('[data-cats]')];
+  const sub = document.querySelector<HTMLElement>('[data-sub]');
+  const vacio = document.getElementById('sin-resultados') as HTMLElement;
 
   let cat = '';
-  let soloDoble = false;
-  const aplicar = () =>
+
+  const aplicar = () => {
+    const q = input.value.trim().toLowerCase();
+    // Sin búsqueda ni categoría, el catálogo muestra SOLO las de doble formato
+    // (el gancho); en cuanto se busca o se filtra por categoría, se abre a todo.
+    const abierto = q !== '' || cat !== '';
+    let visibles = 0;
     tarjetas.forEach((t) => {
       const okCat = cat === '' || t.dataset.cats!.split('|').includes(cat);
-      const okDoble = !soloDoble || t.dataset.ambos === '1';
-      t.hidden = !(okCat && okDoble);
+      const okQ = q === '' || t.dataset.titulo!.includes(q);
+      const okBase = abierto || t.dataset.ambos === '1';
+      const ver = okCat && okQ && okBase;
+      t.hidden = !ver;
+      if (ver) visibles++;
     });
+    if (sub) sub.hidden = abierto; // el subtítulo explica el modo por defecto
+    vacio.hidden = visibles > 0;
+  };
 
+  input.addEventListener('input', aplicar);
   botones.forEach((b) =>
     b.addEventListener('click', () => {
       cat = b.dataset.cat!;
@@ -84,10 +123,4 @@ const conDoble = conTotales.filter((n) => n.ambos).length;
       aplicar();
     }),
   );
-
-  toggleDoble?.addEventListener('click', () => {
-    soloDoble = !soloDoble;
-    toggleDoble.setAttribute('aria-pressed', String(soloDoble));
-    aplicar();
-  });
 </script>
