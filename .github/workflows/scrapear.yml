@@ -11,6 +11,14 @@ on:
         description: 'Recorrer también el catálogo de cada sitio'
         type: boolean
         default: false
+      obra:
+        description: 'Scrapear SOLO esta obra (slug), p.ej. return-of-the-mount-hua'
+        type: string
+        default: ''
+      max:
+        description: 'Cuántas fuentes atender en la corrida (vaciar backlog: sube a 1500)'
+        type: string
+        default: '400'
 
 jobs:
   indexar:
@@ -34,9 +42,11 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
 
       # Capítulos nuevos. --max acota la corrida: las fuentes se atienden por
-      # antigüedad, así que lo que no entra hoy entra mañana.
+      # antigüedad (las nunca vistas primero), así que lo que no entra hoy entra
+      # mañana. A mano se puede subir --max para vaciar el backlog, o pasar
+      # --obra=<slug> para priorizar una obra concreta.
       - name: Indexar capítulos
-        run: node scripts/scrapear.mjs --max=400
+        run: node scripts/scrapear.mjs --max=${{ github.event.inputs.max || '400' }} ${{ github.event.inputs.obra && format('--obra={0}', github.event.inputs.obra) || '' }}
         env:
           PUBLIC_SUPABASE_URL: ${{ secrets.PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
