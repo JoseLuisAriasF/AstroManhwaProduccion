@@ -1,5 +1,6 @@
 ---
-import { idiomaDeRuta, ruta, t } from '@/lib/i18n';
+import { IDIOMA_BASE, idiomaDeRuta, ruta, t } from '@/lib/i18n';
+import { idiomasDeObra } from '@/lib/publicables';
 import type { Novela } from '@/types/novela';
 
 interface Props {
@@ -12,7 +13,10 @@ interface Props {
 const { novela, totalCapitulos, rangos } = Astro.props;
 const idioma = idiomaDeRuta(Astro.url.pathname);
 const dic = t(idioma);
-const href = ruta(idioma, `/novela/${novela.slug}`);
+// El catálogo vive solo en `es`; desde /en/novelas la tarjeta enlaza a la ficha
+// en el idioma en que exista (así no manda a /en/novela/slug, que no se generó).
+const idiomaFicha = idiomasDeObra(novela).includes(idioma) ? idioma : IDIOMA_BASE;
+const href = ruta(idiomaFicha, `/novela/${novela.slug}`);
 ---
 
 <article

@@ -2,7 +2,7 @@
 import '@/styles/global.css';
 import Header from '@/components/Header.astro';
 import Footer from '@/components/Footer.astro';
-import { IDIOMAS, IDIOMA_BASE, idiomaDeRuta, t } from '@/lib/i18n';
+import { IDIOMAS, IDIOMA_BASE, idiomaDeRuta, t, type Idioma } from '@/lib/i18n';
 import { alternativas } from '@/lib/publicables';
 
 interface Props {
@@ -12,6 +12,9 @@ interface Props {
   tipo?: 'website' | 'article' | 'book';
   jsonLd?: Record<string, unknown>;
   anchoCompleto?: boolean;
+  /** Idiomas en que existe ESTA página. Una ficha de obra pasa los suyos para
+      que hreflang y el selector no ofrezcan versiones que no se generaron. */
+  idiomas?: Idioma[];
 }
 
 const {
@@ -21,6 +24,7 @@ const {
   tipo = 'website',
   jsonLd,
   anchoCompleto = false,
+  idiomas,
 } = Astro.props;
 
 const idioma = idiomaDeRuta(Astro.url.pathname);
@@ -29,7 +33,7 @@ const dic = t(idioma);
 
 const canonical = new URL(Astro.url.pathname, Astro.site).toString();
 const imagenAbs = new URL(imagen, Astro.site).toString();
-const idiomasAlternos = alternativas(Astro.url.pathname);
+const idiomasAlternos = alternativas(Astro.url.pathname, idiomas);
 const SITIO = 'ManhwaToNovel';
 ---
 
@@ -104,7 +108,7 @@ const SITIO = 'ManhwaToNovel';
       class="sr-only focus:not-sr-only focus:absolute focus:top-3 focus:left-3 focus:z-50 neu rounded-xl px-4 py-2"
       >{dic.saltarContenido}</a
     >
-    <Header />
+    <Header idiomas={idiomas} />
     <main
       id="contenido"
       class:list={[

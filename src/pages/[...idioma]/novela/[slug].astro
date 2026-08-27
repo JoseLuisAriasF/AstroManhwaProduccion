@@ -6,12 +6,17 @@ import CapitulosExternos from '@/components/CapitulosExternos.astro';
 import SyncExplanationBanner from '@/components/SyncExplanationBanner.astro';
 import { formatos, fuentesDe, getCapitulos, getCapitulosExternos, getEquivalencias, getNovelas } from '@/lib/api';
 import { IDIOMAS, idiomaDeRuta, ruta, t } from '@/lib/i18n';
-import { paramsDeIdioma } from '@/lib/publicables';
+import { idiomasDeObra, paramsDeIdioma } from '@/lib/publicables';
 
 export async function getStaticPaths() {
   const novelas = await getNovelas();
-  return paramsDeIdioma().flatMap(({ idioma }) =>
-    novelas.map((novela) => ({ params: { idioma, slug: novela.slug } })),
+  // El catálogo sin prosa traducida se publica solo en `es` (ver idiomasDeObra):
+  // sin esto serían 8.600 obras × 7 idiomas y el build no cabe en el tiempo de CF.
+  const paramDe = new Map(paramsDeIdioma().map((p) => [p.codigo, p.idioma]));
+  return novelas.flatMap((novela) =>
+    idiomasDeObra(novela)
+      .filter((c) => paramDe.has(c))
+      .map((codigo) => ({ params: { idioma: paramDe.get(codigo), slug: novela.slug } })),
   );
 }
 
@@ -75,6 +80,7 @@ const jsonLd = {
   imagen={novela.portadaUrl}
   tipo="book"
   jsonLd={jsonLd}
+  idiomas={idiomasDeObra(novela)}
 >
   <nav class="text-sm text-base-400 mb-5" aria-label="breadcrumb">
     <a href={ruta(idioma)} class="hover:text-acento-500">{dic.navInicio}</a>

@@ -1,6 +1,10 @@
 ---
-import { IDIOMAS, idiomaDeRuta, t } from '@/lib/i18n';
+import { IDIOMAS, idiomaDeRuta, t, type Idioma } from '@/lib/i18n';
 import { alternativas } from '@/lib/publicables';
+
+interface Props {
+  idiomas?: Idioma[];
+}
 
 /**
  * Selector de idioma.
@@ -16,9 +20,10 @@ import { alternativas } from '@/lib/publicables';
  * Esa traducción es invisible para el buscador: sirve al lector, no al SEO.
  * El SEO en otros idiomas lo dan los títulos alternos en texto visible.
  */
+const { idiomas } = Astro.props;
 const idioma = idiomaDeRuta(Astro.url.pathname);
 const dic = t(idioma);
-const propios = alternativas(Astro.url.pathname);
+const propios = alternativas(Astro.url.pathname, idiomas);
 ---
 
 <div class="relative" id="i18n" data-idioma-actual={idioma}>

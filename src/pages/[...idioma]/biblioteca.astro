@@ -2,8 +2,8 @@
 import Base from '@/layouts/Base.astro';
 import SyncExplanationBanner from '@/components/SyncExplanationBanner.astro';
 import { getCapitulos, getNovelas } from '@/lib/api';
-import { idiomaDeRuta, ruta, t } from '@/lib/i18n';
-import { paramsDeIdioma } from '@/lib/publicables';
+import { IDIOMA_BASE, idiomaDeRuta, ruta, t } from '@/lib/i18n';
+import { idiomasDeObra, paramsDeIdioma } from '@/lib/publicables';
 
 export function getStaticPaths() {
   return paramsDeIdioma().map(({ idioma }) => ({ params: { idioma } }));
@@ -19,6 +19,9 @@ const catalogo = await Promise.all(
     titulo: n.titulo,
     portadaUrl: n.portadaUrl,
     total: (await getCapitulos(n.slug)).length,
+    // La ficha en el idioma donde existe: el catálogo va solo en `es`, así que
+    // desde /en/biblioteca el enlace apunta a /novela/… y no a un 404 en /en/.
+    href: ruta(idiomasDeObra(n).includes(idioma) ? idioma : IDIOMA_BASE, `/novela/${n.slug}`),
   })),
 );
 ---
@@ -45,9 +48,9 @@ const catalogo = await Promise.all(
 
 <script>
   import { getAll, ultimoLeido } from '@/lib/progress';
-  import { idiomaDeRuta, ruta, t } from '@/lib/i18n';
+  import { idiomaDeRuta, t } from '@/lib/i18n';
 
-  type Item = { slug: string; titulo: string; portadaUrl: string; total: number };
+  type Item = { slug: string; titulo: string; portadaUrl: string; total: number; href: string };
   const catalogo: Item[] = (window as any).__catalogo;
   const idioma = idiomaDeRuta(location.pathname);
   const dic = t(idioma);
@@ -67,7 +70,7 @@ const catalogo = await Promise.all(
         const pct = Math.round((leidos / n.total) * 100);
         const ultimo = ultimoLeido(n.slug);
         const destino = ultimo !== null ? Math.min(ultimo + 1, n.total) : 1;
-        const base = ruta(idioma, `/novela/${n.slug}`);
+        const base = n.href;
         return `
         <article class="neu rounded-2xl p-3 flex gap-4">
           <a href="${base}" class="shrink-0">

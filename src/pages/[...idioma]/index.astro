@@ -3,8 +3,8 @@ import Base from '@/layouts/Base.astro';
 import NovelaCard from '@/components/NovelaCard.astro';
 import SyncExplanationBanner from '@/components/SyncExplanationBanner.astro';
 import { getCapitulos, getCapitulosExternos, getNovelas } from '@/lib/api';
-import { idiomaDeRuta, ruta, t } from '@/lib/i18n';
-import { paramsDeIdioma } from '@/lib/publicables';
+import { IDIOMA_BASE, idiomaDeRuta, ruta, t } from '@/lib/i18n';
+import { idiomasDeObra, paramsDeIdioma } from '@/lib/publicables';
 import { rangos } from '@/lib/rangos';
 
 export function getStaticPaths() {
@@ -13,6 +13,10 @@ export function getStaticPaths() {
 
 const idioma = idiomaDeRuta(Astro.url.pathname);
 const dic = t(idioma);
+// La ficha en el idioma donde existe: el catálogo va solo en `es`, así que en
+// /en/ los enlaces apuntan a /novela/… (base) y no a un 404 en /en/novela/….
+const fichaHref = (n: { slug: string; sinopsis?: string }) =>
+  ruta(idiomasDeObra(n).includes(idioma) ? idioma : IDIOMA_BASE, `/novela/${n.slug}`);
 
 const novelas = await getNovelas(idioma);
 const conTotales = await Promise.all(
@@ -56,7 +60,7 @@ const jsonLd = {
     '@type': 'Book',
     name: n.titulo,
     alternateName: n.titulosAlternativos,
-    url: new URL(ruta(idioma, `/novela/${n.slug}`), Astro.site).toString(),
+    url: new URL(fichaHref(n), Astro.site).toString(),
   })),
 };
 ---
@@ -144,7 +148,7 @@ const jsonLd = {
       {
         tendencias.map(({ novela, total, rangos }, i) => (
           <a
-            href={ruta(idioma, `/novela/${novela.slug}`)}
+            href={fichaHref(novela)}
             class="group neu rounded-2xl p-3 flex gap-3 transition-transform duration-200 hover:-translate-y-0.5"
           >
             <div class="relative shrink-0">

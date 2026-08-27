@@ -55,10 +55,26 @@ export function paramsDeIdioma() {
   }));
 }
 
-/** Versiones de una misma página, para hreflang y para el selector. */
-export function alternativas(pathname: string) {
+/**
+ * En qué idiomas se publica UNA obra. Solo las que tienen prosa traducible
+ * —sinopsis escrita a mano— justifican una versión por idioma; el catálogo
+ * descubierto (título literal, sinopsis vacía) en /en/, /pt/… sería el mismo
+ * español duplicado ×6: inútil para el lector, dañino para SEO y, a 8.600
+ * obras, el build de Cloudflare no cabe en su límite de tiempo. Esas van solo
+ * en el idioma base; las traducidas, en todos los publicados.
+ */
+export function idiomasDeObra(novela: { sinopsis?: string }): Idioma[] {
+  return novela.sinopsis?.trim() ? PUBLICADOS : [IDIOMA_BASE];
+}
+
+/**
+ * Versiones de una misma página, para hreflang y para el selector. Por defecto
+ * son todos los idiomas publicados; una ficha de obra pasa solo los suyos
+ * (ver idiomasDeObra) para no anunciar hreflang a páginas que no existen.
+ */
+export function alternativas(pathname: string, idiomas: Idioma[] = PUBLICADOS) {
   const base = rutaCanonica(pathname);
-  return PUBLICADOS.map((idioma) => ({
+  return idiomas.map((idioma) => ({
     idioma,
     hreflang: IDIOMAS[idioma].htmlLang,
     href: ruta(idioma, base),
