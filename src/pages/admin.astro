@@ -31,12 +31,12 @@ import '@/styles/global.css';
     </style>
   </head>
   <body class="min-h-dvh bg-base-100 dark:bg-base-900 text-base-800 dark:text-base-100">
-    <main class="mx-auto max-w-4xl p-4 sm:p-8 grid gap-6">
-      <header class="flex items-center gap-3">
+    <main class="mx-auto max-w-4xl p-4 sm:p-8 grid gap-6 overflow-x-hidden">
+      <header class="flex flex-wrap items-center gap-x-3 gap-y-2">
         <h1 class="text-xl font-bold">Admin</h1>
-        <span data-quien class="text-sm text-base-400"></span>
-        <button data-entrar class="neu-sm rounded-xl px-3 py-1.5 text-sm ml-auto">Entrar con Google</button>
-        <button data-salir hidden class="neu-sm rounded-xl px-3 py-1.5 text-sm ml-auto">Salir</button>
+        <span data-quien class="text-sm text-base-400 truncate min-w-0 max-w-full"></span>
+        <button data-entrar class="neu-sm rounded-xl px-3 py-1.5 text-sm ml-auto shrink-0">Entrar con Google</button>
+        <button data-salir hidden class="neu-sm rounded-xl px-3 py-1.5 text-sm ml-auto shrink-0">Salir</button>
       </header>
 
       <p data-aviso class="neu-inset rounded-xl px-4 py-3 text-sm text-base-500"></p>
@@ -47,16 +47,18 @@ import '@/styles/global.css';
           <div class="flex items-center gap-3">
             <h2 class="font-semibold">Obras</h2>
             <span data-conteo class="text-sm text-base-400 tabular-nums"></span>
-            <input
-              data-buscar
-              type="search"
-              placeholder="Buscar por título…"
-              class="neu-inset rounded-xl px-3 py-1.5 text-sm ml-auto w-48 bg-transparent outline-none"
-            />
-            <label class="flex items-center gap-1.5 text-xs text-base-400 whitespace-nowrap">
+            <label class="ml-auto flex items-center gap-1.5 text-xs text-base-400 whitespace-nowrap">
               <input type="checkbox" data-solo-rotas /> solo imagen rota
             </label>
           </div>
+          <!-- Buscador en su propia fila y a todo el ancho: en el header con ml-auto
+               se salía por la derecha en móvil y no se veía. -->
+          <input
+            data-buscar
+            type="search"
+            placeholder="Buscar por título o slug…"
+            class="neu-inset rounded-xl px-4 py-2.5 text-sm w-full bg-transparent outline-none"
+          />
           <ul data-obras class="grid gap-2"></ul>
         </div>
 
@@ -243,8 +245,8 @@ import '@/styles/global.css';
             .map(
               (o) => `<li><button data-slug="${o.slug}"
                 class="neu-sm rounded-xl px-3 py-2 w-full text-left flex items-center gap-3">
-                <span class="truncate">${o.titulo}</span>
-                <span class="text-xs text-base-400 ml-auto">${o.tipo}</span>
+                <span class="truncate flex-1 min-w-0">${o.titulo}</span>
+                <span class="text-xs text-base-400 shrink-0">${o.tipo}</span>
                 ${o.publicada ? '' : '<span class="text-xs text-amber-500">oculta</span>'}
               </button></li>`,
             )
@@ -346,8 +348,8 @@ import '@/styles/global.css';
               .map(
                 (o) => `<li><button type="button" data-src="${o.slug}"
                   class="neu-sm rounded-xl px-3 py-2 w-full text-left flex items-center gap-2">
-                  <span class="truncate">${o.titulo}</span>
-                  <span class="text-xs text-base-400 ml-auto">${o.tipo}</span>
+                  <span class="truncate flex-1 min-w-0">${o.titulo}</span>
+                  <span class="text-xs text-base-400 shrink-0">${o.tipo}</span>
                 </button></li>`,
               )
               .join('') || '<li class="text-base-400">Sin coincidencias.</li>';
@@ -443,13 +445,13 @@ import '@/styles/global.css';
           $('[data-fuentes]').innerHTML =
             (data ?? [])
               .map(
-                (f) => `<li class="neu-inset rounded-xl px-3 py-2 flex items-center gap-3">
-                  <label class="flex items-center gap-2">
-                    <input type="checkbox" data-fuente="${f.id}" ${f.activa ? 'checked' : ''}> ${f.nombre}
+                (f) => `<li class="neu-inset rounded-xl px-3 py-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <label class="flex items-center gap-2 min-w-0">
+                    <input type="checkbox" class="shrink-0" data-fuente="${f.id}" ${f.activa ? 'checked' : ''}> <span class="truncate">${f.nombre}</span>
                   </label>
-                  <span class="text-xs text-base-400">${f.tipo}/${f.idioma}</span>
+                  <span class="text-xs text-base-400 shrink-0">${f.tipo}/${f.idioma}</span>
                   <a href="${f.url_listado}" target="_blank" rel="noopener nofollow"
-                     class="text-xs text-acento-500 ml-auto truncate max-w-[40%]">${f.url_listado}</a>
+                     class="text-xs text-acento-500 ml-auto truncate max-w-full sm:max-w-[40%]">${f.url_listado}</a>
                 </li>`,
               )
               .join('') || '<li class="text-base-400">Ninguna todavía.</li>';
@@ -475,12 +477,12 @@ import '@/styles/global.css';
           $('[data-sitios]').innerHTML =
             (data ?? [])
               .map(
-                (s) => `<li class="neu-inset rounded-xl px-3 py-2 flex items-center gap-3">
-                  <label class="flex items-center gap-2">
-                    <input type="checkbox" data-sitio="${s.id}" ${s.activo ? 'checked' : ''}> ${s.nombre}
+                (s) => `<li class="neu-inset rounded-xl px-3 py-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <label class="flex items-center gap-2 min-w-0">
+                    <input type="checkbox" class="shrink-0" data-sitio="${s.id}" ${s.activo ? 'checked' : ''}> <span class="truncate">${s.nombre}</span>
                   </label>
-                  <span class="text-xs text-base-400">${s.plataforma} · ${s.tipo}/${s.idioma}</span>
-                  <span class="text-xs text-base-400 ml-auto">${
+                  <span class="text-xs text-base-400 shrink-0">${s.plataforma} · ${s.tipo}/${s.idioma}</span>
+                  <span class="text-xs text-base-400 ml-auto shrink-0">${
                     s.ultimo_descubrimiento ? new Date(s.ultimo_descubrimiento).toLocaleDateString() : 'sin recorrer'
                   }</span>
                 </li>`,
