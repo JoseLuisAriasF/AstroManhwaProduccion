@@ -53,11 +53,13 @@ export async function scrapearFuente(db, f) {
 
   const encontrados = [];
   const vistos = new Set();
+  let descargaOk = false; // ¿se pudo leer al menos una página? (si no, no toco n_caps)
   for (let p = 1; p <= techo; p++) {
     const url = f.url_listado.replace('{page}', String(p));
     let items;
     try {
       items = utiles(await adaptador.capitulos(url, f));
+      descargaOk = true;
     } catch (e) {
       console.log(`  página ${p} → ${e.message}, se detiene aquí`);
       break;
@@ -97,7 +99,17 @@ export async function scrapearFuente(db, f) {
       .upsert(encontrados, { onConflict: 'fuente_id,url', ignoreDuplicates: true });
     if (error) throw new Error(error.message);
   }
-  await db.from('fuentes').update({ ultimo_scrape: new Date().toISOString() }).eq('id', f.id);
+  // Marca de actividad para el backoff (ver debeScrapear): si la fuente creció
+  // respecto a la última vez, hubo capítulo nuevo → ultimo_cambio = ahora. Solo
+  // se toca n_caps si la descarga funcionó; si falló, no se pisa el conteo real
+  // con un 0 espurio (eso la haría parecer "cambiada" la próxima vez).
+  const ahora = new Date().toISOString();
+  const parche = { ultimo_scrape: ahora };
+  if (descargaOk) {
+    if (encontrados.length > (f.n_caps ?? 0)) parche.ultimo_cambio = ahora;
+    parche.n_caps = encontrados.length;
+  }
+  await db.from('fuentes').update(parche).eq('id', f.id);
   return encontrados.length;
 }
 
@@ -132,6 +144,26 @@ if (import.meta.main) {
   }
   fuentes.length = Math.min(fuentes.length, max);
 
+  // Backoff por actividad: no re-scrapear lo que está quieto. Una fuente se
+  // atiende a diario mientras dé capítulos nuevos; si lleva días sin cambiar se
+  // espacia sola (cada 3 días → semanal). Así las obras terminadas o pausadas
+  // dejan de gastar corrida —sin depender del flag `estado`, poco fiable— y una
+  // revisión semanal basta para pescar un scan que venía atrasado. Las nunca
+  // vistas y las corridas dirigidas (--obra) van siempre.
+  const DIA = 86400000;
+  const ahora = Date.now();
+  const debeScrapear = (f) => {
+    if (!f.ultimo_scrape || args.obra) return true;
+    const desdeScrape = ahora - Date.parse(f.ultimo_scrape);
+    const desdeCambio = f.ultimo_cambio ? ahora - Date.parse(f.ultimo_cambio) : Infinity;
+    const intervalo = desdeCambio < 7 * DIA ? DIA : desdeCambio < 30 * DIA ? 3 * DIA : 7 * DIA;
+    return desdeScrape >= intervalo - 2 * 3600000; // 2 h de margen para el jitter del cron
+  };
+  const pendientes = fuentes.filter(debeScrapear);
+  console.log(
+    `${pendientes.length} fuentes por atender · ${fuentes.length - pendientes.length} en reposo (backoff)`,
+  );
+
   const dominioDe = (u) => {
     try {
       return new URL(u).hostname.replace(/^www\./, '');
@@ -156,20 +188,20 @@ if (import.meta.main) {
   // capitulosEnlace solo lee el #caps= de la URL—, así que no llevan cortesía y
   // van en paralelo; el único límite es escribir en Supabase. Antes dormían
   // 1,5 s cada una: ~6.000 fuentes = 2,5 h tiradas sin tocar ningún sitio.
-  const enlace = fuentes.filter((f) => esEnlace(f.plataforma));
+  const enlace = pendientes.filter((f) => esEnlace(f.plataforma));
   await poza(enlace, 24, hacer);
 
   // Fase 2: las que sí piden red. Cortesía POR DOMINIO (cada sitio en serie con
   // su pausa), varios dominios a la vez. La pausa depende de la plataforma: 1,5 s
   // para raspar HTML, 300 ms para APIs/feeds (mangadex, blogger) que lo toleran.
   const colas = new Map();
-  for (const f of fuentes) {
+  for (const f of pendientes) {
     if (esEnlace(f.plataforma)) continue;
     const d = dominioDe(f.url_listado);
     (colas.get(d) ?? colas.set(d, []).get(d)).push(f);
   }
-  await poza([...colas.values()], 12, async (cola) => {
-    for (const f of cola) {
+  await poza([...colas.values()], 12, async (grupo) => {
+    for (const f of grupo) {
       await hacer(f);
       await espera(cortesiaDe(f));
     }

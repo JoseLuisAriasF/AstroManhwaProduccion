@@ -70,6 +70,13 @@ begin
   );
 end $$;
 
+-- Backoff por actividad (scripts/scrapear.mjs): el scraper deja de re-visitar
+-- cada noche lo que está quieto. n_caps = cuántos capítulos vio la última vez;
+-- si en la siguiente pasada hay más, hubo capítulo nuevo → ultimo_cambio = ahora.
+-- Con esos dos datos, una fuente que lleva días sin cambiar se espacia sola.
+alter table public.fuentes add column if not exists ultimo_cambio timestamptz;
+alter table public.fuentes add column if not exists n_caps int not null default 0;
+
 alter table public.fuentes enable row level security;
 alter table public.capitulos_externos enable row level security;
 
