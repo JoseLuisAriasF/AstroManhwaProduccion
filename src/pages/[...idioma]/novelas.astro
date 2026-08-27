@@ -1,9 +1,9 @@
 ---
 import Base from '@/layouts/Base.astro';
 import NovelaCard from '@/components/NovelaCard.astro';
-import { formatos, getCapitulos, getCapitulosExternos, getNovelas } from '@/lib/api';
-import { idiomaDeRuta, t } from '@/lib/i18n';
-import { paramsDeIdioma } from '@/lib/publicables';
+import { formatos, getCapitulosExternos, getNovelas } from '@/lib/api';
+import { IDIOMA_BASE, idiomaDeRuta, ruta, t } from '@/lib/i18n';
+import { idiomasDeObra, paramsDeIdioma } from '@/lib/publicables';
 
 export function getStaticPaths() {
   return paramsDeIdioma().map(({ idioma }) => ({ params: { idioma } }));
@@ -12,33 +12,52 @@ export function getStaticPaths() {
 const idioma = idiomaDeRuta(Astro.url.pathname);
 const dic = t(idioma);
 
+// La ficha en el idioma donde existe (el catálogo va solo en `es`).
+const fichaHref = (n: { slug: string; sinopsis?: string }) =>
+  ruta(idiomasDeObra(n).includes(idioma) ? idioma : IDIOMA_BASE, `/novela/${n.slug}`);
+
 const novelas = await getNovelas(idioma);
-const conTotales = await Promise.all(
+const obras = await Promise.all(
   novelas.map(async (n) => {
-    const [caps, externos] = await Promise.all([getCapitulos(n.slug), getCapitulosExternos(n.slug)]);
-    const fmts = formatos(externos);
-    // El gancho del sitio: tiene manhwa Y novela. El campo `tipo` no sirve (casi
-    // nunca marca 'ambos'); la señal fiable es tener capítulos de los dos formatos.
-    return { novela: n, total: caps.length, formatos: fmts, ambos: fmts.length === 2 };
+    const fmts = formatos(await getCapitulosExternos(n.slug));
+    const tags = (fmts.length ? fmts : n.tipo === 'ambos' ? ['manhwa', 'novela'] : [n.tipo]) as (
+      | 'manhwa'
+      | 'novela'
+    )[];
+    return {
+      novela: n,
+      formatos: tags,
+      ambos: fmts.length === 2,
+      total: fmts.length, // proxy de completitud, solo para ordenar
+      href: fichaHref(n),
+      // Texto de búsqueda: título + alternos (para hallar por el nombre en inglés).
+      q: [n.titulo, ...n.titulosAlternativos].join(' ').toLowerCase(),
+    };
   }),
 );
 
-// Las de doble formato primero (es a lo que se viene); dentro, las más largas.
-conTotales.sort((a, b) => Number(b.ambos) - Number(a.ambos) || b.total - a.total);
+// Doble formato primero (el gancho), luego por más fuentes.
+obras.sort((a, b) => Number(b.ambos) - Number(a.ambos) || b.total - a.total);
 
-const categorias = [...new Set(novelas.flatMap((n) => n.categorias))].sort();
-const conDoble = conTotales.filter((n) => n.ambos).length;
+const destacadas = obras.filter((o) => o.ambos);
 
-// Texto para la búsqueda: título + títulos alternativos (para encontrar por el
-// nombre en inglés/coreano aunque la ficha esté en español).
-const buscable = (n: { titulo: string; titulosAlternativos: string[] }) =>
-  [n.titulo, ...n.titulosAlternativos].join(' ').toLowerCase();
+// Índice ligero para la búsqueda del lado del cliente: solo lo que pinta una
+// tarjeta de resultado. Renderizar las 8.600 en HTML pesaba 10 MB y arrastraba
+// el navegador; esto es texto, gzipea bien y el DOM inicial queda diminuto.
+const indice = obras.map((o) => ({
+  q: o.q,
+  titulo: o.novela.titulo,
+  alt: o.novela.titulosAlternativos[0] ?? '',
+  portada: o.novela.portadaUrl,
+  fmt: o.formatos,
+  href: o.href,
+}));
 ---
 
 <Base titulo={`${dic.catalogo} · ManhwaToNovel`} descripcion={dic.seoCatalogoDesc} anchoCompleto>
   <h1 class="text-2xl font-bold tracking-tight text-base-800 dark:text-base-50">{dic.catalogo}</h1>
   <p class="mt-1 text-sm text-base-500" data-sub>
-    {conDoble} obras con <strong class="text-acento-500">manhwa y novela</strong>. Busca un título para ver el catálogo completo.
+    {destacadas.length} obras con <strong class="text-acento-500">manhwa y novela</strong>. Busca un título para ver el catálogo completo.
   </p>
 
   <label class="mt-5 neu-inset rounded-xl flex items-center gap-3 px-4 py-3">
@@ -55,72 +74,77 @@ const buscable = (n: { titulo: string; titulosAlternativos: string[] }) =>
     />
   </label>
 
-  <div class="mt-4 flex flex-wrap gap-2" data-filtros>
-    <button data-cat="" class="neu-sm neu-press rounded-xl px-3 py-1.5 text-sm aria-pressed:text-acento-500" aria-pressed="true">
-      {dic.todas}
-    </button>
-    {
-      categorias.map((c) => (
-        <button data-cat={c} class="neu-sm neu-press rounded-xl px-3 py-1.5 text-sm aria-pressed:text-acento-500" aria-pressed="false">
-          {c}
-        </button>
-      ))
-    }
+  {/* Grid por defecto: solo las de doble formato, renderizadas en el servidor. */}
+  <div id="destacadas" class="mt-6 grid sm:grid-cols-2 gap-4">
+    {destacadas.map(({ novela, formatos }) => (
+      <NovelaCard novela={novela} formatos={formatos} />
+    ))}
   </div>
 
-  <div class="mt-6 grid sm:grid-cols-2 gap-4">
-    {
-      conTotales.map(({ novela, total, formatos, ambos }) => (
-        <div
-          data-cats={novela.categorias.join('|')}
-          data-ambos={ambos ? '1' : ''}
-          data-titulo={buscable(novela)}
-          hidden={!ambos}
-        >
-          <NovelaCard novela={novela} totalCapitulos={total} formatos={formatos} />
-        </div>
-      ))
-    }
-  </div>
+  {/* Grid de resultados de búsqueda: se llena desde el índice al escribir. */}
+  <div id="resultados" hidden class="mt-6 grid sm:grid-cols-2 gap-4"></div>
 
   <p id="sin-resultados" hidden class="mt-8 neu-inset rounded-2xl p-8 text-center text-base-500">
     No hay resultados. Prueba otro título.
   </p>
+
+  <script is:inline define:vars={{ indice }}>
+    window.__indice = indice;
+  </script>
 </Base>
 
 <script>
+  type Item = { q: string; titulo: string; alt: string; portada: string; fmt: string[]; href: string };
+  const indice: Item[] = (window as any).__indice ?? [];
+
   const input = document.getElementById('buscador') as HTMLInputElement;
-  const botones = document.querySelectorAll<HTMLButtonElement>('[data-cat]');
-  const tarjetas = [...document.querySelectorAll<HTMLElement>('[data-cats]')];
+  const destacadas = document.getElementById('destacadas') as HTMLElement;
+  const resultados = document.getElementById('resultados') as HTMLElement;
   const sub = document.querySelector<HTMLElement>('[data-sub]');
   const vacio = document.getElementById('sin-resultados') as HTMLElement;
 
-  let cat = '';
+  const esc = (s: string) =>
+    s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 
-  const aplicar = () => {
-    const q = input.value.trim().toLowerCase();
-    // Sin búsqueda ni categoría, el catálogo muestra SOLO las de doble formato
-    // (el gancho); en cuanto se busca o se filtra por categoría, se abre a todo.
-    const abierto = q !== '' || cat !== '';
-    let visibles = 0;
-    tarjetas.forEach((t) => {
-      const okCat = cat === '' || t.dataset.cats!.split('|').includes(cat);
-      const okQ = q === '' || t.dataset.titulo!.includes(q);
-      const okBase = abierto || t.dataset.ambos === '1';
-      const ver = okCat && okQ && okBase;
-      t.hidden = !ver;
-      if (ver) visibles++;
-    });
-    if (sub) sub.hidden = abierto; // el subtítulo explica el modo por defecto
-    vacio.hidden = visibles > 0;
+  const tarjeta = (it: Item) => {
+    const tags = it.fmt
+      .map(
+        (f) =>
+          `<span class="rounded-lg px-2 py-0.5 neu-inset capitalize ${f === 'manhwa' ? 'text-emerald-500' : 'text-acento-500'}">${f}</span>`,
+      )
+      .join('');
+    return `<article class="neu rounded-2xl overflow-hidden flex gap-4 p-3">
+      <a href="${it.href}" class="shrink-0">
+        <img src="${esc(it.portada)}" alt="${esc(it.titulo)}" width="112" height="160" loading="lazy" decoding="async"
+             class="w-20 sm:w-28 aspect-[7/10] object-cover rounded-xl neu-sm" />
+      </a>
+      <div class="min-w-0 flex flex-col py-1">
+        <div class="flex items-center gap-2 text-[11px] font-medium">${tags}</div>
+        <h3 class="mt-1.5 font-semibold leading-snug text-base-800 dark:text-base-100">
+          <a href="${it.href}" class="hover:text-acento-500 transition-colors">${esc(it.titulo)}</a>
+        </h3>
+        <p class="text-xs text-base-400 truncate">${esc(it.alt)}</p>
+      </div>
+    </article>`;
   };
 
-  input.addEventListener('input', aplicar);
-  botones.forEach((b) =>
-    b.addEventListener('click', () => {
-      cat = b.dataset.cat!;
-      botones.forEach((o) => o.setAttribute('aria-pressed', String(o === b)));
-      aplicar();
-    }),
-  );
+  input.addEventListener('input', () => {
+    const q = input.value.trim().toLowerCase();
+    if (q === '') {
+      // Sin búsqueda: vuelve el default (solo doble formato).
+      resultados.hidden = true;
+      resultados.innerHTML = '';
+      destacadas.hidden = false;
+      if (sub) sub.hidden = false;
+      vacio.hidden = true;
+      return;
+    }
+    // Con búsqueda: se abre a todo el catálogo. Se cortan a 60 para no inundar el DOM.
+    const hits = indice.filter((it) => it.q.includes(q)).slice(0, 60);
+    destacadas.hidden = true;
+    if (sub) sub.hidden = true;
+    resultados.innerHTML = hits.map(tarjeta).join('');
+    resultados.hidden = hits.length === 0;
+    vacio.hidden = hits.length > 0;
+  });
 </script>
