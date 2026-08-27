@@ -146,15 +146,21 @@ const madara = {
     return $('li.wp-manga-chapter')
       .map((_, el) => {
         const a = $(el).find('a').first();
+        const href = a.attr('href');
+        // Capítulos premium/bloqueados (candado, monedas): href="#", sin URL real.
+        // Un enlace al que no se puede ir no le sirve al lector; se descartan y el
+        // conteo refleja solo lo que de verdad se puede leer.
+        if (!href || href === '#') return null;
         const titulo = a.text().trim();
         return {
           titulo,
-          url: abs(a.attr('href'), url),
-          numero: numeroDe(titulo) ?? numeroDe(a.attr('href')),
+          url: abs(href, url),
+          numero: numeroDe(titulo) ?? numeroDe(href),
           fecha_texto: $(el).find('.chapter-release-date').text().trim() || null,
         };
       })
-      .get();
+      .get()
+      .filter(Boolean);
   },
 };
 

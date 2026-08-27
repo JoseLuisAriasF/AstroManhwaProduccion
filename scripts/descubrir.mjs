@@ -223,8 +223,16 @@ if (import.meta.main) {
   for (const o of previas) indice.registrar(o.slug, [o.titulo, ...(o.titulos_alternativos ?? [])]);
   console.log(`índice: ${previas.length} obras conocidas`);
 
+  // --sitio=texto: recorre solo los sitios cuyo nombre/plataforma/id casan, para
+  // dar de alta uno nuevo sin repasar los ~11 sitios enteros (que son horas).
+  const filtro = args.sitio?.toLowerCase();
+  const objetivo = (sitios ?? []).filter(
+    (s) => !filtro || s.id === args.sitio || s.plataforma === filtro || s.nombre.toLowerCase().includes(filtro),
+  );
+  if (filtro) console.log(`--sitio=${args.sitio}: ${objetivo.length} de ${sitios?.length ?? 0} sitios`);
+
   let total = 0;
-  for (const sitio of sitios ?? []) {
+  for (const sitio of objetivo) {
     console.log(`→ ${sitio.nombre} · ${sitio.tipo} · ${sitio.idioma} · ${sitio.plataforma}`);
     try {
       total += await descubrirSitio(db, sitio, indice, args.seco === 'true');

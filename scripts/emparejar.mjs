@@ -35,11 +35,20 @@ export function normalizar(texto) {
 // "Regreso ...". Se indexa también la versión sin ellos para que emparejen.
 const ARTICULO = /^(el|la|los|las|un|una|the|a|an)\s+/;
 
-/** Las claves con las que una obra entra y se busca: normal y sin artículo. */
+// Sufijo de tipo que algunas scans pegan al título: anslid publica "Cállate
+// Dragona … Novela" y el blog la misma obra sin ese "Novela". Se indexa también
+// la versión sin el sufijo para que el manhwa y la novela caigan en una ficha.
+const TIPO_SUFIJO = /\s+(novela|manhwa|novel|manga|manhua|comic|webtoon)$/;
+
+/** Las claves con las que una obra entra y se busca: con/sin artículo y sin
+ *  sufijo de tipo. Se prueban todas las combinaciones para maximizar el match. */
 function clavesDe(nombre) {
-  const base = normalizar(nombre);
-  const sinArt = base.replace(ARTICULO, '');
-  return sinArt !== base ? [base, sinArt] : [base];
+  const claves = new Set();
+  for (const v of [normalizar(nombre), normalizar(nombre).replace(TIPO_SUFIJO, '')]) {
+    claves.add(v);
+    claves.add(v.replace(ARTICULO, ''));
+  }
+  return [...claves].filter(Boolean);
 }
 
 /**

@@ -24,6 +24,11 @@ import '@/styles/global.css';
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex, nofollow" />
     <title>Admin · ManhwaToNovel</title>
+    <style>
+      [data-obras].solo-rotas li:not([data-rota]) {
+        display: none;
+      }
+    </style>
   </head>
   <body class="min-h-dvh bg-base-100 dark:bg-base-900 text-base-800 dark:text-base-100">
     <main class="mx-auto max-w-4xl p-4 sm:p-8 grid gap-6">
@@ -48,6 +53,9 @@ import '@/styles/global.css';
               placeholder="Buscar por título…"
               class="neu-inset rounded-xl px-3 py-1.5 text-sm ml-auto w-48 bg-transparent outline-none"
             />
+            <label class="flex items-center gap-1.5 text-xs text-base-400 whitespace-nowrap">
+              <input type="checkbox" data-solo-rotas /> solo imagen rota
+            </label>
           </div>
           <ul data-obras class="grid gap-2"></ul>
         </div>
@@ -61,6 +69,13 @@ import '@/styles/global.css';
                 URL de la portada
                 <input name="portada_url" class="neu-inset rounded-xl px-3 py-2 bg-transparent outline-none" />
               </label>
+              <div class="flex items-center gap-2 text-xs text-base-400">
+                <span data-rota-hint hidden class="text-rose-500">⚠ imagen rota</span>
+                <label class="neu-sm rounded-lg px-2 py-1 cursor-pointer ml-auto">
+                  Subir imagen
+                  <input data-subir type="file" accept="image/*" class="hidden" />
+                </label>
+              </div>
               <label class="grid gap-1 text-sm">
                 Título
                 <input name="titulo" required class="neu-inset rounded-xl px-3 py-2 bg-transparent outline-none" />
@@ -109,6 +124,21 @@ import '@/styles/global.css';
           <div class="grid gap-2 border-t border-base-200 dark:border-base-700 pt-3">
             <h3 class="text-sm font-semibold">Fuentes de esta obra</h3>
             <ul data-fuentes class="grid gap-2 text-sm"></ul>
+          </div>
+
+          <div class="grid gap-2 border-t border-base-200 dark:border-base-700 pt-3">
+            <h3 class="text-sm font-semibold">Unir otra ficha en esta</h3>
+            <p class="text-xs text-base-400">
+              Busca la ficha duplicada (la misma obra en otro idioma o formato). Sus fuentes y capítulos se mueven
+              aquí, sus títulos pasan a alternativos y esa ficha se borra. No se puede deshacer.
+            </p>
+            <input
+              data-unir-buscar
+              type="search"
+              placeholder="Buscar ficha a absorber…"
+              class="neu-inset rounded-xl px-3 py-2 text-sm bg-transparent outline-none"
+            />
+            <ul data-unir-res class="grid gap-1 text-sm"></ul>
           </div>
         </form>
 
@@ -217,8 +247,33 @@ import '@/styles/global.css';
             .join('');
           $('[data-obras]')
             .querySelectorAll<HTMLButtonElement>('[data-slug]')
-            .forEach((b) => b.addEventListener('click', () => abrir(b.dataset.slug!)));
+            .forEach((b) => {
+              b.addEventListener('click', () => abrir(b.dataset.slug!));
+              // Marca las de imagen rota (o sin portada) para poder filtrarlas y arreglarlas.
+              const o = obras.find((x) => x.slug === b.dataset.slug);
+              imagenRota(o?.portada_url).then((rota) => {
+                if (!rota) return;
+                b.closest('li')!.dataset.rota = '1';
+                b.insertAdjacentHTML('beforeend', '<span class="text-xs text-rose-500">rota</span>');
+              });
+            });
         }
+
+        // Carga la URL en un <img> aparte: si dispara error (o no hay URL), rota.
+        function imagenRota(url?: string): Promise<boolean> {
+          return new Promise((res) => {
+            if (!url) return res(true);
+            const img = new Image();
+            const t = setTimeout(() => res(true), 8000);
+            img.onload = () => (clearTimeout(t), res(false));
+            img.onerror = () => (clearTimeout(t), res(true));
+            img.src = url;
+          });
+        }
+
+        $<HTMLInputElement>('[data-solo-rotas]').addEventListener('change', (e) =>
+          $('[data-obras]').classList.toggle('solo-rotas', (e.target as HTMLInputElement).checked),
+        );
 
         async function abrir(slug: string) {
           actual = obras.find((o) => o.slug === slug);
@@ -234,6 +289,9 @@ import '@/styles/global.css';
           f.publicada.checked = actual.publicada;
           f.destacada.checked = actual.destacada;
           $<HTMLImageElement>('[data-vista]').src = actual.portada_url || '';
+          imagenRota(actual.portada_url).then((rota) => ($('[data-rota-hint]').hidden = !rota));
+          $<HTMLInputElement>('[data-unir-buscar]').value = '';
+          $('[data-unir-res]').innerHTML = '';
           editor.scrollIntoView({ behavior: 'smooth', block: 'start' });
           await cargarFuentes(slug);
         }
@@ -241,8 +299,110 @@ import '@/styles/global.css';
         // Vista previa en vivo: pegar una URL de portada y verla antes de guardar
         // evita el caso clásico de publicar 200 obras con la imagen rota.
         (editor as any).portada_url.addEventListener('input', (e: Event) => {
-          $<HTMLImageElement>('[data-vista]').src = (e.target as HTMLInputElement).value;
+          const url = (e.target as HTMLInputElement).value;
+          $<HTMLImageElement>('[data-vista]').src = url;
+          imagenRota(url).then((rota) => ($('[data-rota-hint]').hidden = !rota));
         });
+
+        // Subir una imagen desde el PC → Supabase Storage → rellena la URL. Útil
+        // cuando la portada de origen se cayó y no hay otra URL a mano. Requiere
+        // el bucket de supabase/schema-storage.sql.
+        $<HTMLInputElement>('[data-subir]').addEventListener('change', async (e) => {
+          const file = (e.target as HTMLInputElement).files?.[0];
+          if (!file || !actual) return;
+          const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+          const ruta = `${actual.slug}-${Date.now()}.${ext}`;
+          decir('Subiendo imagen…');
+          const { error } = await db.storage
+            .from('portadas')
+            .upload(ruta, file, { upsert: true, contentType: file.type });
+          if (error) return decir(`No se subió: ${error.message} (¿corriste supabase/schema-storage.sql?)`);
+          const url = db.storage.from('portadas').getPublicUrl(ruta).data.publicUrl;
+          (editor as any).portada_url.value = url;
+          $<HTMLImageElement>('[data-vista]').src = url;
+          $('[data-rota-hint]').hidden = true;
+          decir('Imagen subida. Pulsa Guardar para aplicarla.');
+        });
+
+        // ── Unir fichas (misma obra en otro idioma/formato) ────────────────────
+        let debounceUnir: number;
+        $('[data-unir-buscar]').addEventListener('input', (e) => {
+          clearTimeout(debounceUnir);
+          const q = (e.target as HTMLInputElement).value.trim();
+          debounceUnir = window.setTimeout(() => buscarUnir(q), 300);
+        });
+
+        async function buscarUnir(q: string) {
+          const cont = $('[data-unir-res]');
+          if (!q || !actual) return (cont.innerHTML = '');
+          const { data } = await db.from('obras').select('slug, titulo, tipo').ilike('titulo', `%${q}%`).limit(8);
+          const res = (data ?? []).filter((o) => o.slug !== actual.slug);
+          cont.innerHTML =
+            res
+              .map(
+                (o) => `<li><button type="button" data-src="${o.slug}"
+                  class="neu-sm rounded-xl px-3 py-2 w-full text-left flex items-center gap-2">
+                  <span class="truncate">${o.titulo}</span>
+                  <span class="text-xs text-base-400 ml-auto">${o.tipo}</span>
+                </button></li>`,
+              )
+              .join('') || '<li class="text-base-400">Sin coincidencias.</li>';
+          cont.querySelectorAll<HTMLButtonElement>('[data-src]').forEach((b) => {
+            const o = res.find((x) => x.slug === b.dataset.src)!;
+            b.addEventListener('click', () => unir(o.slug, o.titulo));
+          });
+        }
+
+        // Espejo de scripts/fusionar.mjs, en el navegador. RLS deja hacerlo solo
+        // al admin. Pasos ordenados: mover antes de borrar, para que un fallo a
+        // mitad deje la src vacía (recuperable), nunca capítulos huérfanos.
+        async function unir(src: string, tituloSrc: string) {
+          if (
+            !confirm(
+              `¿Unir "${tituloSrc}" dentro de "${actual.titulo}"?\n\nSus fuentes y capítulos se moverán aquí y esa ficha se borrará. No se puede deshacer.`,
+            )
+          )
+            return;
+          const dst = actual.slug;
+          decir('Uniendo…');
+          const { data: fus } = await db.from('obras').select('*').in('slug', [dst, src]);
+          const oDst = fus?.find((o) => o.slug === dst);
+          const oSrc = fus?.find((o) => o.slug === src);
+          if (!oDst || !oSrc) return decir('No se encontró alguna de las fichas.');
+
+          const alts = [
+            ...new Set(
+              [oDst.titulo, ...(oDst.titulos_alternativos ?? []), oSrc.titulo, ...(oSrc.titulos_alternativos ?? [])]
+                .filter((t) => t && t !== oDst.titulo),
+            ),
+          ];
+          const tipo =
+            oDst.tipo === 'ambos' || oSrc.tipo === 'ambos'
+              ? 'ambos'
+              : oDst.tipo === oSrc.tipo
+                ? oDst.tipo
+                : 'ambos';
+
+          for (const [t, col] of [
+            ['fuentes', 'obra_slug'],
+            ['capitulos_externos', 'obra_slug'],
+            ['equivalencias', 'novela_slug'],
+          ] as const) {
+            const { error } = await db.from(t).update({ [col]: dst }).eq(col, src);
+            if (error) return decir(`${t}: ${error.message}`);
+          }
+          let r = await db
+            .from('obras')
+            .update({ tipo, titulos_alternativos: alts, portada_url: oDst.portada_url || oSrc.portada_url || '' })
+            .eq('slug', dst);
+          if (r.error) return decir(`obra: ${r.error.message}`);
+          r = await db.from('obras').delete().eq('slug', src);
+          if (r.error) return decir(`borrar: ${r.error.message}`);
+
+          decir(`Unida: "${oSrc.titulo}" absorbida en "${oDst.titulo}". Se verá en el próximo build.`);
+          await cargarObras($<HTMLInputElement>('[data-buscar]').value);
+          await abrir(dst);
+        }
 
         editor.addEventListener('submit', async (e) => {
           e.preventDefault();
