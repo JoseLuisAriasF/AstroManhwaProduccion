@@ -534,12 +534,18 @@ const manhwaweb = {
  */
 const MARCA_TIPO = /\s*\((novela|novel|manhwa|manga|manhua)\)\s*/i;
 const esNovela = (cat) => /\((novela|novel)\)/i.test(cat);
+// Etiqueta por-capítulo, no una serie: "Obra (Novela) Capítulo 1321". Algunos
+// blogs etiquetan CADA post con su número; sin descartarlas, cada capítulo se
+// volvía una "obra" (miles de fichas basura "Obra Capitulo N").
+const ETIQUETA_CAPITULO = /\b(cap[ií]tulo|chapter|episodio|ep)\b\s*\d/i;
 
 const blogger = {
   async series(url, sitio) {
     const base = url.replace(/\/feeds\/.*$/, ''); // origen del blog
     const j = await traerJson(`${base}/feeds/posts/default?alt=json&max-results=1`);
-    const cats = (j?.feed?.category ?? []).map((c) => c.term).filter((c) => MARCA_TIPO.test(c));
+    const cats = (j?.feed?.category ?? [])
+      .map((c) => c.term)
+      .filter((c) => MARCA_TIPO.test(c) && !ETIQUETA_CAPITULO.test(c));
     const quiere = sitio?.tipo === 'manhwa' ? (c) => !esNovela(c) : esNovela;
     return cats.filter(quiere).map((cat) => ({
       titulo: cat.replace(MARCA_TIPO, ' ').trim(),

@@ -2,7 +2,7 @@
 import Base from '@/layouts/Base.astro';
 import NovelaCard from '@/components/NovelaCard.astro';
 import SyncExplanationBanner from '@/components/SyncExplanationBanner.astro';
-import { getCapitulos, getCapitulosExternos, getNovelas } from '@/lib/api';
+import { formatos, getCapitulos, getCapitulosExternos, getNovelas } from '@/lib/api';
 import { IDIOMA_BASE, idiomaDeRuta, ruta, t } from '@/lib/i18n';
 import { idiomasDeObra, paramsDeIdioma } from '@/lib/publicables';
 import { rangos } from '@/lib/rangos';
@@ -22,9 +22,30 @@ const novelas = await getNovelas(idioma);
 const conTotales = await Promise.all(
   novelas.map(async (n) => {
     const [caps, externos] = await Promise.all([getCapitulos(n.slug), getCapitulosExternos(n.slug)]);
-    return { novela: n, total: caps.length, rangos: rangos(externos.map((e) => e.numero)) };
+    const fmts = formatos(externos);
+    return {
+      novela: n,
+      total: caps.length,
+      rangos: rangos(externos.map((e) => e.numero)),
+      formatos: fmts,
+      ambos: fmts.length === 2,
+    };
   }),
 );
+
+// El catálogo de la home muestra por defecto SOLO las de doble formato (el
+// gancho); el resto vive en un índice y aparece al buscar. Renderizar las 8.600
+// pesaba 10 MB y arrastraba el navegador.
+const destacadas = conTotales.filter((o) => o.ambos);
+const indice = conTotales.map((o) => ({
+  slug: o.novela.slug,
+  q: [o.novela.titulo, ...o.novela.titulosAlternativos].join(' ').toLowerCase(),
+  titulo: o.novela.titulo,
+  alt: o.novela.titulosAlternativos[0] ?? '',
+  portada: o.novela.portadaUrl,
+  fmt: (o.formatos.length ? o.formatos : o.novela.tipo === 'ambos' ? ['manhwa', 'novela'] : [o.novela.tipo]) as string[],
+  href: fichaHref(o.novela),
+}));
 
 // "Tendencias" mock: en emisión y más largas. Cambiar por una vista de Supabase.
 const tendencias = [...conTotales]
@@ -207,39 +228,70 @@ const jsonLd = {
 
   <!-- Catálogo -->
   <section>
-    <h2 id="titulo-catalogo" class="font-semibold text-base-800 dark:text-base-100 mb-4">
+    <h2 id="titulo-catalogo" class="font-semibold text-base-800 dark:text-base-100">
       {dic.catalogo}
     </h2>
-    <div class="grid sm:grid-cols-2 gap-4">
-      {
-        conTotales.map(({ novela, total, rangos }) => (
-          <div
-            data-busca={`${novela.titulo} ${novela.titulosAlternativos.join(' ')} ${novela.categorias.join(' ')}`.toLowerCase()}
-          >
-            <NovelaCard novela={novela} totalCapitulos={total} rangos={rangos} />
-          </div>
-        ))
-      }
+    <p class="mt-1 mb-4 text-sm text-base-500" data-sub>
+      {destacadas.length} obras con <strong class="text-acento-500">manhwa y novela</strong>. Busca arriba para ver todo el catálogo.
+    </p>
+    <div id="destacadas" class="grid sm:grid-cols-2 gap-4">
+      {destacadas.map(({ novela, total, rangos, formatos }) => (
+        <NovelaCard novela={novela} totalCapitulos={total} rangos={rangos} formatos={formatos} />
+      ))}
     </div>
+    <div id="resultados" hidden class="grid sm:grid-cols-2 gap-4"></div>
     <p id="sin-resultados" hidden class="neu-inset rounded-2xl p-8 text-center text-base-500 mt-2">
       {dic.sinResultados}
     </p>
+    <script is:inline define:vars={{ indice }}>
+      window.__indice = indice;
+    </script>
   </section>
 </Base>
 
 <script>
   import { getAll, ultimoLeido } from '@/lib/progress';
-  import { idiomaDeRuta, ruta, t } from '@/lib/i18n';
+  import { idiomaDeRuta, t } from '@/lib/i18n';
+
+  type Item = { slug: string; q: string; titulo: string; alt: string; portada: string; fmt: string[]; href: string };
+  const indice: Item[] = (window as any).__indice ?? [];
+  const porSlug = new Map(indice.map((it) => [it.slug, it]));
 
   const idioma = idiomaDeRuta(location.pathname);
   const dic = t(idioma);
-  const tarjetas = [...document.querySelectorAll<HTMLElement>('[data-busca]')];
 
-  // Chip "Vas por el cap. N" + fila de "Continuar leyendo".
+  const esc = (s: string) =>
+    s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
+
+  const tarjeta = (it: Item) => {
+    const tags = it.fmt
+      .map(
+        (f) =>
+          `<span class="rounded-lg px-2 py-0.5 neu-inset capitalize ${f === 'manhwa' ? 'text-emerald-500' : 'text-acento-500'}">${f}</span>`,
+      )
+      .join('');
+    return `<article class="neu rounded-2xl overflow-hidden flex gap-4 p-3">
+      <a href="${it.href}" class="shrink-0">
+        <img src="${esc(it.portada)}" alt="${esc(it.titulo)}" width="112" height="160" loading="lazy" decoding="async"
+             class="w-20 sm:w-28 aspect-[7/10] object-cover rounded-xl neu-sm" />
+      </a>
+      <div class="min-w-0 flex flex-col py-1">
+        <div class="flex items-center gap-2 text-[11px] font-medium">${tags}</div>
+        <h3 class="mt-1.5 font-semibold leading-snug text-base-800 dark:text-base-100">
+          <a href="${it.href}" class="hover:text-acento-500 transition-colors">${esc(it.titulo)}</a>
+        </h3>
+        <p class="text-xs text-base-400 truncate">${esc(it.alt)}</p>
+      </div>
+    </article>`;
+  };
+
+  // Chip "Vas por el cap. N" en las tarjetas visibles + fila "Continuar leyendo"
+  // (esta última se arma desde el índice, que tiene todas las obras).
   function pintarProgreso() {
     document.querySelectorAll<HTMLElement>('[data-novela]').forEach((card) => {
       const n = ultimoLeido(card.dataset.novela!);
-      const chip = card.querySelector<HTMLElement>('[data-continuar]')!;
+      const chip = card.querySelector<HTMLElement>('[data-continuar]');
+      if (!chip) return;
       chip.hidden = n === null;
       if (n !== null) chip.textContent = dic.vasPorCap(n);
     });
@@ -250,16 +302,16 @@ const jsonLd = {
 
     document.getElementById('continuar-lista')!.innerHTML = enCurso
       .map((p) => {
-        const card = document.querySelector<HTMLElement>(`[data-novela="${p.novelaSlug}"]`);
-        const titulo = card?.querySelector('h3')?.textContent?.trim() ?? p.novelaSlug;
-        const portada = card?.querySelector('img')?.getAttribute('src') ?? '';
+        const it = porSlug.get(p.novelaSlug);
         const siguiente = Math.max(...p.capitulosLeidos) + 1;
+        const titulo = it?.titulo ?? p.novelaSlug;
+        const portada = it?.portada ?? '';
+        const href = `${it?.href ?? `/novela/${p.novelaSlug}`}/capitulo-${siguiente}`;
         return `
-        <a href="${ruta(idioma, `/novela/${p.novelaSlug}`)}/capitulo-${siguiente}"
-           class="neu rounded-2xl p-3 flex items-center gap-3 transition-transform duration-200 hover:-translate-y-0.5">
-          <img src="${portada}" alt="" width="48" height="69" class="w-12 aspect-[7/10] object-cover rounded-lg neu-sm shrink-0" />
+        <a href="${href}" class="neu rounded-2xl p-3 flex items-center gap-3 transition-transform duration-200 hover:-translate-y-0.5">
+          <img src="${esc(portada)}" alt="" width="48" height="69" class="w-12 aspect-[7/10] object-cover rounded-lg neu-sm shrink-0" />
           <span class="min-w-0 flex-1">
-            <span class="block text-sm font-medium text-base-800 dark:text-base-100 truncate">${titulo}</span>
+            <span class="block text-sm font-medium text-base-800 dark:text-base-100 truncate">${esc(titulo)}</span>
             <span class="block text-xs text-base-500">${dic.continuarEnCapitulo(siguiente)}</span>
           </span>
           <span class="text-acento-500 shrink-0 pr-1" aria-hidden="true">→</span>
@@ -270,8 +322,12 @@ const jsonLd = {
   pintarProgreso();
   window.addEventListener('progress:synced', pintarProgreso);
 
-  // Buscador: filtra en el cliente, incluye títulos en otros idiomas.
+  // Buscador: sin texto, el catálogo muestra solo doble formato; al escribir se
+  // abre a todo (desde el índice) y se ocultan las demás secciones.
   const input = document.getElementById('buscador') as HTMLInputElement;
+  const destacadas = document.getElementById('destacadas') as HTMLElement;
+  const resultados = document.getElementById('resultados') as HTMLElement;
+  const sub = document.querySelector<HTMLElement>('[data-sub]');
   const vacio = document.getElementById('sin-resultados') as HTMLElement;
   const titulo = document.getElementById('titulo-catalogo') as HTMLElement;
   const secciones = ['continuar', 'tendencias', 'recientes']
@@ -281,15 +337,25 @@ const jsonLd = {
 
   input.addEventListener('input', () => {
     const q = input.value.trim().toLowerCase();
-    let visibles = 0;
-    for (const tarjeta of tarjetas) {
-      const coincide = q === '' || tarjeta.dataset.busca!.includes(q);
-      tarjeta.hidden = !coincide;
-      if (coincide) visibles++;
+    if (q === '') {
+      resultados.hidden = true;
+      resultados.innerHTML = '';
+      destacadas.hidden = false;
+      if (sub) sub.hidden = false;
+      secciones.forEach((s) => (s.hidden = !visiblePrevio.get(s)));
+      vacio.hidden = true;
+      titulo.textContent = dic.catalogo;
+      pintarProgreso();
+      return;
     }
-    // Al buscar, solo queda el catálogo filtrado.
-    secciones.forEach((s) => (s.hidden = q !== '' || !visiblePrevio.get(s)));
-    vacio.hidden = visibles > 0;
-    titulo.textContent = q === '' ? dic.catalogo : dic.resultados(visibles);
+    const todos = indice.filter((it) => it.q.includes(q));
+    const hits = todos.slice(0, 60);
+    destacadas.hidden = true;
+    if (sub) sub.hidden = true;
+    secciones.forEach((s) => (s.hidden = true));
+    resultados.innerHTML = hits.map(tarjeta).join('');
+    resultados.hidden = hits.length === 0;
+    vacio.hidden = hits.length > 0;
+    titulo.textContent = dic.resultados(todos.length);
   });
 </script>
