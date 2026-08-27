@@ -16,9 +16,9 @@ on:
         type: string
         default: ''
       max:
-        description: 'Cuántas fuentes atender en la corrida (vaciar backlog: sube a 1500)'
+        description: 'Cuántas fuentes atender en la corrida'
         type: string
-        default: '400'
+        default: '4000'
 
 jobs:
   indexar:
@@ -46,7 +46,7 @@ jobs:
       # mañana. A mano se puede subir --max para vaciar el backlog, o pasar
       # --obra=<slug> para priorizar una obra concreta.
       - name: Indexar capítulos
-        run: node scripts/scrapear.mjs --max=${{ github.event.inputs.max || '400' }} ${{ github.event.inputs.obra && format('--obra={0}', github.event.inputs.obra) || '' }}
+        run: node scripts/scrapear.mjs --max=${{ github.event.inputs.max || '4000' }} ${{ github.event.inputs.obra && format('--obra={0}', github.event.inputs.obra) || '' }}
         env:
           PUBLIC_SUPABASE_URL: ${{ secrets.PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}

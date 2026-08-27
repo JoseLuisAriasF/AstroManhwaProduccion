@@ -98,32 +98,68 @@ if (import.meta.main) {
   }
   const db = createClient(url, key, { auth: { persistSession: false } });
 
-  // Con cientos de obras no caben todas las fuentes en una corrida (1,5 s de
-  // cortesía cada una). Se atiende primero a las que llevan más tiempo sin
-  // revisar y el resto entra mañana: en unos días la rueda pasa por todas.
-  // Las nuevas (ultimo_scrape null) van delante, que son las que no tienen nada.
+  // Se atienden primero las que llevan más tiempo sin revisar; las nuevas
+  // (ultimo_scrape null) van delante, que son las que no tienen nada.
+  // Supabase corta cada request en 1000 filas, así que se pagina hasta juntar
+  // `max`. Sin esto, --max mayor a 1000 no traía más y la cola no se vaciaba.
   const max = Number(args.max) || 400;
-  let q = db
-    .from('fuentes')
-    .select('*')
-    .eq('activa', true)
-    .order('ultimo_scrape', { ascending: true, nullsFirst: true })
-    .limit(max);
-  if (args.obra) q = q.eq('obra_slug', args.obra);
-  const { data: fuentes, error } = await q;
-  if (error) throw new Error(error.message);
+  const fuentes = [];
+  for (let desde = 0; fuentes.length < max; desde += 1000) {
+    let q = db
+      .from('fuentes')
+      .select('*')
+      .eq('activa', true)
+      .order('ultimo_scrape', { ascending: true, nullsFirst: true })
+      .range(desde, desde + 999);
+    if (args.obra) q = q.eq('obra_slug', args.obra);
+    const { data, error } = await q;
+    if (error) throw new Error(error.message);
+    if (!data?.length) break;
+    fuentes.push(...data);
+    if (data.length < 1000) break;
+  }
+  fuentes.length = Math.min(fuentes.length, max);
+
+  // Cortesía POR DOMINIO, no global: cada sitio se atiende en serie y con su
+  // pausa de 1,5 s, pero varios sitios distintos a la vez. Antes la pausa era
+  // entre TODAS las fuentes aunque fueran dominios distintos, y con miles en
+  // cola la rueda no daba una vuelta ni en semanas. Así el backlog se drena en
+  // una corrida sin pisar ningún sitio (cada dominio sigue a 1,5 s de sí mismo).
+  const CONCURRENCIA = 12;
+  const dominioDe = (u) => {
+    try {
+      return new URL(u).hostname.replace(/^www\./, '');
+    } catch {
+      return u;
+    }
+  };
+  const colas = new Map();
+  for (const f of fuentes) {
+    const d = dominioDe(f.url_listado);
+    (colas.get(d) ?? colas.set(d, []).get(d)).push(f);
+  }
+  const pendientes = [...colas.values()];
 
   let total = 0;
-  for (const f of fuentes ?? []) {
-    console.log(`→ ${f.nombre} · ${f.obra_slug} · ${f.tipo}/${f.idioma}`);
-    try {
-      const n = await scrapearFuente(db, f);
-      total += n;
-      console.log(`  ${n} capítulos vistos`);
-    } catch (e) {
-      console.error(`  falló: ${e.message}`); // una fuente rota no tumba el resto
+  let hechas = 0;
+  let i = 0;
+  async function worker() {
+    while (i < pendientes.length) {
+      const cola = pendientes[i++]; // un dominio entero, en serie
+      for (const f of cola) {
+        console.log(`→ ${f.nombre} · ${f.obra_slug} · ${f.tipo}/${f.idioma}`);
+        try {
+          total += await scrapearFuente(db, f);
+        } catch (e) {
+          console.error(`  falló: ${e.message}`); // una fuente rota no tumba el resto
+        }
+        hechas++;
+        await espera(CORTESIA);
+      }
     }
-    await espera(CORTESIA);
   }
-  console.log(`\n${total} capítulos en ${fuentes?.length ?? 0} fuentes`);
+  await Promise.all(
+    Array.from({ length: Math.min(CONCURRENCIA, pendientes.length) }, worker),
+  );
+  console.log(`\n${total} capítulos en ${hechas} fuentes · ${colas.size} dominios`);
 }
