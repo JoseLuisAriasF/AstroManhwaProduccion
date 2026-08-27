@@ -117,10 +117,11 @@ import '@/styles/global.css';
             </label>
           </div>
 
-          <div class="flex items-center gap-4 text-sm">
+          <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
             <label class="flex items-center gap-2"><input type="checkbox" name="publicada" /> Publicada</label>
             <label class="flex items-center gap-2"><input type="checkbox" name="destacada" /> Destacada</label>
-            <button class="neu-sm rounded-xl px-4 py-2 ml-auto font-medium text-acento-500">Guardar</button>
+            <span data-editor-msg class="text-xs text-acento-600 dark:text-acento-400 ml-auto"></span>
+            <button class="neu-sm rounded-xl px-4 py-2 font-medium text-acento-500 shrink-0">Guardar</button>
           </div>
 
           <div class="grid gap-2 border-t border-base-200 dark:border-base-700 pt-3">
@@ -196,6 +197,14 @@ import '@/styles/global.css';
       const editor = $<HTMLFormElement>('[data-editor]');
 
       const decir = (t: string) => (aviso.textContent = t);
+      // Mensaje pegado al editor: el aviso de arriba queda fuera de pantalla
+      // mientras editas abajo, así que "no salía nada" al guardar. Se pinta en
+      // ambos sitios.
+      const decirEditor = (t: string) => {
+        const el = document.querySelector('[data-editor-msg]');
+        if (el) el.textContent = t;
+        decir(t);
+      };
 
       if (!supabase) {
         decir('Sin PUBLIC_SUPABASE_URL / PUBLIC_SUPABASE_ANON_KEY: el panel no puede conectarse.');
@@ -318,16 +327,16 @@ import '@/styles/global.css';
           if (!file || !actual) return;
           const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
           const ruta = `${actual.slug}-${Date.now()}.${ext}`;
-          decir('Subiendo imagen…');
+          decirEditor('Subiendo imagen…');
           const { error } = await db.storage
             .from('portadas')
             .upload(ruta, file, { upsert: true, contentType: file.type });
-          if (error) return decir(`No se subió: ${error.message} (¿corriste supabase/schema-storage.sql?)`);
+          if (error) return decirEditor(`No se subió: ${error.message} (¿corriste supabase/schema-storage.sql?)`);
           const url = db.storage.from('portadas').getPublicUrl(ruta).data.publicUrl;
           (editor as any).portada_url.value = url;
           $<HTMLImageElement>('[data-vista]').src = url;
           $('[data-rota-hint]').hidden = true;
-          decir('Imagen subida. Pulsa Guardar para aplicarla.');
+          decirEditor('Imagen subida. Pulsa Guardar para aplicarla.');
         });
 
         // ── Unir fichas (misma obra en otro idioma/formato) ────────────────────
@@ -429,7 +438,11 @@ import '@/styles/global.css';
               destacada: f.destacada.checked,
             })
             .eq('slug', actual.slug);
-          decir(error ? `No se guardó: ${error.message}` : `Guardado. El sitio lo mostrará en el próximo build.`);
+          decirEditor(
+            error
+              ? `No se guardó: ${error.message}`
+              : 'Guardado ✓ — aparecerá en el sitio tras la próxima reconstrucción (el build nocturno o un deploy).',
+          );
           if (!error) await cargarObras($<HTMLInputElement>('[data-buscar]').value);
         });
 
