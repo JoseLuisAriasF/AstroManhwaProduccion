@@ -18,7 +18,7 @@ on:
       max:
         description: 'Cuántas fuentes atender en la corrida'
         type: string
-        default: '4000'
+        default: '12000'
 
 jobs:
   indexar:
@@ -41,12 +41,12 @@ jobs:
           PUBLIC_SUPABASE_URL: ${{ secrets.PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
 
-      # Capítulos nuevos. --max acota la corrida: las fuentes se atienden por
-      # antigüedad (las nunca vistas primero), así que lo que no entra hoy entra
-      # mañana. A mano se puede subir --max para vaciar el backlog, o pasar
-      # --obra=<slug> para priorizar una obra concreta.
+      # Capítulos nuevos. Con la cortesía por dominio (y los link-out sin espera)
+      # las ~11.000 fuentes entran en una corrida. --max es el tope por si crece;
+      # se atienden por antigüedad (las nunca vistas primero). A mano se puede
+      # pasar --obra=<slug> para priorizar una obra concreta.
       - name: Indexar capítulos
-        run: node scripts/scrapear.mjs --max=${{ github.event.inputs.max || '4000' }} ${{ github.event.inputs.obra && format('--obra={0}', github.event.inputs.obra) || '' }}
+        run: node scripts/scrapear.mjs --max=${{ github.event.inputs.max || '12000' }} ${{ github.event.inputs.obra && format('--obra={0}', github.event.inputs.obra) || '' }}
         env:
           PUBLIC_SUPABASE_URL: ${{ secrets.PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}

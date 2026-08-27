@@ -569,5 +569,13 @@ const blogger = {
 
 export const PLATAFORMAS = { madara, mangareader, css, mangadex, sheet, wetriedtls, olympus, blogger, manhwaweb };
 
+/**
+ * Plataformas "link-out": su capitulos() no hace ni una petición HTTP, solo lee
+ * el #caps= de la URL. El scraper no debe gastarles cortesía (no molestan a
+ * ningún sitio) y puede procesarlas en paralelo. Se detecta por la función, no
+ * por nombre: cualquier plataforma nueva que reutilice capitulosEnlace entra sola.
+ */
+export const esEnlace = (plataforma) => PLATAFORMAS[plataforma]?.capitulos === capitulosEnlace;
+
 /** Descarta lo que no sirve para indexar: sin título o sin enlace. */
 export const utiles = (items) => items.filter((i) => i.titulo && i.url);

@@ -16,7 +16,7 @@
  * pongas en PUBLIC_* ni la subas al repo: salta RLS.
  */
 import { createClient } from '@supabase/supabase-js';
-import { PLATAFORMAS, espera, numeroDe, utiles } from './plataformas.mjs';
+import { PLATAFORMAS, esEnlace, espera, numeroDe, utiles } from './plataformas.mjs';
 
 export { numeroDe };
 
@@ -28,7 +28,19 @@ const args = Object.fromEntries(
   }),
 );
 
-const CORTESIA = 1500; // ms entre páginas del mismo sitio
+const CORTESIA = 1500; // ms entre peticiones al MISMO dominio (raspado de HTML)
+// APIs y feeds toleran más ritmo que raspar HTML frágil; no hace falta 1,5 s.
+const CORTESIA_PLATAFORMA = { mangadex: 300, blogger: 300 };
+const cortesiaDe = (f) => CORTESIA_PLATAFORMA[f.plataforma] ?? CORTESIA;
+
+/** Corre `tarea` sobre `items` con hasta `n` en paralelo. */
+async function poza(items, n, tarea) {
+  let i = 0;
+  const worker = async () => {
+    while (i < items.length) await tarea(items[i++]);
+  };
+  await Promise.all(Array.from({ length: Math.min(n, items.length) }, worker));
+}
 
 export async function scrapearFuente(db, f) {
   const adaptador = PLATAFORMAS[f.plataforma ?? 'css'];
@@ -120,12 +132,6 @@ if (import.meta.main) {
   }
   fuentes.length = Math.min(fuentes.length, max);
 
-  // Cortesía POR DOMINIO, no global: cada sitio se atiende en serie y con su
-  // pausa de 1,5 s, pero varios sitios distintos a la vez. Antes la pausa era
-  // entre TODAS las fuentes aunque fueran dominios distintos, y con miles en
-  // cola la rueda no daba una vuelta ni en semanas. Así el backlog se drena en
-  // una corrida sin pisar ningún sitio (cada dominio sigue a 1,5 s de sí mismo).
-  const CONCURRENCIA = 12;
   const dominioDe = (u) => {
     try {
       return new URL(u).hostname.replace(/^www\./, '');
@@ -133,33 +139,41 @@ if (import.meta.main) {
       return u;
     }
   };
-  const colas = new Map();
-  for (const f of fuentes) {
-    const d = dominioDe(f.url_listado);
-    (colas.get(d) ?? colas.set(d, []).get(d)).push(f);
-  }
-  const pendientes = [...colas.values()];
 
   let total = 0;
   let hechas = 0;
-  let i = 0;
-  async function worker() {
-    while (i < pendientes.length) {
-      const cola = pendientes[i++]; // un dominio entero, en serie
-      for (const f of cola) {
-        console.log(`→ ${f.nombre} · ${f.obra_slug} · ${f.tipo}/${f.idioma}`);
-        try {
-          total += await scrapearFuente(db, f);
-        } catch (e) {
-          console.error(`  falló: ${e.message}`); // una fuente rota no tumba el resto
-        }
-        hechas++;
-        await espera(CORTESIA);
-      }
+  const hacer = async (f) => {
+    console.log(`→ ${f.nombre} · ${f.obra_slug} · ${f.tipo}/${f.idioma}`);
+    try {
+      total += await scrapearFuente(db, f);
+    } catch (e) {
+      console.error(`  falló: ${e.message}`); // una fuente rota no tumba el resto
     }
+    hechas++;
+  };
+
+  // Fase 1: link-out (olympus, manhwaweb). No hacen NI una petición HTTP —
+  // capitulosEnlace solo lee el #caps= de la URL—, así que no llevan cortesía y
+  // van en paralelo; el único límite es escribir en Supabase. Antes dormían
+  // 1,5 s cada una: ~6.000 fuentes = 2,5 h tiradas sin tocar ningún sitio.
+  const enlace = fuentes.filter((f) => esEnlace(f.plataforma));
+  await poza(enlace, 24, hacer);
+
+  // Fase 2: las que sí piden red. Cortesía POR DOMINIO (cada sitio en serie con
+  // su pausa), varios dominios a la vez. La pausa depende de la plataforma: 1,5 s
+  // para raspar HTML, 300 ms para APIs/feeds (mangadex, blogger) que lo toleran.
+  const colas = new Map();
+  for (const f of fuentes) {
+    if (esEnlace(f.plataforma)) continue;
+    const d = dominioDe(f.url_listado);
+    (colas.get(d) ?? colas.set(d, []).get(d)).push(f);
   }
-  await Promise.all(
-    Array.from({ length: Math.min(CONCURRENCIA, pendientes.length) }, worker),
-  );
-  console.log(`\n${total} capítulos en ${hechas} fuentes · ${colas.size} dominios`);
+  await poza([...colas.values()], 12, async (cola) => {
+    for (const f of cola) {
+      await hacer(f);
+      await espera(cortesiaDe(f));
+    }
+  });
+
+  console.log(`\n${total} capítulos en ${hechas} fuentes · ${enlace.length} link-out + ${colas.size} dominios`);
 }
