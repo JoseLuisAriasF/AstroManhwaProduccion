@@ -306,7 +306,10 @@ const jsonLd = {
         const siguiente = Math.max(...p.capitulosLeidos) + 1;
         const titulo = it?.titulo ?? p.novelaSlug;
         const portada = it?.portada ?? '';
-        const href = `${it?.href ?? `/novela/${p.novelaSlug}`}/capitulo-${siguiente}`;
+        // No alojamos capítulos: el enlace lleva a la ficha de la obra (donde
+        // están las fuentes), no a /capitulo-N, que no existe. El número solo se
+        // muestra como referencia de por dónde iba.
+        const href = it?.href ?? `/novela/${p.novelaSlug}`;
         return `
         <a href="${href}" class="neu rounded-2xl p-3 flex items-center gap-3 transition-transform duration-200 hover:-translate-y-0.5">
           <img src="${esc(portada)}" alt="" width="48" height="69" class="w-12 aspect-[7/10] object-cover rounded-lg neu-sm shrink-0" />

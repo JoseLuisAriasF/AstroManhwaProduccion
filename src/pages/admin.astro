@@ -229,12 +229,16 @@ import '@/styles/global.css';
 
         // ── Obras ──────────────────────────────────────────────────────────
         async function cargarObras(q = '') {
-          let sel = db.from('obras').select('*').order('titulo').limit(100);
-          if (q) sel = sel.ilike('titulo', `%${q}%`);
+          let sel = db.from('obras').select('*').order('titulo').limit(200);
+          // Busca en título Y slug: así variantes como "Zenit"/"Zenith" o con/sin
+          // "del" salen juntas y se pueden unir. Se limpian los caracteres que
+          // rompen la sintaxis del filtro or de PostgREST (coma, paréntesis).
+          const term = q.replace(/[,()*]/g, ' ').trim();
+          if (term) sel = sel.or(`titulo.ilike.%${term}%,slug.ilike.%${term}%`);
           const { data, error } = await sel;
           if (error) return decir(error.message);
           obras = data ?? [];
-          $('[data-conteo]').textContent = `${obras.length}${obras.length === 100 ? '+' : ''}`;
+          $('[data-conteo]').textContent = `${obras.length}${obras.length === 200 ? '+' : ''}`;
           $('[data-obras]').innerHTML = obras
             .map(
               (o) => `<li><button data-slug="${o.slug}"
