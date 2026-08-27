@@ -28,6 +28,23 @@ import '@/styles/global.css';
       [data-obras].solo-rotas li:not([data-rota]) {
         display: none;
       }
+      /* Los grid de una sola columna se dimensionan al ancho PREFERIDO de su
+         contenido (no al del contenedor), así que un input largo estiraba el
+         panel y recortaba el editor en pantallas estrechas. minmax(0,1fr) los
+         ata al contenedor. Se excluyen los grid-cols-N (ya traen su plantilla). */
+      main.grid,
+      main .grid:not([class*='grid-cols']) {
+        grid-template-columns: minmax(0, 1fr);
+      }
+      /* Y los controles de texto traen un ancho mínimo intrínseco (~20 chars)
+         que no encoge: que llenen su columna y puedan encoger. Checkbox y file
+         quedan fuera. */
+      [data-panel] textarea,
+      [data-panel] select,
+      [data-panel] input:not([type='checkbox']):not([type='file']) {
+        width: 100%;
+        min-width: 0;
+      }
     </style>
   </head>
   <body class="min-h-dvh bg-base-100 dark:bg-base-900 text-base-800 dark:text-base-100">
