@@ -11,6 +11,7 @@ interface Fuente {
   ultimo: number;
   total: number;
   soloEnlace: boolean;
+  recortada: boolean;
   capitulos: CapituloExterno[];
 }
 
@@ -86,6 +87,14 @@ const etiquetaTipo = (tipo: 'manhwa' | 'novela') => (tipo === 'manhwa' ? 'Manhwa
             {f.soloEnlace
               ? ' Esta fuente no lista los capítulos aquí: el enlace lleva a su página, donde se elige y se lee.'
               : ' Se leen allí: cada enlace lleva a la fuente original y se marca como leído al hacer click.'}
+            {f.recortada && (
+              <>
+                {' '}Mostramos los últimos {f.capitulos.length} de {f.total};{' '}
+                <a href={`https://${f.dominio}`} target="_blank" rel="noopener nofollow" class="text-acento-500 underline">
+                  ver todos en {f.dominio}
+                </a>.
+              </>
+            )}
           </p>
 
           <ol class="grid gap-2">

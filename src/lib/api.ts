@@ -225,7 +225,20 @@ export interface FuenteVersion {
   total: number;
   /** Link-out: una fuente que no lista capítulos, solo enlaza a la serie. */
   soloEnlace: boolean;
+  /** true si `capitulos` viene recortado a TOPE_RENDER (el resto vive en la fuente). */
+  recortada: boolean;
 }
+
+/**
+ * Cuántos capítulos de cada fuente se escupen al HTML. La ficha es un directorio
+ * "dónde leerla" que enlaza a la fuente original —ahí está la lista completa—,
+ * así que no hace falta incrustar miles de <li> por obra. Sin este tope, con
+ * decenas de miles de capítulos externos × 7 idiomas el build de Cloudflare se
+ * queda sin memoria (OOM) y muere a los ~25 min.
+ * ponytail: sube el número si el build aguanta; lo que se corta son los caps
+ * más viejos, y siempre queda el enlace "ver todos en la fuente".
+ */
+const TOPE_RENDER = 200;
 
 const dominioDe = (u: string) => {
   try {
@@ -260,9 +273,12 @@ export function fuentesDe(externos: CapituloExterno[]): FuenteVersion[] {
         tipo: c0.tipo,
         idioma: c0.idioma,
         dominio: dominioDe(c0.url),
-        capitulos,
+        // Solo los últimos TOPE_RENDER van al HTML; total/ultimo siguen siendo
+        // los reales (se calculan sobre la lista completa, arriba).
+        capitulos: capitulos.slice(0, TOPE_RENDER),
         ultimo,
         total: Math.max(capitulos.length, ultimo),
+        recortada: capitulos.length > TOPE_RENDER,
         // Una sola fila cuyo enlace no apunta a un capítulo concreto sino a la
         // serie: es una fuente link-out (Olympus). Se muestra como "Ver serie".
         soloEnlace: capitulos.length === 1 && ultimo > 1,
