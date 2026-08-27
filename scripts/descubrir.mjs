@@ -95,7 +95,8 @@ const aFuente = (sitio, serie, slug) => ({
   plataforma: sitio.plataforma,
   sitio_id: sitio.id,
   portada_vista: serie.portadaUrl || null,
-  activa: true,
+  // `activa` NO se pone: la togglea el admin. En INSERT cae al default (true);
+  // en UPDATE, omitirla la preserva.
 });
 
 /** Todos los nombres por los que se conoce una serie, para emparejar. */
@@ -155,9 +156,19 @@ async function descubrirSitio(db, sitio, indice, seco) {
   // se pisa en cada corrida. Una obra se descubre una vez y luego es suya.
   const r1 = await db.from('obras').upsert(obras, { onConflict: 'slug', ignoreDuplicates: true });
   if (r1.error) throw new Error(`obras: ${r1.error.message}`);
-  const r2 = await db
-    .from('fuentes')
-    .upsert(fuentes, { onConflict: 'url_listado,obra_slug', ignoreDuplicates: true });
+  // La identidad de una fuente es (sitio_id, obra_slug) —"la fuente de ESTE sitio
+  // para ESTA obra"—, no su URL. Las fuentes link-out (olympus, manhwaweb) meten
+  // un timestamp o un contador #caps en la URL que cambia cada corrida; con la
+  // URL como clave, cada cambio creaba una fila nueva (Olympus además dejaba el
+  // enlace viejo muerto). Se reusa el id de la fila existente para REFRESCAR su
+  // URL en vez de duplicarla; `activa` no viaja en el objeto, así que se preserva.
+  const { data: previas } = await db.from('fuentes').select('id, obra_slug').eq('sitio_id', sitio.id);
+  const idPorObra = new Map((previas ?? []).map((f) => [f.obra_slug, f.id]));
+  for (const f of fuentes) {
+    const id = idPorObra.get(f.obra_slug);
+    if (id) f.id = id; // upsert por PK: actualiza esta fila, no inserta otra
+  }
+  const r2 = await db.from('fuentes').upsert(fuentes); // onConflict por defecto = PK (id)
   if (r2.error) throw new Error(`fuentes: ${r2.error.message}`);
 
   await db.from('sitios').update({ ultimo_descubrimiento: new Date().toISOString() }).eq('id', sitio.id);
