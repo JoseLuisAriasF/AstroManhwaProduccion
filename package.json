@@ -7,6 +7,7 @@
     "build": "astro build",
     "traducir": "node --env-file-if-exists=.env scripts/traducir.mjs",
     "descubrir": "node --env-file-if-exists=.env scripts/descubrir.mjs",
+    "enriquecer": "node --env-file-if-exists=.env scripts/enriquecer.mjs",
     "scrapear": "node --env-file-if-exists=.env scripts/scrapear.mjs",
     "sugerir": "node --env-file-if-exists=.env scripts/sugerir-fusiones.mjs",
     "fusionar": "node --env-file-if-exists=.env scripts/fusionar.mjs",

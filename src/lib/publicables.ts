@@ -1,6 +1,6 @@
 import { CODIGOS, IDIOMAS, IDIOMA_BASE, ruta, rutaCanonica, type Idioma } from './i18n';
 import { capitulosDe, novelas } from './mockData';
-import { cobertura } from './traducir';
+import { cobertura, traducirTexto } from './traducir';
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
@@ -64,7 +64,15 @@ export function paramsDeIdioma() {
  * en el idioma base; las traducidas, en todos los publicados.
  */
 export function idiomasDeObra(novela: { sinopsis?: string }): Idioma[] {
-  return novela.sinopsis?.trim() ? PUBLICADOS : [IDIOMA_BASE];
+  const s = novela.sinopsis?.trim();
+  if (!s) return [IDIOMA_BASE];
+  // Multi-idioma SOLO si la sinopsis está de verdad traducida (existe en el
+  // caché para algún idioma no-base). Una sinopsis importada de AniList está en
+  // inglés y sin traducir: la obra queda en `es` hasta que LibreTranslate la
+  // llene —y entonces aparece sola—. Sin esto, enriquecer miles de obras las
+  // publicaría en 7 idiomas con texto sin traducir y el build no cabría en CF.
+  const traducida = PUBLICADOS.some((c) => c !== IDIOMA_BASE && traducirTexto(s, c) !== s);
+  return traducida ? PUBLICADOS : [IDIOMA_BASE];
 }
 
 /**

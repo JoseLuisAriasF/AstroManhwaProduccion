@@ -84,6 +84,14 @@ create index if not exists capitulos_externos_obra_idx
   on public.capitulos_externos (obra_slug, tipo, idioma, numero desc);
 create index if not exists fuentes_obra_idx on public.fuentes (obra_slug);
 
+-- ── 5. obras: enriquecimiento de metadata (scripts/enriquecer.mjs) ────────────
+-- Sinopsis, títulos alternos, géneros y estado desde AniList/MangaUpdates/
+-- MangaBaka/MAL. `enriquecida` marca las ya procesadas: se enriquece cada obra
+-- UNA vez y en adelante solo las nuevas. `metadatos_fuente` = qué base casó.
+alter table public.obras add column if not exists enriquecida boolean not null default false;
+alter table public.obras add column if not exists metadatos_fuente text;
+create index if not exists obras_enriquecida_idx on public.obras (enriquecida);
+
 -- ── 5. Admin ─────────────────────────────────────────────────────────────────
 -- Quién puede editar. Las altas van en seed-sitios.sql, o a mano:
 --   insert into public.admins values ('joseluisariasflores01@gmail.com');
