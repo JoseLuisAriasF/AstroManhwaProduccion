@@ -168,8 +168,19 @@ async function descubrirSitio(db, sitio, indice, seco) {
     const id = idPorObra.get(f.obra_slug);
     if (id) f.id = id; // upsert por PK: actualiza esta fila, no inserta otra
   }
-  const r2 = await db.from('fuentes').upsert(fuentes); // onConflict por defecto = PK (id)
-  if (r2.error) throw new Error(`fuentes: ${r2.error.message}`);
+  // Las existentes se actualizan por PK; las nuevas se insertan (id por defecto).
+  // En un MISMO upsert, mezclar filas con y sin `id` hacía que PostgREST mandara
+  // id=NULL en las nuevas y violara el NOT NULL. Por eso van en dos operaciones.
+  const conId = fuentes.filter((f) => f.id);
+  const sinId = fuentes.filter((f) => !f.id);
+  if (conId.length) {
+    const r = await db.from('fuentes').upsert(conId);
+    if (r.error) throw new Error(`fuentes (refrescar): ${r.error.message}`);
+  }
+  if (sinId.length) {
+    const r = await db.from('fuentes').insert(sinId);
+    if (r.error) throw new Error(`fuentes (nuevas): ${r.error.message}`);
+  }
 
   await db.from('sitios').update({ ultimo_descubrimiento: new Date().toISOString() }).eq('id', sitio.id);
   return obras.length;
