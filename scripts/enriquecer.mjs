@@ -179,18 +179,30 @@ if (import.meta.main) {
   const db = createClient(url, key, { auth: { persistSession: false } });
 
   const max = Number(args.max) || 2000;
-  // Solo las que faltan por enriquecer (las nuevas van primero, con id estable).
-  let q = db
-    .from('obras')
-    .select('slug,titulo,titulos_alternativos,sinopsis,categorias,estado')
-    .eq('enriquecida', false)
-    .limit(max);
-  if (args.obra) q = db
-    .from('obras')
-    .select('slug,titulo,titulos_alternativos,sinopsis,categorias,estado')
-    .eq('slug', args.obra);
-  const { data: obras, error } = await q;
-  if (error) throw new Error(error.message);
+  const cols = 'slug,titulo,titulos_alternativos,sinopsis,categorias,estado';
+
+  // Solo las que faltan por enriquecer. Supabase corta cada request en 1000
+  // filas, así que se pagina hasta juntar `max` (sin esto --max>1000 no traía
+  // más y había que re-correr una y otra vez).
+  let obras = [];
+  if (args.obra) {
+    const { data, error } = await db.from('obras').select(cols).eq('slug', args.obra);
+    if (error) throw new Error(error.message);
+    obras = data ?? [];
+  } else {
+    for (let desde = 0; obras.length < max; desde += 1000) {
+      const { data, error } = await db
+        .from('obras')
+        .select(cols)
+        .eq('enriquecida', false)
+        .range(desde, desde + 999);
+      if (error) throw new Error(error.message);
+      if (!data?.length) break;
+      obras.push(...data);
+      if (data.length < 1000) break;
+    }
+    obras = obras.slice(0, max);
+  }
 
   let casadas = 0;
   for (const obra of obras ?? []) {
