@@ -252,15 +252,14 @@ export interface FuenteVersion {
 }
 
 /**
- * Cuántos capítulos de cada fuente se escupen al HTML. La ficha es un directorio
- * "dónde leerla" que enlaza a la fuente original —ahí está la lista completa—,
- * así que no hace falta incrustar miles de <li> por obra. Sin este tope, con
- * decenas de miles de capítulos externos × 7 idiomas el build de Cloudflare se
- * queda sin memoria (OOM) y muere a los ~25 min.
- * ponytail: sube el número si el build aguanta; lo que se corta son los caps
- * más viejos, y siempre queda el enlace "ver todos en la fuente".
+ * Techo de capítulos por fuente que se escupen al HTML. Era 200 para sobrevivir
+ * al ×7 idiomas (miles de <li> × 7 = OOM en Cloudflare). Ahora el catálogo va
+ * solo en `es` (idiomasDeObra), así que se puede mostrar la lista completa; el
+ * tope solo acota casos patológicos (una fuente con 5.000+ capítulos).
+ * ponytail: si el build empieza a sufrir, bájalo; siempre queda el enlace
+ * "ver todos en la fuente" cuando recorta.
  */
-const TOPE_RENDER = 200;
+const TOPE_RENDER = 3000;
 
 const dominioDe = (u: string) => {
   try {

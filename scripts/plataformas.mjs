@@ -538,44 +538,86 @@ const manhwaweb = {
  * (Manhwa)…—; el resto de un blog así suele ser ruido (títulos sueltos usados
  * como etiqueta). El texto del capítulo nunca se copia: se enlaza al post.
  */
-const MARCA_TIPO = /\s*\((novela|novel|manhwa|manga|manhua)\)\s*/i;
-const esNovela = (cat) => /\((novela|novel)\)/i.test(cat);
-// Etiqueta por-capítulo, no una serie: "Obra (Novela) Capítulo 1321". Algunos
-// blogs etiquetan CADA post con su número; sin descartarlas, cada capítulo se
-// volvía una "obra" (miles de fichas basura "Obra Capitulo N").
-const ETIQUETA_CAPITULO = /\b(cap[ií]tulo|chapter|episodio|ep)\b\s*\d/i;
+// Marca de tipo al final del título de la página: "... Novela" / "... Manhwa".
+const MARCA_FIN = /\s+\(?(novela|novel|manhwa|manhua|manga)\)?\s*$/i;
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * blogger: blogs de Blogger que INDEXAN capítulos en páginas estáticas (/p/…)
+ * ─────────────────────────────────────────────────────────────────────────────
+ * El feed de posts por etiqueta solo trae una fracción (p.ej. 40 de 500): el
+ * índice completo de cada obra vive en una PÁGINA del blog (/p/<slug>.html), una
+ * lista de enlaces al capítulo —a menudo alojado en OTRO host (sinacortadores)—.
+ *
+ * Así que las series son las páginas (feed /feeds/pages/default) y los capítulos
+ * se sacan parseando los enlaces de esa página. El texto del capítulo nunca se
+ * copia: se enlaza al origen.
+ */
+/** Feed de posts por etiqueta (fallback cuando la página /p/ no lista nada). */
+async function bloggerPorEtiqueta(base, etiqueta) {
+  const caps = [];
+  const url = `${base}/feeds/posts/default/-/${encodeURIComponent(etiqueta)}`;
+  for (let start = 1, iter = 0; iter < 500; iter++) {
+    const j = await traerJson(`${url}?alt=json&max-results=150&start-index=${start}`);
+    const entradas = j?.feed?.entry ?? [];
+    if (!entradas.length) break;
+    for (const e of entradas) {
+      const titulo = e.title?.$t ?? '';
+      const link = (e.link ?? []).find((l) => l.rel === 'alternate')?.href;
+      if (link) caps.push({ numero: numeroDe(titulo), titulo, url: link, fecha_texto: e.published?.$t?.slice(0, 10) ?? null });
+    }
+    start += entradas.length;
+    await espera(250);
+  }
+  return caps;
+}
 
 const blogger = {
   async series(url, sitio) {
-    const base = url.replace(/\/feeds\/.*$/, ''); // origen del blog
-    const j = await traerJson(`${base}/feeds/posts/default?alt=json&max-results=1`);
-    const cats = (j?.feed?.category ?? [])
-      .map((c) => c.term)
-      .filter((c) => MARCA_TIPO.test(c) && !ETIQUETA_CAPITULO.test(c));
-    const quiere = sitio?.tipo === 'manhwa' ? (c) => !esNovela(c) : esNovela;
-    return cats.filter(quiere).map((cat) => ({
-      titulo: cat.replace(MARCA_TIPO, ' ').trim(),
-      url: `${base}/feeds/posts/default/-/${encodeURIComponent(cat)}`,
-      portadaUrl: '',
-    }));
-  },
-  async capitulos(url) {
-    const caps = [];
-    // El feed devuelve tandas (~60); se avanza con start-index hasta vaciar.
-    for (let start = 1, iter = 0; iter < 500; iter++) {
-      const j = await traerJson(`${url}?alt=json&max-results=150&start-index=${start}`);
-      const entradas = j?.feed?.entry ?? [];
-      if (!entradas.length) break;
-      for (const e of entradas) {
-        const titulo = e.title?.$t ?? '';
-        const link = (e.link ?? []).find((l) => l.rel === 'alternate')?.href;
-        if (!link) continue;
-        caps.push({ numero: numeroDe(titulo), titulo, url: link, fecha_texto: e.published?.$t?.slice(0, 10) ?? null });
+    const base = new URL(url).origin;
+    const marca = sitio?.tipo === 'manhwa' ? /manhwa|manhua|manga/i : /novela|novel/i;
+    const tipoTxt = sitio?.tipo === 'manhwa' ? 'Manhwa' : 'Novela';
+    // El feed de páginas devuelve ~70 por request: se pagina con start-index
+    // hasta agotarlo (hay blogs con 120+ páginas).
+    const out = [];
+    for (let start = 1, iter = 0; iter < 50; iter++) {
+      const j = await traerJson(`${base}/feeds/pages/default?alt=json&max-results=150&start-index=${start}`);
+      const entries = j?.feed?.entry ?? [];
+      if (!entries.length) break;
+      for (const e of entries) {
+        const bruto = (e.title?.$t ?? '').trim();
+        const href = (e.link ?? []).find((l) => l.rel === 'alternate')?.href;
+        // El título de la página lleva el tipo al final ("... Novela"): se quita
+        // para emparejar con la obra por su nombre limpio. La etiqueta del feed
+        // (para el fallback) viaja en el fragmento #etq —el navegador lo ignora—.
+        const titulo = bruto.replace(MARCA_FIN, '').trim();
+        if (href && titulo && marca.test(bruto)) {
+          out.push({ titulo, url: `${href}#etq=${encodeURIComponent(`${titulo} (${tipoTxt})`)}`, portadaUrl: '' });
+        }
       }
-      start += entradas.length;
+      start += entries.length;
       await espera(250);
     }
-    return caps;
+    return out;
+  },
+  async capitulos(url) {
+    const [pagina, frag = ''] = url.split('#');
+    const $ = await traer(pagina);
+    const vistos = new Set();
+    const caps = [];
+    $('a[href^="http"]').each((_, el) => {
+      const href = $(el).attr('href');
+      const txt = $(el).text().replace(/\s+/g, ' ').trim();
+      // Solo enlaces de capítulo: descarta imágenes, ko-fi, navegación del blog.
+      if (!href || !/cap[íi]tulo|chapter/i.test(txt)) return;
+      if (vistos.has(href)) return;
+      vistos.add(href);
+      caps.push({ titulo: txt, url: href, numero: numeroDe(txt) ?? numeroDe(href), fecha_texto: null });
+    });
+    if (caps.length) return caps;
+    // La página no lista capítulos: se cae al feed por la etiqueta de #etq.
+    const etq = new URLSearchParams(frag).get('etq');
+    return etq ? bloggerPorEtiqueta(new URL(pagina).origin, etq) : [];
   },
 };
 
