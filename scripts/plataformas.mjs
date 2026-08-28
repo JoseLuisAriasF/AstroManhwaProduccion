@@ -538,8 +538,11 @@ const manhwaweb = {
  * (Manhwa)…—; el resto de un blog así suele ser ruido (títulos sueltos usados
  * como etiqueta). El texto del capítulo nunca se copia: se enlaza al post.
  */
-// Marca de tipo al final del título de la página: "... Novela" / "... Manhwa".
-const MARCA_FIN = /\s+\(?(novela|novel|manhwa|manhua|manga)\)?\s*$/i;
+// Marca(s) al final del título de la página: "... Novela", "... Novela Español",
+// "... Manhwa Español", etc. Se quitan TODAS las del final para que el título
+// empareje con la obra canónica (si no, "El Regreso ... Novela Español" no casa
+// con "Regreso de la Secta del Monte Hua" y se crea una obra duplicada).
+const MARCA_FIN = /(\s*\(?\b(novela|novel|manhwa|manhua|manga|espa(?:ñ|n)ol|latino|oficial|color|sin[- ]?censura)\b\)?)+\s*$/i;
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
