@@ -39,6 +39,14 @@
     background: color-mix(in oklab, theme(colors.acento.400) 35%, transparent);
   }
 
+  /* Carrusel: scroll-snap sin barra visible. */
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+
   :focus-visible {
     outline: 2px solid theme(colors.acento.500);
     outline-offset: 2px;

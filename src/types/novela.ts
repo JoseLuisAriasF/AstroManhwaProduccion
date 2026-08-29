@@ -21,6 +21,8 @@ export interface Novela {
   portadaUrl: string; // Única imagen por novela
   estado: 'En emisión' | 'Finalizado';
   categorias: string[];
+  /** Cuándo se descubrió la obra. Para ordenar "nuevos lanzamientos". */
+  creadaEn?: string;
 }
 
 export interface EquivalenciaManhwa {

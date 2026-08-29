@@ -1,8 +1,9 @@
 ---
 import Base from '@/layouts/Base.astro';
 import NovelaCard from '@/components/NovelaCard.astro';
+import Carrusel from '@/components/Carrusel.astro';
 import SyncExplanationBanner from '@/components/SyncExplanationBanner.astro';
-import { formatos, getCapitulos, getCapitulosExternos, getNovelas } from '@/lib/api';
+import { formatos, getCapitulos, getCapitulosExternos, getEquivalenciasCombinadas, getNovelas } from '@/lib/api';
 import { IDIOMA_BASE, idiomaDeRuta, ruta, t } from '@/lib/i18n';
 import { idiomasDeObra, paramsDeIdioma } from '@/lib/publicables';
 import { rangos } from '@/lib/rangos';
@@ -26,6 +27,7 @@ const conTotales = await Promise.all(
     return {
       novela: n,
       total: caps.length,
+      capsExternos: externos.length, // proxy de popularidad (sin datos de vistas)
       rangos: rangos(externos.map((e) => e.numero)),
       formatos: fmts,
       ambos: fmts.length === 2,
@@ -47,29 +49,35 @@ const indice = conTotales.map((o) => ({
   href: fichaHref(o.novela),
 }));
 
-// "Tendencias" mock: en emisión y más largas. Cambiar por una vista de Supabase.
-const tendencias = [...conTotales]
-  .sort(
-    (a, b) =>
-      Number(b.novela.estado === 'En emisión') - Number(a.novela.estado === 'En emisión') ||
-      b.total - a.total,
-  )
-  .slice(0, 3);
+// Carrusel: las de doble formato (el gancho) más "populares". Sin datos de
+// vistas, se ordena por nº de capítulos indexados (proxy: obra popular = mucha
+// scanlation). Cada una lleva su equivalencia más avanzada (admin + comunidad),
+// que se pinta DENTRO de la imagen del carrusel.
+const carruselBase = (destacadas.length ? destacadas : conTotales)
+  .filter((o) => o.capsExternos > 0)
+  .sort((a, b) => b.capsExternos - a.capsExternos)
+  .slice(0, 10);
+const carrusel = await Promise.all(
+  carruselBase.map(async (o) => {
+    const anclas = await getEquivalenciasCombinadas(o.novela.slug);
+    const ancla = anclas.length
+      ? anclas.reduce((a, b) => (b.capituloManhwa > a.capituloManhwa ? b : a))
+      : null;
+    return {
+      novela: o.novela,
+      formatos: (o.formatos.length ? o.formatos : [o.novela.tipo]) as ('manhwa' | 'novela')[],
+      total: o.capsExternos,
+      ancla,
+      href: fichaHref(o.novela),
+    };
+  }),
+);
 
-// Últimos capítulos: contenido fresco arriba + enlaces internos a las lecturas.
-const recientes = (
-  await Promise.all(
-    novelas.map(async (novela) => {
-      const caps = await getCapitulos(novela.slug, idioma);
-      return caps.slice(-2).map((c) => ({ novela, capitulo: c }));
-    }),
-  )
-)
-  .flat()
-  .sort((a, b) => +new Date(b.capitulo.fechaPublicacion) - +new Date(a.capitulo.fechaPublicacion))
-  .slice(0, 6);
-
-const fmt = new Intl.DateTimeFormat(idioma, { day: '2-digit', month: 'short' });
+// Nuevos lanzamientos: obras con contenido, por fecha de descubrimiento.
+const nuevos = [...conTotales]
+  .filter((o) => o.capsExternos > 0 && o.novela.creadaEn)
+  .sort((a, b) => (a.novela.creadaEn! < b.novela.creadaEn! ? 1 : -1))
+  .slice(0, 12);
 
 const jsonLd = {
   '@context': 'https://schema.org',
@@ -159,70 +167,20 @@ const jsonLd = {
 
   <div class="mb-10"><SyncExplanationBanner /></div>
 
-  <!-- Tendencias -->
-  <section id="tendencias" class="mb-10">
-    <div class="flex items-baseline gap-2 mb-4">
-      <h2 class="font-semibold text-base-800 dark:text-base-100">{dic.tendencias}</h2>
-      <span class="text-xs text-base-400">{dic.tendenciasSub}</span>
-    </div>
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-      {
-        tendencias.map(({ novela, total, rangos }, i) => (
-          <a
-            href={fichaHref(novela)}
-            class="group neu rounded-2xl p-3 flex gap-3 transition-transform duration-200 hover:-translate-y-0.5"
-          >
-            <div class="relative shrink-0">
-              <img
-                src={novela.portadaUrl}
-                alt={novela.titulo}
-                width="72"
-                height="103"
-                loading={i === 0 ? 'eager' : 'lazy'}
-                decoding="async"
-                class="w-[72px] aspect-[7/10] object-cover rounded-xl neu-sm"
-              />
-              <span class="absolute -top-1.5 -left-1.5 neu grid place-items-center size-6 rounded-lg text-[11px] font-bold text-acento-500 tabular-nums">
-                {i + 1}
-              </span>
-            </div>
-            <div class="min-w-0 py-0.5">
-              <h3 class="font-medium text-sm leading-snug text-base-800 dark:text-base-100 line-clamp-2 group-hover:text-acento-500 transition-colors">
-                {novela.titulo}
-              </h3>
-              <p class="text-xs text-base-400 mt-1 line-clamp-1">{novela.titulosAlternativos[0]}</p>
-              {total > 0 && <p class="text-xs text-base-400 tabular-nums mt-1">{dic.nCapitulos(total)}</p>}
-              {rangos && <p class="text-xs text-base-400 tabular-nums mt-1 truncate" title={`cap. ${rangos}`}>cap. {rangos}</p>}
-            </div>
-          </a>
-        ))
-      }
-    </div>
-  </section>
+  {/* Carrusel de destacados: obras con manhwa Y novela, con la equivalencia
+      dentro de la imagen. Es el gancho del sitio, arriba y en grande. */}
+  <div id="destacados" class="mb-10">
+    <Carrusel items={carrusel} titulo="Con manhwa y novela — destacados" />
+  </div>
 
-  {recientes.length > 0 && (
-    <section id="recientes" class="mb-10">
-      <h2 class="font-semibold text-base-800 dark:text-base-100 mb-4">{dic.ultimosCapitulos}</h2>
-      <ul class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        {recientes.map(({ novela, capitulo }) => (
-          <li>
-            <a
-              href={`${ruta(idioma, `/novela/${novela.slug}`)}/capitulo-${capitulo.numero}`}
-              class="neu-sm rounded-xl px-3 py-2.5 flex items-center gap-3 transition-transform duration-200 hover:-translate-y-0.5"
-            >
-              <span class="neu-inset rounded-lg px-2 py-1 text-xs font-medium text-acento-500 tabular-nums shrink-0">
-                #{capitulo.numero}
-              </span>
-              <span class="min-w-0 flex-1 truncate text-sm text-base-700 dark:text-base-200">
-                {novela.titulo}
-              </span>
-              <time datetime={capitulo.fechaPublicacion} class="shrink-0 text-[11px] text-base-400">
-                {fmt.format(new Date(capitulo.fechaPublicacion))}
-              </time>
-            </a>
-          </li>
+  {nuevos.length > 0 && (
+    <section id="nuevos" class="mb-10">
+      <h2 class="font-semibold text-base-800 dark:text-base-100 mb-4">Nuevos lanzamientos</h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {nuevos.map(({ novela, formatos }) => (
+          <NovelaCard novela={novela} formatos={formatos} />
         ))}
-      </ul>
+      </div>
     </section>
   )}
 
@@ -333,7 +291,7 @@ const jsonLd = {
   const sub = document.querySelector<HTMLElement>('[data-sub]');
   const vacio = document.getElementById('sin-resultados') as HTMLElement;
   const titulo = document.getElementById('titulo-catalogo') as HTMLElement;
-  const secciones = ['continuar', 'tendencias', 'recientes']
+  const secciones = ['continuar', 'destacados', 'nuevos']
     .map((id) => document.getElementById(id))
     .filter((s): s is HTMLElement => s !== null);
   const visiblePrevio = new Map(secciones.map((s) => [s, !s.hidden]));

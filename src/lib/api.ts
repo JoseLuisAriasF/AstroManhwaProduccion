@@ -86,6 +86,7 @@ function catalogo(): Promise<Novela[]> {
         portadaUrl: o.portada_url || '/portadas/espadachin.svg',
         estado: o.estado,
         categorias: o.categorias ?? [],
+        creadaEn: o.creada_en,
       })) as Novela[];
     } catch (e) {
       console.warn(`[catalogo] ${(e as Error).message} — usando mock`);
@@ -168,6 +169,54 @@ function cargarEquivalencias(): Promise<Map<string, EquivalenciaManhwa[]>> {
 
 export async function getEquivalencias(slug: string): Promise<EquivalenciaManhwa[]> {
   return (await cargarEquivalencias()).get(slug) ?? equivalencias[slug] ?? [];
+}
+
+/**
+ * Equivalencias aportadas por la comunidad, con consenso: por cada (obra,
+ * capítulo de manhwa), el capítulo de novela MÁS votado. Solo build.
+ */
+let sugeridasCache: Promise<Map<string, EquivalenciaManhwa[]>> | null = null;
+function cargarSugeridas(): Promise<Map<string, EquivalenciaManhwa[]>> {
+  sugeridasCache ??= (async () => {
+    const mapa = new Map<string, EquivalenciaManhwa[]>();
+    if (!supabase) return mapa;
+    try {
+      const filas = await todasLasFilas<any>(
+        'equivalencias_sugeridas',
+        'obra_slug, capitulo_manhwa, capitulo_novela',
+        (q) => q,
+      );
+      const votos = new Map<string, Map<number, Map<number, number>>>();
+      for (const f of filas) {
+        const obra = votos.get(f.obra_slug) ?? votos.set(f.obra_slug, new Map()).get(f.obra_slug)!;
+        const manhwa = obra.get(f.capitulo_manhwa) ?? obra.set(f.capitulo_manhwa, new Map()).get(f.capitulo_manhwa)!;
+        manhwa.set(f.capitulo_novela, (manhwa.get(f.capitulo_novela) ?? 0) + 1);
+      }
+      for (const [slug, porManhwa] of votos) {
+        const anclas: EquivalenciaManhwa[] = [];
+        for (const [capituloManhwa, opciones] of porManhwa) {
+          let capituloNovela = 0;
+          let max = -1;
+          for (const [nov, n] of opciones) if (n > max) ((max = n), (capituloNovela = nov));
+          anclas.push({ capituloManhwa, capituloNovela });
+        }
+        mapa.set(slug, anclas);
+      }
+    } catch (e) {
+      console.warn(`[sugeridas] ${(e as Error).message}`);
+    }
+    return mapa;
+  })();
+  return sugeridasCache;
+}
+
+/** Admin + comunidad fusionadas (el admin manda). Para pintar en el build. */
+export async function getEquivalenciasCombinadas(slug: string): Promise<EquivalenciaManhwa[]> {
+  const [admin, com] = await Promise.all([cargarEquivalencias(), cargarSugeridas()]);
+  const fusion = new Map<number, number>();
+  for (const a of com.get(slug) ?? []) fusion.set(a.capituloManhwa, a.capituloNovela);
+  for (const a of admin.get(slug) ?? []) fusion.set(a.capituloManhwa, a.capituloNovela);
+  return [...fusion].map(([capituloManhwa, capituloNovela]) => ({ capituloManhwa, capituloNovela }));
 }
 
 /**
