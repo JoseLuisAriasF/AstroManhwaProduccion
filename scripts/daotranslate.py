@@ -26,6 +26,10 @@ import os, re, sys, json, unicodedata, urllib.parse
 import requests
 import nodriver as uc
 
+# La consola de Windows es cp1252 y revienta con ✓/…/acentos. Forzar UTF-8.
+try: sys.stdout.reconfigure(encoding='utf-8')
+except Exception: pass
+
 ARGS = dict(a[2:].split('=', 1) if '=' in a[2:] else (a[2:], 'true') for a in sys.argv[1:] if a.startswith('--'))
 LIMITE = int(ARGS.get('limite', 0)) or None
 
@@ -159,6 +163,7 @@ async def main():
         for k in claves(titulo):
             if k in indice:
                 slug = indice[k]; break
+        es_match = bool(slug)
         if slug:
             casadas += 1
         else:
@@ -187,7 +192,7 @@ async def main():
                   'idioma': 'en', 'tipo': 'novela', 'aprobado': True} for (n, t, u) in caps if u]
         if filas:
             sb_upsert('capitulos_externos', filas, 'fuente_id,url', ignore=True)
-        print(f'  [{i}/{len(series)}] {"✓match" if slug in {indice[k] for k in claves(titulo) if k in indice} else "nueva"} {titulo[:45]} · {len(filas)} caps', flush=True)
+        print(f'  [{i}/{len(series)}] {"match " if es_match else "nueva "} {titulo[:45]} - {len(filas)} caps', flush=True)
 
     print(f'\nListo. {casadas} emparejadas con manhwas, {nuevas_obras} novelas nuevas.', flush=True)
     try: b.stop()
