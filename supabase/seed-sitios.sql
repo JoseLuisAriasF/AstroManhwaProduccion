@@ -77,6 +77,17 @@ values
    1, false)
 on conflict (url_series) do nothing;
 
+-- WTR-Lab: 91.000+ web-novels en inglés, indexadas por su SITEMAP (su robots
+-- prohíbe /api y las listas paginadas, pero anuncia /novels/index.xml). Va con
+-- solo_match=true: NO crea obras —casi ninguna tiene manhwa—, solo se engancha
+-- a las que ya existen en el catálogo. Por eso su INSERT es aparte: lleva la
+-- columna solo_match, que el INSERT de arriba no tiene. Su url_series es el
+-- sitemap índice, no un listado con {page}.
+insert into public.sitios (nombre, plataforma, tipo, idioma, url_series, paginas, activo, solo_match)
+values
+  ('WTR-Lab', 'wtr', 'novela', 'en', 'https://wtr-lab.com/novels/index.xml', 1, true, true)
+on conflict (url_series) do nothing;
+
 -- Quién puede editar el catálogo desde /admin. Este correo es lo ÚNICO que
 -- distingue a un admin de cualquier visitante: RLS compara contra el correo de
 -- la sesión de Google, así que no basta con saberlo, hay que ser esa cuenta.

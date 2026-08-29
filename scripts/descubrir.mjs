@@ -116,6 +116,12 @@ async function descubrirSitio(db, sitio, indice, seco) {
     // of the Mount Hua Sect", ambas caen en el mismo slug y sus capítulos —
     // manhwa y novela, es y en— se juntan en una sola ficha.
     const existente = indice.buscar(nombresDe(s));
+    // solo_match: fuentes que NO crean obras, solo se enganchan a las que ya
+    // existen. WTR-Lab son 91.000 web-novels chinas; casi ninguna tiene manhwa.
+    // Meterlas todas serían 91.000 fichas de relleno. Con esto, solo se queda la
+    // que casa con un manhwa del catálogo —el puente novela↔manhwa, que es el
+    // único motivo de añadir la fuente—.
+    if (sitio.solo_match && !existente) continue;
     // `slugBase` es la identidad de la obra, igual en todos los idiomas; el
     // título visible sí es el localizado. Las scans no lo traen y caen al título.
     const slug = existente ?? slugify(s.slugBase ?? s.titulo);

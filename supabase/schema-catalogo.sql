@@ -56,7 +56,7 @@ create table if not exists public.obras (
 create table if not exists public.sitios (
   id uuid primary key default gen_random_uuid(),
   nombre text not null,
-  plataforma text not null default 'css' check (plataforma in ('madara','mangareader','css','mangadex','sheet','wetriedtls','olympus','blogger','manhwaweb','asura')),
+  plataforma text not null default 'css' check (plataforma in ('madara','mangareader','css','mangadex','sheet','wetriedtls','olympus','blogger','manhwaweb','asura','wtr')),
   tipo text not null default 'manhwa' check (tipo in ('manhwa','novela')),
   idioma text not null default 'es',
   -- Listado de series con {page} como marcador de paginación.
@@ -66,6 +66,9 @@ create table if not exists public.sitios (
   sel_serie text, sel_serie_titulo text, sel_serie_enlace text, sel_serie_portada text,
   sel_item text, sel_titulo text, sel_enlace text, sel_fecha text,
   activo boolean not null default true,
+  -- solo_match: la fuente NO crea obras nuevas, solo se engancha a las que ya
+  -- existen (WTR-Lab: 91.000 novelas, casi ninguna con manhwa). Ver descubrir.mjs.
+  solo_match boolean not null default false,
   ultimo_descubrimiento timestamptz
 );
 
@@ -200,8 +203,11 @@ do $$
 begin
   alter table public.sitios drop constraint if exists sitios_plataforma_check;
   alter table public.sitios add constraint sitios_plataforma_check
-    check (plataforma in ('madara','mangareader','css','mangadex','sheet','wetriedtls','olympus','blogger','manhwaweb','asura'));
+    check (plataforma in ('madara','mangareader','css','mangadex','sheet','wetriedtls','olympus','blogger','manhwaweb','asura','wtr'));
 end $$;
+
+-- solo_match en una tabla ya creada (el CREATE con `if not exists` no la añade).
+alter table public.sitios add column if not exists solo_match boolean not null default false;
 
 -- ── Anclas manhwa ↔ novela ───────────────────────────────────────────────────
 -- Vive originalmente en schema-fuentes.sql, pero se recrea aquí para que correr

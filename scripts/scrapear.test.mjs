@@ -6,7 +6,7 @@
  *   npm run test:scrapear
  */
 import assert from 'node:assert/strict';
-import { PLATAFORMAS, numeroDe, slugify, utiles } from './plataformas.mjs';
+import { PLATAFORMAS, esEnlace, numeroDe, slugify, utiles } from './plataformas.mjs';
 
 // ── numeración ───────────────────────────────────────────────────────────────
 assert.equal(numeroDe('Chapter 1938'), 1938);
@@ -267,6 +267,33 @@ assert.equal(
   'la URL del capítulo va por su número, no por su slug (que a veces es un UUID)',
 );
 assert.equal(asCaps[0].fecha_texto, '2026-08-29');
+
+// ── wtr: enumera por el SITEMAP, saca el título del slug, link-out ──────────
+paginas['https://wtr-lab.com/robots.txt'] = 'User-agent: *\nDisallow: /api';
+paginas['https://wtr-lab.com/novels/index.xml'] = `<sitemapindex>
+    <sitemap><loc>https://wtr-lab.com/novels/sitemap/0.xml</loc></sitemap>
+    <sitemap><loc>https://wtr-lab.com/novels/sitemap/1.xml</loc></sitemap>
+  </sitemapindex>`;
+paginas['https://wtr-lab.com/novels/sitemap/0.xml'] = `<urlset>
+    <url><loc>https://wtr-lab.com/en/novel/42/the-immortal-genius-spearman</loc></url>
+    <url><loc>https://wtr-lab.com/en/novel/42/the-immortal-genius-spearman</loc></url>
+  </urlset>`;
+paginas['https://wtr-lab.com/novels/sitemap/1.xml'] = `<urlset>
+    <url><loc>https://wtr-lab.com/en/novel/7/some-random-chinese-webnovel</loc></url>
+  </urlset>`;
+paginas['https://wtr-lab.com/en/novel/42/the-immortal-genius-spearman'] =
+  `<html><body><script id="__NEXT_DATA__" type="application/json">${JSON.stringify({
+    props: { pageProps: { serie: { serie_data: { chapter_count: 812 } } } },
+  })}</script></body></html>`;
+
+const wtrSeries = await PLATAFORMAS.wtr.series('https://wtr-lab.com/novels/index.xml');
+assert.equal(wtrSeries.length, 2, 'dos novelas únicas (el id repetido se colapsa)');
+assert.equal(wtrSeries[0].titulo, 'the immortal genius spearman', 'el título sale del slug');
+assert.equal(wtrSeries[0].url, 'https://wtr-lab.com/en/novel/42/the-immortal-genius-spearman');
+const wtrCaps = await PLATAFORMAS.wtr.capitulos(wtrSeries[0].url);
+assert.equal(wtrCaps.length, 1, 'link-out: una sola tarjeta');
+assert.equal(wtrCaps[0].numero, 812, 'el conteo sale del __NEXT_DATA__');
+assert.equal(esEnlace('wtr'), false, 'wtr sí hace petición (no es capitulosEnlace)');
 
 // ── robots.txt manda ─────────────────────────────────────────────────────────
 await assert.rejects(

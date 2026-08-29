@@ -100,6 +100,15 @@ export async function traerJson(url, { ms = 20000 } = {}) {
   return res.json();
 }
 
+/** El texto crudo, respetando robots. Para XML (sitemaps) y para leer el
+ *  __NEXT_DATA__ embebido, donde cheerio no aporta nada. */
+export async function traerTexto(url, { ms = 20000 } = {}) {
+  if (!(await permitido(url))) throw new Error(`robots.txt lo prohíbe: ${url}`);
+  const res = await fetch(url, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(ms) });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.text();
+}
+
 /** La portada real detrás del lazy-load. Descarta los placeholders en data:. */
 function imagen($, el) {
   const img = $(el).find('img').first();
@@ -677,7 +686,77 @@ const asura = {
   },
 };
 
-export const PLATAFORMAS = { madara, mangareader, css, mangadex, sheet, wetriedtls, olympus, blogger, manhwaweb, asura };
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * wtr: WTR-Lab (wtr-lab.com) — novelas en inglés, indexadas por su SITEMAP
+ * ─────────────────────────────────────────────────────────────────────────────
+ * 91.000+ web-novels (sobre todo chinas). Su robots.txt PROHÍBE /api y las
+ * listas paginadas, pero ANUNCIA un sitemap (`/novels/index.xml` → varios
+ * `/novels/sitemap/N.xml`). Esa es la vía limpia y la que se usa: se enumeran
+ * las novelas por ahí, sin tocar nada que robots prohíba.
+ *
+ * El slug de cada URL YA es el título en inglés ("in-another-world-my-monster-
+ * farm"), así que `series()` no descarga 91.000 páginas: saca el título del
+ * slug y devuelve la lista. El emparejado hace el resto.
+ *
+ * Esta fuente va con `solo_match=true` (ver descubrir.mjs): NO crea obras
+ * nuevas. Son web-novels chinas que en su mayoría no tienen manhwa; meterlas
+ * todas serían 91.000 fichas de relleno. Solo se queda con las que casan con un
+ * manhwa que ya está en el catálogo —que es exactamente el puente que interesa—.
+ *
+ * `capitulos()` sí baja la página de la novela (SSR, robots la permite) para
+ * leer su conteo real y enlazar: es link-out, una tarjeta que lleva a WTR-Lab.
+ * No lista capítulos uno a uno (/…/chapter- lo prohíbe robots, y no hace falta).
+ */
+const WTR = 'https://wtr-lab.com';
+
+/** "in-another-world-my-monster-farm" → "in another world my monster farm". */
+const tituloDeSlug = (slug) =>
+  decodeURIComponent(slug).replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
+
+const wtr = {
+  async series(url) {
+    // url = el sitemap índice (/novels/index.xml). Trae los sub-sitemaps.
+    const indice = await traerTexto(url);
+    const subs = [...indice.matchAll(/<loc>([^<]*\/novels\/sitemap\/\d+\.xml)<\/loc>/g)].map(
+      (m) => m[1],
+    );
+    const series = [];
+    const vistos = new Set();
+    for (const sub of subs) {
+      let xml;
+      try {
+        xml = await traerTexto(sub);
+      } catch {
+        continue; // un sub-sitemap caído no tumba el resto
+      }
+      for (const m of xml.matchAll(/<loc>https?:\/\/[^<]*\/novel\/(\d+)\/([^<]+)<\/loc>/g)) {
+        const [, id, slug] = m;
+        if (vistos.has(id)) continue;
+        vistos.add(id);
+        series.push({ titulo: tituloDeSlug(slug), url: `${WTR}/en/novel/${id}/${slug}` });
+      }
+      await espera(400); // cortesía entre sub-sitemaps
+    }
+    return series;
+  },
+  async capitulos(url) {
+    // La página SSR trae __NEXT_DATA__ con el conteo real. Una entrada = tarjeta
+    // link-out (como olympus): lleva a la novela en WTR-Lab, con su total.
+    const html = await traerTexto(url);
+    const m = html.match(/<script id="__NEXT_DATA__"[^>]*>(.*?)<\/script>/s);
+    let n = 0;
+    try {
+      n = Math.trunc(JSON.parse(m[1])?.props?.pageProps?.serie?.serie_data?.chapter_count) || 0;
+    } catch {
+      /* sin datos: se enlaza igual, sin conteo */
+    }
+    if (!n) return [{ numero: null, titulo: 'Leer la novela en WTR-Lab', url, fecha_texto: null }];
+    return [{ numero: n, titulo: `Novela completa · ${n} capítulos`, url, fecha_texto: null }];
+  },
+};
+
+export const PLATAFORMAS = { madara, mangareader, css, mangadex, sheet, wetriedtls, olympus, blogger, manhwaweb, asura, wtr };
 
 /**
  * Plataformas "link-out": su capitulos() no hace ni una petición HTTP, solo lee
