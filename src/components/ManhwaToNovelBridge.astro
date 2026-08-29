@@ -215,7 +215,10 @@ const defecto = ultimoManhwa || maxManhwa || 0;
         );
         enviar.disabled = false;
         if (error) {
-          mostrarMsg('No se pudo guardar. Intenta de nuevo.', false);
+          // El trigger de límite lanza un mensaje amable ("10 aportes por día");
+          // se muestra tal cual. Para el resto, un genérico.
+          const esLimite = /aporte|l[ií]mite|d[ií]a/i.test(error.message);
+          mostrarMsg(esLimite ? error.message : 'No se pudo guardar. Intenta de nuevo.', false);
           return;
         }
         mostrarMsg('¡Gracias! Tu aporte ya cuenta.', true);

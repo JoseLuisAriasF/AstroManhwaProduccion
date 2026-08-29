@@ -122,6 +122,39 @@ drop policy if exists "borra lo suyo" on public.equivalencias_sugeridas;
 create policy "borra lo suyo" on public.equivalencias_sugeridas
   for delete to authenticated using (usuario_id = auth.uid());
 create index if not exists eq_sugeridas_obra_idx on public.equivalencias_sugeridas (obra_slug);
+create index if not exists eq_sugeridas_usuario_idx on public.equivalencias_sugeridas (usuario_id, creada_en);
+
+-- Tope antiabuso: 10 aportes por usuario cada 24 h. El admin (su email en la
+-- tabla `admins`) es ilimitado. Va en un TRIGGER, no en el cliente: la RLS deja
+-- insertar y cualquiera podría llamar a la API directo, así que el límite tiene
+-- que vivir en la base para que sea de verdad.
+create or replace function public.limite_aportes() returns trigger as $$
+declare
+  n int;
+  es_admin boolean;
+begin
+  select exists (
+    select 1 from public.admins a where a.email = (auth.jwt() ->> 'email')
+  ) into es_admin;
+  if es_admin then
+    return new;
+  end if;
+
+  select count(*) into n
+  from public.equivalencias_sugeridas
+  where usuario_id = auth.uid()
+    and creada_en > now() - interval '24 hours';
+  if n >= 10 then
+    raise exception 'Alcanzaste el límite de 10 aportes por día. Vuelve mañana.';
+  end if;
+  return new;
+end;
+$$ language plpgsql security definer;
+
+drop trigger if exists limite_aportes_trg on public.equivalencias_sugeridas;
+create trigger limite_aportes_trg
+  before insert on public.equivalencias_sugeridas
+  for each row execute function public.limite_aportes();
 
 -- ── 5. Admin ─────────────────────────────────────────────────────────────────
 -- Quién puede editar. Las altas van en seed-sitios.sql, o a mano:
