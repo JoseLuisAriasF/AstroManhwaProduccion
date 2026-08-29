@@ -92,6 +92,37 @@ alter table public.obras add column if not exists enriquecida boolean not null d
 alter table public.obras add column if not exists metadatos_fuente text;
 create index if not exists obras_enriquecida_idx on public.obras (enriquecida);
 
+-- ── 6. Equivalencias manhwa↔novela aportadas por la comunidad ─────────────────
+-- El admin pone las oficiales en `equivalencias` y esas MANDAN. Estas las aporta
+-- cualquiera con sesión de Google: un usuario, un voto por (obra, cap. manhwa);
+-- el sitio muestra el consenso (el valor más votado). Así la precisión mejora
+-- sola con el uso, sin que el admin tenga que anclar cada obra a mano.
+create table if not exists public.equivalencias_sugeridas (
+  id uuid primary key default gen_random_uuid(),
+  obra_slug text not null,
+  capitulo_manhwa int not null check (capitulo_manhwa >= 1),
+  capitulo_novela int not null check (capitulo_novela >= 1),
+  usuario_id uuid not null default auth.uid() references auth.users on delete cascade,
+  creada_en timestamptz not null default now(),
+  unique (obra_slug, capitulo_manhwa, usuario_id)
+);
+alter table public.equivalencias_sugeridas enable row level security;
+-- Lectura pública: el cliente necesita agregarlas para calcular el consenso.
+drop policy if exists "lee sugerencias" on public.equivalencias_sugeridas;
+create policy "lee sugerencias" on public.equivalencias_sugeridas for select using (true);
+-- Solo un usuario autenticado inserta, y solo como sí mismo (no puede suplantar).
+drop policy if exists "aporta autenticado" on public.equivalencias_sugeridas;
+create policy "aporta autenticado" on public.equivalencias_sugeridas
+  for insert to authenticated with check (usuario_id = auth.uid());
+-- Puede corregir o borrar lo SUYO (cambiar su voto), nada más.
+drop policy if exists "corrige lo suyo" on public.equivalencias_sugeridas;
+create policy "corrige lo suyo" on public.equivalencias_sugeridas
+  for update to authenticated using (usuario_id = auth.uid()) with check (usuario_id = auth.uid());
+drop policy if exists "borra lo suyo" on public.equivalencias_sugeridas;
+create policy "borra lo suyo" on public.equivalencias_sugeridas
+  for delete to authenticated using (usuario_id = auth.uid());
+create index if not exists eq_sugeridas_obra_idx on public.equivalencias_sugeridas (obra_slug);
+
 -- ── 5. Admin ─────────────────────────────────────────────────────────────────
 -- Quién puede editar. Las altas van en seed-sitios.sql, o a mano:
 --   insert into public.admins values ('joseluisariasflores01@gmail.com');

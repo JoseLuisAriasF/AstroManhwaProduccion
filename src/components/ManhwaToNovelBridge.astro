@@ -5,23 +5,31 @@ import type { EquivalenciaManhwa } from '@/types/novela';
 interface Props {
   slug: string;
   anclas: EquivalenciaManhwa[];
+  /** Se muestra aunque no haya anclas: la obra tiene manhwa Y novela, así que
+      la comunidad puede aportar la primera equivalencia. */
+  mostrar?: boolean;
+  /** Último capítulo del manhwa: el valor por defecto del cálculo (el lector
+      suele venir de terminar el manhwa y querer seguir en la novela). */
+  ultimoManhwa?: number;
   compacto?: boolean;
 }
 
-const { slug, anclas, compacto = false } = Astro.props;
+const { slug, anclas, mostrar = false, ultimoManhwa = 0, compacto = false } = Astro.props;
 const idioma = idiomaDeRuta(Astro.url.pathname);
 const dic = t(idioma);
 const maxManhwa = anclas.length ? Math.max(...anclas.map((a) => a.capituloManhwa)) : 0;
+const defecto = ultimoManhwa || maxManhwa || 0;
 ---
 
 {
-  anclas.length > 0 && (
+  (anclas.length > 0 || mostrar) && (
     <section
       class:list={['neu rounded-2xl', compacto ? 'p-4' : 'p-5 sm:p-6']}
       data-cruce
       data-slug={slug}
       data-base={ruta(idioma, `/novela/${slug}`)}
       data-anclas={JSON.stringify(anclas)}
+      data-ultimo-manhwa={defecto}
       aria-labelledby={`cruce-${slug}`}
     >
       <div class="flex items-start gap-3">
@@ -44,8 +52,8 @@ const maxManhwa = anclas.length ? Math.max(...anclas.map((a) => a.capituloManhwa
           <input
             type="number"
             min="1"
-            max={maxManhwa + 50}
-            placeholder={String(maxManhwa || 86)}
+            value={defecto || undefined}
+            placeholder={String(defecto || 86)}
             data-cruce-input
             aria-label={dic.puenteAria}
             class="w-20 bg-transparent outline-none text-base-800 dark:text-base-100 font-medium tabular-nums"
@@ -58,23 +66,71 @@ const maxManhwa = anclas.length ? Math.max(...anclas.map((a) => a.capituloManhwa
       </div>
 
       <p data-cruce-resultado hidden class="mt-3 text-sm neu-inset rounded-xl px-4 py-3 text-base-600 dark:text-base-300" />
+
+      {/* Aporte de la comunidad. Oculto por defecto; el script revela el bloque
+          según haya o no sesión. Precisión que mejora con el uso. */}
+      <div data-cruce-aporte class="mt-4 border-t border-base-300/40 dark:border-base-700/40 pt-4">
+        <p data-cruce-estado class="text-xs text-base-400" />
+
+        <div data-cruce-form hidden class="mt-2">
+          <p class="text-sm text-base-500 mb-2">¿Sabes una equivalencia exacta? Ayúdanos a afinarla:</p>
+          <div class="flex flex-wrap items-center gap-2 text-sm">
+            <span class="text-base-500">Cap. manhwa</span>
+            <input type="number" min="1" data-aporte-manhwa class="neu-inset rounded-lg w-16 px-2 py-1.5 bg-transparent outline-none tabular-nums" />
+            <span class="text-base-500">= cap. novela</span>
+            <input type="number" min="1" data-aporte-novela class="neu-inset rounded-lg w-16 px-2 py-1.5 bg-transparent outline-none tabular-nums" />
+            <button data-aporte-enviar class="neu-sm neu-press rounded-lg px-3 py-1.5 font-medium text-acento-500">
+              Aportar
+            </button>
+          </div>
+          <p data-aporte-msg hidden class="mt-2 text-xs" />
+        </div>
+
+        <p data-cruce-login hidden class="mt-1 text-xs text-base-400">
+          Inicia sesión con Google (arriba a la derecha) para aportar equivalencias.
+        </p>
+      </div>
     </section>
   )
 }
 
 <script>
   import { manhwaANovela } from '@/lib/equivalencia';
+  import { supabase } from '@/lib/supabaseClient';
   import { idiomaDeRuta, t } from '@/lib/i18n';
   import type { EquivalenciaManhwa } from '@/types/novela';
 
   const dic = t(idiomaDeRuta(location.pathname));
 
-  document.querySelectorAll<HTMLElement>('[data-cruce]').forEach((caja) => {
-    const anclas: EquivalenciaManhwa[] = JSON.parse(caja.dataset.anclas!);
+  /** Consenso: por cada cap. de manhwa, el cap. de novela MÁS votado (la moda). */
+  function consenso(filas: { capitulo_manhwa: number; capitulo_novela: number }[]) {
+    const porManhwa = new Map<number, Map<number, number>>();
+    for (const f of filas) {
+      const votos = porManhwa.get(f.capitulo_manhwa) ?? new Map<number, number>();
+      votos.set(f.capitulo_novela, (votos.get(f.capitulo_novela) ?? 0) + 1);
+      porManhwa.set(f.capitulo_manhwa, votos);
+    }
+    const anclas: EquivalenciaManhwa[] = [];
+    for (const [capituloManhwa, votos] of porManhwa) {
+      let mejor = 0;
+      let max = -1;
+      for (const [novela, n] of votos) if (n > max) ((max = n), (mejor = novela));
+      anclas.push({ capituloManhwa, capituloNovela: mejor });
+    }
+    return anclas;
+  }
+
+  for (const caja of document.querySelectorAll<HTMLElement>('[data-cruce]')) {
+    const slug = caja.dataset.slug!;
     const base = caja.dataset.base!;
     const input = caja.querySelector<HTMLInputElement>('[data-cruce-input]')!;
     const boton = caja.querySelector<HTMLButtonElement>('[data-cruce-ir]')!;
     const salida = caja.querySelector<HTMLElement>('[data-cruce-resultado]')!;
+    const estado = caja.querySelector<HTMLElement>('[data-cruce-estado]')!;
+
+    // Arranca con las anclas del admin embebidas (funcionan sin JS/red); el
+    // fetch en vivo las completa con el consenso de la comunidad.
+    let anclas: EquivalenciaManhwa[] = JSON.parse(caja.dataset.anclas || '[]');
     let destino: number | null = null;
 
     function calcular() {
@@ -85,33 +141,97 @@ const maxManhwa = anclas.length ? Math.max(...anclas.map((a) => a.capituloManhwa
         boton.disabled = true;
         return;
       }
-
       const exacta = anclas.some((a) => a.capituloManhwa === cap);
       const enPagina = !!document.querySelector(`[data-cap="${destino}"]`);
-      // Sin fuente indexada para ese capítulo, "Ir" iría a 404: se deshabilita.
       boton.disabled = !enPagina;
       salida.innerHTML =
         dic.puenteResultado(cap, destino) +
         (exacta ? '' : ` <span class="text-base-400">${dic.puenteAproximado}</span>`) +
         (enPagina ? '' : ' <span class="text-base-400">(aún no indexado en esta fuente)</span>');
-
-      // Resalta el capítulo en la lista, si está en esta página.
       document
         .querySelectorAll('[data-cap].ring-2')
         .forEach((e) => e.classList.remove('ring-2', 'ring-acento-400'));
       document.querySelector(`[data-cap="${destino}"]`)?.classList.add('ring-2', 'ring-acento-400');
     }
 
+    async function cargarAnclas() {
+      if (!supabase) return;
+      const [admin, sug] = await Promise.all([
+        supabase.from('equivalencias').select('capitulo_manhwa,capitulo_novela').eq('novela_slug', slug),
+        supabase.from('equivalencias_sugeridas').select('capitulo_manhwa,capitulo_novela').eq('obra_slug', slug),
+      ]);
+      const fusion = new Map<number, number>();
+      for (const a of consenso(sug.data ?? [])) fusion.set(a.capituloManhwa, a.capituloNovela);
+      // El admin manda: pisa el consenso de la comunidad donde exista.
+      for (const a of admin.data ?? []) fusion.set(a.capitulo_manhwa, a.capitulo_novela);
+      if (fusion.size) {
+        anclas = [...fusion].map(([capituloManhwa, capituloNovela]) => ({ capituloManhwa, capituloNovela }));
+      }
+      const nAdmin = admin.data?.length ?? 0;
+      const nCom = fusion.size - nAdmin;
+      estado.textContent = fusion.size
+        ? `Basado en ${fusion.size} ${fusion.size === 1 ? 'ancla' : 'anclas'}` +
+          (nCom > 0 ? ` (${nCom} de la comunidad)` : '')
+        : 'Aún sin equivalencias: sé el primero en aportar una.';
+      if (input.value) calcular();
+    }
+
     input.addEventListener('input', calcular);
     input.addEventListener('keydown', (e) => e.key === 'Enter' && boton.click());
-    // Si el capítulo destino está en la página (lista externa o interna) hace
-    // scroll y lo resalta. Si no, navega al lector interno. Cubre ambos casos
-    // sin que la Bridge tenga que saber cuál está activo.
     boton.addEventListener('click', () => {
       if (destino === null) return;
       const el = document.querySelector(`[data-cap="${destino}"]`);
       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       else location.href = `${base}/capitulo-${destino}`;
     });
-  });
+
+    // ── Aporte de la comunidad ──────────────────────────────────────────────
+    const form = caja.querySelector<HTMLElement>('[data-cruce-form]')!;
+    const avisoLogin = caja.querySelector<HTMLElement>('[data-cruce-login]')!;
+    const inM = caja.querySelector<HTMLInputElement>('[data-aporte-manhwa]')!;
+    const inN = caja.querySelector<HTMLInputElement>('[data-aporte-novela]')!;
+    const enviar = caja.querySelector<HTMLButtonElement>('[data-aporte-enviar]')!;
+    const msg = caja.querySelector<HTMLElement>('[data-aporte-msg]')!;
+
+    async function initAporte() {
+      if (!supabase) return;
+      const { data } = await supabase.auth.getUser();
+      const usuario = data.user;
+      form.hidden = !usuario;
+      avisoLogin.hidden = !!usuario;
+      if (!usuario) return;
+
+      enviar.addEventListener('click', async () => {
+        const m = parseInt(inM.value, 10);
+        const n = parseInt(inN.value, 10);
+        if (!Number.isFinite(m) || !Number.isFinite(n) || m < 1 || n < 1) {
+          mostrarMsg('Pon dos números de capítulo válidos.', false);
+          return;
+        }
+        enviar.disabled = true;
+        const { error } = await supabase!.from('equivalencias_sugeridas').upsert(
+          { obra_slug: slug, capitulo_manhwa: m, capitulo_novela: n, usuario_id: usuario.id },
+          { onConflict: 'obra_slug,capitulo_manhwa,usuario_id' },
+        );
+        enviar.disabled = false;
+        if (error) {
+          mostrarMsg('No se pudo guardar. Intenta de nuevo.', false);
+          return;
+        }
+        mostrarMsg('¡Gracias! Tu aporte ya cuenta.', true);
+        inM.value = '';
+        inN.value = '';
+        await cargarAnclas(); // refleja el nuevo consenso al instante
+      });
+    }
+
+    function mostrarMsg(texto: string, ok: boolean) {
+      msg.textContent = texto;
+      msg.className = `mt-2 text-xs ${ok ? 'text-emerald-500' : 'text-red-500'}`;
+      msg.hidden = false;
+    }
+
+    cargarAnclas();
+    initAporte();
+  }
 </script>

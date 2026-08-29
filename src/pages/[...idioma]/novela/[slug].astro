@@ -35,6 +35,11 @@ const externos = await getCapitulosExternos(novela.slug);
 const fuentes = fuentesDe(externos);
 const formatosDisponibles = formatos(externos);
 const anclas = await getEquivalencias(novela.slug);
+// El puente se muestra si la obra tiene manhwa Y novela (aunque no haya anclas:
+// la comunidad puede aportar la primera). Por defecto arranca en el último
+// capítulo del manhwa, que es de donde suele venir el lector.
+const tieneAmbos = formatosDisponibles.length === 2;
+const ultimoManhwa = Math.max(0, ...fuentes.filter((f) => f.tipo === 'manhwa').map((f) => f.ultimo));
 // Sin capítulos internos, la novela vive fuera: oculto el lector propio,
 // el sync, el puente manhwa↔novela y el CTA de "empezar a leer" (rompería
 // en /capitulo-1). La página muestra la ficha + los enlaces externos.
@@ -190,7 +195,7 @@ const jsonLd = {
   <div class="mt-6 grid gap-6">
     {/* Puente manhwa↔novela: el valor agregado del sitio. Se muestra si hay
         anclas, aunque no exista lector interno (usa la lista externa). */}
-    <ManhwaToNovelBridge slug={novela.slug} anclas={anclas} />
+    <ManhwaToNovelBridge slug={novela.slug} anclas={anclas} mostrar={tieneAmbos} ultimoManhwa={ultimoManhwa} />
     {hayLecturaInterna && (
       <>
         <SyncExplanationBanner />
