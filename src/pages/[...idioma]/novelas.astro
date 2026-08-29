@@ -4,6 +4,7 @@ import NovelaCard from '@/components/NovelaCard.astro';
 import { formatos, getCapitulosExternos, getNovelas } from '@/lib/api';
 import { IDIOMA_BASE, idiomaDeRuta, ruta, t } from '@/lib/i18n';
 import { idiomasDeObra, paramsDeIdioma } from '@/lib/publicables';
+import { totalPaginas } from '@/lib/catalogo';
 
 export function getStaticPaths() {
   return paramsDeIdioma().map(({ idioma }) => ({ params: { idioma } }));
@@ -40,6 +41,7 @@ const obras = await Promise.all(
 obras.sort((a, b) => Number(b.ambos) - Number(a.ambos) || b.total - a.total);
 
 const destacadas = obras.filter((o) => o.ambos);
+const paginas = totalPaginas(obras.length);
 
 // Índice ligero para la búsqueda del lado del cliente: solo lo que pinta una
 // tarjeta de resultado. Renderizar las 8.600 en HTML pesaba 10 MB y arrastraba
@@ -87,6 +89,28 @@ const indice = obras.map((o) => ({
   <p id="sin-resultados" hidden class="mt-8 neu-inset rounded-2xl p-8 text-center text-base-500">
     No hay resultados. Prueba otro título.
   </p>
+
+  {/* Entrada al catálogo completo paginado. Es lo que da a las ~6.400 fichas
+      restantes un camino que el buscador puede recorrer: sin estos enlaces son
+      páginas huérfanas y Google no las indexa por mucho sitemap que haya. */}
+  {idioma === IDIOMA_BASE && paginas > 1 && (
+    <nav class="mt-10 border-t border-base-300/40 dark:border-base-700/40 pt-6" aria-label="Catálogo completo">
+      <h2 class="font-semibold text-base-800 dark:text-base-100">Todo el catálogo</h2>
+      <p class="mt-1 text-sm text-base-500">{obras.length} obras, de la A a la Z.</p>
+      <div class="mt-3 flex flex-wrap gap-2">
+        {[...Array(Math.min(paginas, 12))].map((_, i) => (
+          <a href={ruta(idioma, `/novelas/${i + 2}`)} class="neu-sm neu-press rounded-xl px-3 py-1.5 text-sm tabular-nums">
+            {i + 1}
+          </a>
+        ))}
+        {paginas > 12 && (
+          <a href={ruta(idioma, `/novelas/${paginas + 1}`)} class="neu-sm neu-press rounded-xl px-3 py-1.5 text-sm tabular-nums">
+            … {paginas}
+          </a>
+        )}
+      </div>
+    </nav>
+  )}
 
   <script is:inline define:vars={{ indice }}>
     window.__indice = indice;

@@ -1,0 +1,105 @@
+---
+import Base from '@/layouts/Base.astro';
+import NovelaCard from '@/components/NovelaCard.astro';
+import { formatos, getCapitulosExternos } from '@/lib/api';
+import { IDIOMA_BASE, ruta, t } from '@/lib/i18n';
+import { POR_PAGINA, catalogoOrdenado, totalPaginas } from '@/lib/catalogo';
+
+/**
+ * Catálogo completo, paginado y RASTREABLE.
+ *
+ * /novelas muestra solo las destacadas (rápido, es el gancho), así que las
+ * ~6.400 fichas restantes no recibían NI UN enlace interno: eran páginas
+ * huérfanas. Estaban en el sitemap, pero Google apenas indexa —y nunca
+ * posiciona— lo que no puede alcanzar navegando. Estas páginas son el camino:
+ * cada una enlaza 96 fichas y encadena con la siguiente.
+ *
+ * Solo en el idioma base: las fichas del catálogo se publican en `es`
+ * (idiomasDeObra), así que paginar los 7 idiomas sería contenido duplicado.
+ */
+export async function getStaticPaths() {
+  const obras = await catalogoOrdenado();
+  // La URL /novelas (página 1) es la portada del catálogo: muestra las
+  // destacadas, NO el primer tramo alfabético. Por eso la paginación numerada
+  // empieza en /novelas/2 y cubre el catálogo COMPLETO desde el principio; si
+  // arrancara en el tramo 2 dejaría las primeras 96 obras sin ningún enlace.
+  return Array.from({ length: totalPaginas(obras.length) }, (_, i) => ({
+    params: { idioma: undefined, pagina: String(i + 2) },
+  }));
+}
+
+const idioma = IDIOMA_BASE;
+const dic = t(idioma);
+const actual = Number(Astro.params.pagina);
+
+const todas = await catalogoOrdenado();
+const paginas = totalPaginas(todas.length) + 1; // +1: /novelas encabeza la cadena
+const desde = (actual - 2) * POR_PAGINA; // /novelas/2 arranca en la primera obra
+const enPagina = todas.slice(desde, desde + POR_PAGINA);
+
+const conFormatos = await Promise.all(
+  enPagina.map(async (novela) => ({
+    novela,
+    formatos: formatos(await getCapitulosExternos(novela.slug)),
+  })),
+);
+
+const href = (n: number) => (n === 1 ? ruta(idioma, '/novelas') : ruta(idioma, `/novelas/${n}`));
+// Ventana de páginas alrededor de la actual: suficientes saltos para que el
+// crawler recorra todo sin pintar 68 enlaces en cada página.
+const ventana = [...new Set([1, 2, actual - 1, actual, actual + 1, paginas - 1, paginas])]
+  .filter((n) => n >= 1 && n <= paginas)
+  .sort((a, b) => a - b);
+---
+
+<Base
+  titulo={`${dic.catalogo} de manhwas y novelas · Página ${actual - 1} de ${paginas - 1} · ManhwaToNovel`}
+  descripcion={`Catálogo completo de manhwas y novelas ligeras con sus títulos alternativos. Página ${actual - 1} de ${paginas - 1}.`}
+  anchoCompleto
+>
+  <Fragment slot="head">
+    {actual > 1 && <link rel="prev" href={new URL(href(actual - 1), Astro.site).toString()} />}
+    {actual < paginas && <link rel="next" href={new URL(href(actual + 1), Astro.site).toString()} />}
+  </Fragment>
+
+  <nav class="text-sm text-base-400 mb-4" aria-label="breadcrumb">
+    <a href={ruta(idioma)} class="hover:text-acento-500">{dic.navInicio}</a>
+    <span class="mx-1.5">/</span>
+    <a href={href(1)} class="hover:text-acento-500">{dic.catalogo}</a>
+    <span class="mx-1.5">/</span>
+    <span class="text-base-500">Página {actual - 1}</span>
+  </nav>
+
+  <h1 class="text-2xl font-bold tracking-tight text-base-800 dark:text-base-50">
+    {dic.catalogo} completo
+  </h1>
+  <p class="mt-1 text-sm text-base-500">
+    {todas.length} obras indexadas · página {actual - 1} de {paginas - 1}
+  </p>
+
+  <div class="mt-6 grid sm:grid-cols-2 gap-4">
+    {conFormatos.map(({ novela, formatos }) => <NovelaCard novela={novela} formatos={formatos} />)}
+  </div>
+
+  <nav class="mt-8 flex flex-wrap items-center justify-center gap-2" aria-label="Paginación">
+    {actual > 1 && (
+      <a href={href(actual - 1)} rel="prev" class="neu-sm neu-press rounded-xl px-3 py-2 text-sm">
+        ← Anterior
+      </a>
+    )}
+    {ventana.map((n) => (
+      <a
+        href={href(n)}
+        aria-current={n === actual ? 'page' : undefined}
+        class="neu-sm neu-press rounded-xl px-3 py-2 text-sm tabular-nums aria-[current]:text-acento-500 aria-[current]:font-semibold"
+      >
+        {n === 1 ? '★' : n - 1}
+      </a>
+    ))}
+    {actual < paginas && (
+      <a href={href(actual + 1)} rel="next" class="neu-sm neu-press rounded-xl px-3 py-2 text-sm">
+        Siguiente →
+      </a>
+    )}
+  </nav>
+</Base>
