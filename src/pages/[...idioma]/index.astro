@@ -73,9 +73,10 @@ const carrusel = await Promise.all(
   }),
 );
 
-// Nuevos lanzamientos: obras con contenido, por fecha de descubrimiento.
+// Nuevos lanzamientos: los "match" (tienen manhwa Y novela), por fecha de
+// descubrimiento. Es lo que hace único al sitio, no cualquier obra suelta.
 const nuevos = [...conTotales]
-  .filter((o) => o.capsExternos > 0 && o.novela.creadaEn)
+  .filter((o) => o.ambos && o.novela.creadaEn)
   .sort((a, b) => (a.novela.creadaEn! < b.novela.creadaEn! ? 1 : -1))
   .slice(0, 12);
 
@@ -100,6 +101,12 @@ const jsonLd = {
   anchoCompleto
   jsonLd={jsonLd}
 >
+  {/* Carrusel como PORTADA: lo primero que se ve, en grande. El texto de héroe
+      va debajo. */}
+  <div id="destacados" class="mb-8">
+    <Carrusel items={carrusel} titulo="Destacados: manhwa + novela" />
+  </div>
+
   <!-- Hero -->
   <section class="relative text-center py-10 sm:py-16 overflow-hidden">
     <div
@@ -167,15 +174,10 @@ const jsonLd = {
 
   <div class="mb-10"><SyncExplanationBanner /></div>
 
-  {/* Carrusel de destacados: obras con manhwa Y novela, con la equivalencia
-      dentro de la imagen. Es el gancho del sitio, arriba y en grande. */}
-  <div id="destacados" class="mb-10">
-    <Carrusel items={carrusel} titulo="Con manhwa y novela — destacados" />
-  </div>
-
   {nuevos.length > 0 && (
     <section id="nuevos" class="mb-10">
-      <h2 class="font-semibold text-base-800 dark:text-base-100 mb-4">Nuevos lanzamientos</h2>
+      <h2 class="font-semibold text-base-800 dark:text-base-100 mb-1">Nuevos lanzamientos</h2>
+      <p class="text-sm text-base-500 mb-4">Novelas con su manhwa (y viceversa), recién añadidas.</p>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {nuevos.map(({ novela, formatos }) => (
           <NovelaCard novela={novela} formatos={formatos} />

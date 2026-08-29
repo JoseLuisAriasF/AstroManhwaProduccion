@@ -20,16 +20,21 @@ const { items, titulo } = Astro.props;
 {
   items.length > 0 && (
     <section class="relative" data-carrusel aria-roledescription="carrusel" aria-label={titulo}>
-      <div class="flex items-center gap-2 mb-3">
-        <h2 class="font-semibold text-base-800 dark:text-base-100">{titulo}</h2>
-        <div class="ml-auto flex gap-1.5">
-          <button data-prev aria-label="Anterior" class="neu-sm neu-press rounded-xl size-9 grid place-items-center text-base-500">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" class="size-4"><path d="m15 18-6-6 6-6" /></svg>
-          </button>
-          <button data-next aria-label="Siguiente" class="neu-sm neu-press rounded-xl size-9 grid place-items-center text-base-500">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" class="size-4"><path d="m9 18 6-6-6-6" /></svg>
-          </button>
+      <div class="mb-3">
+        <div class="flex items-center gap-2">
+          <h2 class="font-semibold text-base-800 dark:text-base-100">{titulo}</h2>
+          <div class="ml-auto flex gap-1.5">
+            <button data-prev aria-label="Anterior" class="neu-sm neu-press rounded-xl size-9 grid place-items-center text-base-500">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" class="size-4"><path d="m15 18-6-6 6-6" /></svg>
+            </button>
+            <button data-next aria-label="Siguiente" class="neu-sm neu-press rounded-xl size-9 grid place-items-center text-base-500">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" class="size-4"><path d="m9 18 6-6-6-6" /></svg>
+            </button>
+          </div>
         </div>
+        <p class="text-sm text-base-500 mt-0.5">
+          La equivalencia la pone la comunidad: entra a una obra y aporta qué capítulo del manhwa corresponde al de la novela.
+        </p>
       </div>
 
       <div data-track class="flex overflow-x-auto snap-x snap-mandatory gap-4 scrollbar-none scroll-smooth -mx-4 px-4 sm:mx-0 sm:px-0">
@@ -85,13 +90,21 @@ const { items, titulo } = Astro.props;
                   <p class="text-sm text-white/60 line-clamp-1 mt-0.5">{it.novela.titulosAlternativos[0]}</p>
                 )}
 
-                {/* El gancho del sitio, dentro de la imagen: la equivalencia. */}
-                {it.ancla && (
+                {/* El gancho del sitio, DENTRO de la imagen: la equivalencia.
+                    Si aún no tiene, invita a aportarla (la tarjeta lleva a la ficha). */}
+                {it.ancla ? (
                   <div class="mt-2.5 inline-flex items-center gap-1.5 text-xs sm:text-sm bg-white/15 backdrop-blur rounded-lg px-2.5 py-1 font-medium tabular-nums">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" class="size-3.5 text-acento-300">
                       <path d="M4 7h9m0 0-3-3m3 3-3 3M20 17h-9m0 0 3-3m-3 3 3 3" />
                     </svg>
                     Manhwa {it.ancla.capituloManhwa} = Novela {it.ancla.capituloNovela}
+                  </div>
+                ) : (
+                  <div class="mt-2.5 inline-flex items-center gap-1.5 text-xs bg-white/10 rounded-lg px-2.5 py-1 text-white/80">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" class="size-3.5 text-acento-300">
+                      <path d="M12 5v14M5 12h14" />
+                    </svg>
+                    ¿Sabes la equivalencia? Apórtala
                   </div>
                 )}
 
@@ -123,44 +136,62 @@ const { items, titulo } = Astro.props;
     const track = car.querySelector<HTMLElement>('[data-track]')!;
     const slides = [...car.querySelectorAll<HTMLElement>('[data-slide]')];
     const dots = [...car.querySelectorAll<HTMLButtonElement>('[data-dot]')];
-    if (!slides.length) continue;
+    if (slides.length < 2) continue;
+
+    let idx = 0;
+    const pintarDots = () =>
+      dots.forEach((d, i) => (i === idx ? d.setAttribute('aria-current', 'true') : d.removeAttribute('aria-current')));
 
     const irA = (i: number) => {
-      const n = (i + slides.length) % slides.length;
-      track.scrollTo({ left: slides[n].offsetLeft - track.offsetLeft, behavior: 'smooth' });
-    };
-    const actual = () => {
-      // La slide cuyo inicio está más cerca del scroll actual.
-      let mejor = 0;
-      let min = Infinity;
-      slides.forEach((s, i) => {
-        const d = Math.abs(s.offsetLeft - track.offsetLeft - track.scrollLeft);
-        if (d < min) ((min = d), (mejor = i));
-      });
-      return mejor;
+      idx = (i + slides.length) % slides.length;
+      track.scrollTo({ left: slides[idx].offsetLeft - track.offsetLeft, behavior: 'smooth' });
+      pintarDots();
     };
 
-    car.querySelector('[data-prev]')!.addEventListener('click', () => irA(actual() - 1));
-    car.querySelector('[data-next]')!.addEventListener('click', () => irA(actual() + 1));
+    car.querySelector('[data-prev]')!.addEventListener('click', () => irA(idx - 1));
+    car.querySelector('[data-next]')!.addEventListener('click', () => irA(idx + 1));
     dots.forEach((d, i) => d.addEventListener('click', () => irA(i)));
 
-    const pintarDots = () => {
-      const a = actual();
-      dots.forEach((d, i) => (i === a ? d.setAttribute('aria-current', 'true') : d.removeAttribute('aria-current')));
-    };
-    track.addEventListener('scroll', () => requestAnimationFrame(pintarDots), { passive: true });
-    pintarDots();
+    // Si el usuario scrollea a mano, `idx` sigue su posición (para dots y el
+    // próximo auto-avance). Se recalcula al parar el scroll.
+    let deb: ReturnType<typeof setTimeout>;
+    track.addEventListener(
+      'scroll',
+      () => {
+        clearTimeout(deb);
+        deb = setTimeout(() => {
+          let mejor = 0;
+          let min = Infinity;
+          slides.forEach((s, i) => {
+            const d = Math.abs(s.offsetLeft - track.offsetLeft - track.scrollLeft);
+            if (d < min) ((min = d), (mejor = i));
+          });
+          idx = mejor;
+          pintarDots();
+        }, 120);
+      },
+      { passive: true },
+    );
 
-    // Auto-avance; se pausa al interactuar (hover/touch/foco) para no molestar.
-    let timer = setInterval(() => irA(actual() + 1), 6000);
-    const parar = () => clearInterval(timer);
-    const seguir = () => {
-      parar();
-      timer = setInterval(() => irA(actual() + 1), 6000);
+    // Auto-avance continuo. Se pausa mientras el usuario interactúa y RETOMA
+    // (el bug anterior: al tocar en móvil se quedaba parado para siempre).
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const arrancar = () => {
+      if (timer) return;
+      timer = setInterval(() => irA(idx + 1), 5000);
+    };
+    const parar = () => {
+      if (timer) clearInterval(timer);
+      timer = null;
     };
     car.addEventListener('pointerenter', parar);
-    car.addEventListener('pointerleave', seguir);
+    car.addEventListener('pointerleave', arrancar);
     car.addEventListener('focusin', parar);
+    car.addEventListener('focusout', arrancar);
     track.addEventListener('touchstart', parar, { passive: true });
+    track.addEventListener('touchend', () => setTimeout(arrancar, 3000), { passive: true });
+
+    pintarDots();
+    arrancar();
   }
 </script>
