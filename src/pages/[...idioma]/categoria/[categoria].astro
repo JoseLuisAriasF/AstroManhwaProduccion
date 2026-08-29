@@ -1,0 +1,83 @@
+---
+import Base from '@/layouts/Base.astro';
+import NovelaCard from '@/components/NovelaCard.astro';
+import { formatos, getCapitulosExternos } from '@/lib/api';
+import { IDIOMA_BASE, ruta, t } from '@/lib/i18n';
+import { generos, generosDestacados } from '@/lib/categorias';
+
+export async function getStaticPaths() {
+  const gs = await generos();
+  return [...gs.keys()].map((categoria) => ({ params: { idioma: undefined, categoria } }));
+}
+
+const idioma = IDIOMA_BASE;
+const dic = t(idioma);
+const slug = Astro.params.categoria!;
+
+const gs = await generos();
+const genero = gs.get(slug)!;
+
+// Se listan hasta 96: suficiente para el hub y para pasar autoridad; el resto
+// del género se alcanza igual por el catálogo paginado.
+const TOPE = 96;
+const obras = genero.obras.slice(0, TOPE);
+const conFormatos = await Promise.all(
+  obras.map(async (novela) => ({ novela, formatos: formatos(await getCapitulosExternos(novela.slug)) })),
+);
+
+// Otros géneros, para enlazar hubs entre sí (más malla interna, más contexto).
+const otros = (await generosDestacados()).filter((g) => g.slug !== slug).slice(0, 14);
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'CollectionPage',
+  name: `Manhwas y novelas de ${genero.nombre}`,
+  inLanguage: idioma,
+  numberOfItems: genero.obras.length,
+};
+---
+
+<Base
+  titulo={`Manhwas y novelas de ${genero.nombre} — Leer en español · ManhwaToNovel`}
+  descripcion={`Los mejores manhwas y novelas ligeras de ${genero.nombre} en español, con sus títulos alternativos y dónde leerlos. ${genero.obras.length} obras.`}
+  anchoCompleto
+  jsonLd={jsonLd}
+>
+  <nav class="text-sm text-base-400 mb-4" aria-label="breadcrumb">
+    <a href={ruta(idioma)} class="hover:text-acento-500">{dic.navInicio}</a>
+    <span class="mx-1.5">/</span>
+    <a href={ruta(idioma, '/novelas')} class="hover:text-acento-500">{dic.catalogo}</a>
+    <span class="mx-1.5">/</span>
+    <span class="text-base-500">{genero.nombre}</span>
+  </nav>
+
+  <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-base-800 dark:text-base-50">
+    Manhwas y novelas de {genero.nombre}
+  </h1>
+  <p class="mt-2 text-base-500 max-w-2xl">
+    {genero.obras.length} obras de <strong>{genero.nombre}</strong> — manhwas y sus novelas ligeras,
+    con títulos alternativos y dónde leerlas gratis en español.
+  </p>
+
+  <div class="mt-6 grid sm:grid-cols-2 gap-4">
+    {conFormatos.map(({ novela, formatos }) => <NovelaCard novela={novela} formatos={formatos} />)}
+  </div>
+
+  {genero.obras.length > TOPE && (
+    <p class="mt-6 text-sm text-base-500">
+      Y {genero.obras.length - TOPE} más —{' '}
+      <a href={ruta(idioma, '/novelas')} class="text-acento-500 underline">explora todo el catálogo</a>.
+    </p>
+  )}
+
+  <nav class="mt-10 border-t border-base-300/40 dark:border-base-700/40 pt-6" aria-label="Otros géneros">
+    <h2 class="font-semibold text-base-800 dark:text-base-100 mb-3">Otros géneros</h2>
+    <div class="flex flex-wrap gap-2">
+      {otros.map((g) => (
+        <a href={ruta(idioma, `/categoria/${g.slug}`)} class="neu-sm neu-press rounded-xl px-3 py-1.5 text-sm">
+          {g.nombre} <span class="text-base-400 tabular-nums">{g.obras.length}</span>
+        </a>
+      ))}
+    </div>
+  </nav>
+</Base>
