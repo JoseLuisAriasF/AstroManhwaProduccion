@@ -18,7 +18,10 @@ export interface Novela {
    */
   titulosAlternativos: string[];
   sinopsis: string;
-  portadaUrl: string; // Única imagen por novela
+  portadaUrl: string; // Portada principal
+  /** Portadas alternativas (de cada fuente): si la principal da link roto, el
+      cliente prueba estas antes de caer al placeholder. */
+  portadas?: string[];
   estado: 'En emisión' | 'Finalizado';
   categorias: string[];
   /** Cuándo se descubrió la obra. Para ordenar "nuevos lanzamientos". */

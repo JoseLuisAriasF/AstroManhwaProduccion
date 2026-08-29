@@ -66,28 +66,66 @@ async function todasLasFilas<T>(tabla: string, columnas: string, filtrar: (q: an
  * compila igual. Es lo que permite clonar el repo y correr `npm run dev` sin
  * credenciales.
  */
+/**
+ * La portada que vio cada fuente al descubrirla, agrupada por obra. Sirve de
+ * respaldo: muchas `portada_url` de scans terminan en link roto, y así el
+ * cliente cae a otra fuente en vez de a un ícono roto. Una lectura por build.
+ */
+let portadasFuenteCache: Promise<Map<string, string[]>> | null = null;
+function cargarPortadasFuente(): Promise<Map<string, string[]>> {
+  portadasFuenteCache ??= (async () => {
+    const mapa = new Map<string, string[]>();
+    if (!supabase) return mapa;
+    try {
+      const filas = await todasLasFilas<any>('fuentes', 'obra_slug, portada_vista', (q) =>
+        q.not('portada_vista', 'is', null),
+      );
+      for (const f of filas) {
+        if (!f.portada_vista) continue;
+        const arr = mapa.get(f.obra_slug) ?? mapa.set(f.obra_slug, []).get(f.obra_slug)!;
+        if (!arr.includes(f.portada_vista)) arr.push(f.portada_vista);
+      }
+    } catch (e) {
+      console.warn(`[portadas-fuente] ${(e as Error).message}`);
+    }
+    return mapa;
+  })();
+  return portadasFuenteCache;
+}
+
 let catalogoCache: Promise<Novela[]> | null = null;
 
 function catalogo(): Promise<Novela[]> {
   catalogoCache ??= (async () => {
     if (!supabase) return novelas;
     try {
-      const filas = await todasLasFilas<any>('obras', '*', (q) =>
-        q.eq('publicada', true).order('destacada', { ascending: false }).order('titulo'),
-      );
+      const [filas, portadasFuente] = await Promise.all([
+        todasLasFilas<any>('obras', '*', (q) =>
+          q.eq('publicada', true).order('destacada', { ascending: false }).order('titulo'),
+        ),
+        cargarPortadasFuente(),
+      ]);
       if (!filas.length) return novelas;
-      return filas.map((o) => ({
-        id: o.slug,
-        slug: o.slug,
-        tipo: o.tipo,
-        titulo: o.titulo,
-        titulosAlternativos: o.titulos_alternativos ?? [],
-        sinopsis: o.sinopsis ?? '',
-        portadaUrl: o.portada_url || '/portadas/espadachin.svg',
-        estado: o.estado,
-        categorias: o.categorias ?? [],
-        creadaEn: o.creada_en,
-      })) as Novela[];
+      return filas.map((o) => {
+        // Candidatos: la principal + las que vio cada fuente. Solo URLs http
+        // (los placeholders internos ya son el último recurso), sin repetir.
+        const candidatos = [o.portada_url, ...(portadasFuente.get(o.slug) ?? [])].filter(
+          (u, i, a) => u && /^https?:\/\//.test(u) && a.indexOf(u) === i,
+        );
+        return {
+          id: o.slug,
+          slug: o.slug,
+          tipo: o.tipo,
+          titulo: o.titulo,
+          titulosAlternativos: o.titulos_alternativos ?? [],
+          sinopsis: o.sinopsis ?? '',
+          portadaUrl: candidatos[0] || '/portadas/espadachin.svg',
+          portadas: candidatos,
+          estado: o.estado,
+          categorias: o.categorias ?? [],
+          creadaEn: o.creada_en,
+        };
+      }) as Novela[];
     } catch (e) {
       console.warn(`[catalogo] ${(e as Error).message} — usando mock`);
       return novelas;

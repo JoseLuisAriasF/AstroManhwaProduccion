@@ -100,6 +100,33 @@ const SITIO = 'ManhwaToNovel';
         if (tam) document.documentElement.style.setProperty('--tamano-lectura', tam);
       })();
     </script>
+
+    {/* Portadas rotas: al fallar una imagen, se prueban las alternativas de otras
+        fuentes (data-fb) y, si ninguna carga, un placeholder. Así ningún ícono
+        roto por link muerto de una scan. En captura porque el error de <img> no
+        burbujea, y registrado en <head> para atrapar el error de cualquier img. */}
+    <script is:inline>
+      addEventListener(
+        'error',
+        (e) => {
+          const img = e.target;
+          if (!img || img.tagName !== 'IMG') return;
+          let fb = [];
+          try {
+            fb = JSON.parse(img.dataset.fb || '[]');
+          } catch (_) {}
+          const sig = fb.shift();
+          if (sig) {
+            img.dataset.fb = JSON.stringify(fb);
+            img.src = sig;
+          } else if (img.dataset.fbDone !== '1') {
+            img.dataset.fbDone = '1';
+            img.src = '/portadas/espadachin.svg';
+          }
+        },
+        true,
+      );
+    </script>
   </head>
 
   <body class="min-h-dvh flex flex-col">

@@ -13,6 +13,8 @@ interface Props {
 }
 
 const { novela, totalCapitulos, rangos, formatos = [] } = Astro.props;
+// Portadas alternativas (otras fuentes) por si la principal da link roto.
+const fb = (novela.portadas ?? []).filter((u) => u !== novela.portadaUrl);
 // Tags de formato: los reales si los hay; si no (obras solo con sinopsis), el
 // `tipo` de la obra. Nunca se muestra "ambos": se listan los dos por separado.
 const tags: ('manhwa' | 'novela')[] = formatos.length
@@ -35,6 +37,7 @@ const href = ruta(idiomaFicha, `/novela/${novela.slug}`);
   <a href={href} class="shrink-0">
     <img
       src={novela.portadaUrl}
+      data-fb={JSON.stringify(fb)}
       alt={`Portada de ${novela.titulo}`}
       width="112"
       height="160"

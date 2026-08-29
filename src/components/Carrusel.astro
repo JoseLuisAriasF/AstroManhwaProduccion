@@ -47,6 +47,7 @@ const { items, titulo } = Astro.props;
             {/* Fondo: la portada borrosa llena el banner; el gradiente da contraste al texto. */}
             <img
               src={it.novela.portadaUrl}
+              data-fb={JSON.stringify((it.novela.portadas ?? []).filter((u) => u !== it.novela.portadaUrl))}
               alt=""
               aria-hidden="true"
               class="absolute inset-0 w-full h-full object-cover blur-2xl scale-125 opacity-50"
@@ -56,6 +57,7 @@ const { items, titulo } = Astro.props;
             <div class="relative flex gap-4 sm:gap-6 p-4 sm:p-6 min-h-[13rem] sm:min-h-[15rem] items-center">
               <img
                 src={it.novela.portadaUrl}
+                data-fb={JSON.stringify((it.novela.portadas ?? []).filter((u) => u !== it.novela.portadaUrl))}
                 alt={it.novela.titulo}
                 width="128"
                 height="183"

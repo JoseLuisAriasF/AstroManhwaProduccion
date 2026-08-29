@@ -99,6 +99,7 @@ const jsonLd = {
   <article class="neu rounded-2xl p-5 sm:p-6 flex flex-col sm:flex-row gap-6">
     <img
       src={novela.portadaUrl}
+      data-fb={JSON.stringify((novela.portadas ?? []).filter((u) => u !== novela.portadaUrl))}
       alt={novela.titulo}
       width="224"
       height="320"
