@@ -14,6 +14,8 @@ interface Props {
       que es como se describe la obra Y su ruta de migas en la misma página. */
   jsonLd?: Record<string, unknown> | Record<string, unknown>[];
   anchoCompleto?: boolean;
+  /** Fuera del índice. Para la 404 y cualquier página que no sea contenido. */
+  noindex?: boolean;
   /** Idiomas en que existe ESTA página. Una ficha de obra pasa los suyos para
       que hreflang y el selector no ofrezcan versiones que no se generaron. */
   idiomas?: Idioma[];
@@ -26,6 +28,7 @@ const {
   tipo = 'website',
   jsonLd,
   anchoCompleto = false,
+  noindex = false,
   idiomas,
 } = Astro.props;
 
@@ -48,6 +51,7 @@ const TOKEN_ANALYTICS = import.meta.env.PUBLIC_CF_ANALYTICS_TOKEN ?? '';
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{titulo}</title>
     <meta name="description" content={descripcion} />
+    {noindex && <meta name="robots" content="noindex, follow" />}
     <link rel="canonical" href={canonical} />
     <link rel="sitemap" href="/sitemap-index.xml" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
