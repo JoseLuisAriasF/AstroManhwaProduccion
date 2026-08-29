@@ -109,9 +109,12 @@ function catalogo(): Promise<Novela[]> {
       return filas.map((o) => {
         // Candidatos: la principal + las que vio cada fuente. Solo URLs http
         // (los placeholders internos ya son el último recurso), sin repetir.
-        const candidatos = [o.portada_url, ...(portadasFuente.get(o.slug) ?? [])].filter(
-          (u, i, a) => u && /^https?:\/\//.test(u) && a.indexOf(u) === i,
-        );
+        // MangaDex bloquea el hotlinking: su URL carga 200 pero es un cartel
+        // "You can read this at MangaDex", no la portada. onerror no lo atrapa
+        // (no falla), así que va al final: solo se usa si no hay otra fuente.
+        const candidatos = [o.portada_url, ...(portadasFuente.get(o.slug) ?? [])]
+          .filter((u, i, a) => u && /^https?:\/\//.test(u) && a.indexOf(u) === i)
+          .sort((a, b) => Number(/mangadex/i.test(a)) - Number(/mangadex/i.test(b)));
         return {
           id: o.slug,
           slug: o.slug,
