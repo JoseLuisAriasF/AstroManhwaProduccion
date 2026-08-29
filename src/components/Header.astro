@@ -13,10 +13,10 @@ const dic = t(idioma);
 ---
 
 <header class="sticky top-0 z-40 backdrop-blur-md bg-[var(--superficie)]/80 border-b border-base-300/40 dark:border-base-700/40">
-  <div class="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center gap-3">
+  <div class="max-w-6xl mx-auto px-3 sm:px-6 h-16 flex items-center gap-1.5 sm:gap-3">
     <a
       href={ruta(idioma)}
-      class="font-semibold tracking-tight text-base-800 dark:text-base-100 mr-auto flex items-center gap-2"
+      class="font-semibold tracking-tight text-base-800 dark:text-base-100 mr-auto flex items-center gap-2 shrink-0"
     >
       <span class="neu-sm grid place-items-center size-8 rounded-xl text-acento-500 text-sm font-bold">M</span>
       <span class="hidden sm:inline">ManhwaToNovel</span>
@@ -25,8 +25,17 @@ const dic = t(idioma);
     <a href={ruta(idioma, '/novelas')} class="neu-sm neu-press rounded-xl px-3 py-2 text-sm hidden sm:block">
       {dic.navNovelas}
     </a>
-    <a href={ruta(idioma, '/biblioteca')} class="neu-sm neu-press rounded-xl px-3 py-2 text-sm">
-      {dic.navBiblioteca}
+    {/* En móvil solo el icono: el texto no cabía y empujaba el botón de Google
+        fuera de la pantalla (scroll horizontal). */}
+    <a
+      href={ruta(idioma, '/biblioteca')}
+      aria-label={dic.navBiblioteca}
+      class="neu-sm neu-press rounded-xl px-2.5 sm:px-3 py-2 text-sm flex items-center gap-1.5 shrink-0"
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" class="size-4">
+        <path d="M6 4h11a1 1 0 0 1 1 1v15l-6-3.5L6 20V4Z" />
+      </svg>
+      <span class="hidden sm:inline">{dic.navBiblioteca}</span>
     </a>
     <Translate idiomas={idiomas} />
     <ThemeToggle />

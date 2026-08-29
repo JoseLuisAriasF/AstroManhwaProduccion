@@ -141,12 +141,20 @@ const jsonLd = {
 
       {/* Texto visible, no meta keywords: es lo que Google indexa de verdad. */}
       {novela.titulosAlternativos.length > 0 && (
-        <p class="mt-2 text-sm text-base-500 line-clamp-2">
-          <span class="text-base-400">{dic.tambienConocida}</span>{' '}
-          <span class="text-base-600 dark:text-base-300">
-            {novela.titulosAlternativos.join(' · ')}
-          </span>
-        </p>
+        <div class="mt-2" data-expandible>
+          {/* Todos los nombres están SIEMPRE en el HTML (Google los lee para que
+              te encuentren por el título en inglés/coreano); el recorte es solo
+              visual, con "ver más" para no comer pantalla en móvil. */}
+          <p data-exp data-clamp="line-clamp-2" class="text-sm text-base-500 line-clamp-2">
+            <span class="text-base-400">{dic.tambienConocida}</span>{' '}
+            <span class="text-base-600 dark:text-base-300">
+              {novela.titulosAlternativos.join(' · ')}
+            </span>
+          </p>
+          <button hidden data-exp-btn data-mas="Ver más" data-menos="Ver menos" class="mt-0.5 text-xs font-medium text-acento-500">
+            Ver más
+          </button>
+        </div>
       )}
 
       <div class="mt-3 flex flex-wrap gap-2">
@@ -163,36 +171,38 @@ const jsonLd = {
       </div>
 
       {novela.sinopsis && (
-        <div class="mt-4" data-sinopsis>
-          {/* Recortada a ~6 líneas; el botón (que el script muestra solo si el
+        <div class="mt-4" data-expandible>
+          {/* Recortada a 6 líneas; el botón (que el script muestra solo si el
               texto rebasa) la despliega. En móvil una sinopsis larga comía media
               pantalla antes de ver los capítulos. */}
           <p
-            data-sinopsis-texto
+            data-exp
+            data-clamp="line-clamp-6"
             class="text-base-600 dark:text-base-300 leading-relaxed text-pretty line-clamp-6"
           >
             {novela.sinopsis}
           </p>
-          <button hidden data-sinopsis-toggle class="mt-1 text-sm font-medium text-acento-500">
+          <button hidden data-exp-btn data-mas="Leer más" data-menos="Leer menos" class="mt-1 text-sm font-medium text-acento-500">
             Leer más
           </button>
         </div>
       )}
 
+      {/* Un solo script para todos los bloques expandibles (sinopsis, títulos
+          alternos): mide TRAS el layout —si no, scrollHeight/clientHeight aún no
+          están calculados y el botón nunca saldría aunque el texto se recorte—. */}
       <script is:inline>
         (() => {
-          // Tras el layout (si no, scrollHeight/clientHeight aún no están medidos
-          // y el botón nunca aparecería aunque el texto se recorte).
           const run = () => {
-            const box = document.querySelector('[data-sinopsis]');
-            if (!box) return;
-            const p = box.querySelector('[data-sinopsis-texto]');
-            const btn = box.querySelector('[data-sinopsis-toggle]');
-            if (p.scrollHeight <= p.clientHeight + 4) return;
-            btn.hidden = false;
-            btn.addEventListener('click', () => {
-              const recortada = p.classList.toggle('line-clamp-6');
-              btn.textContent = recortada ? 'Leer más' : 'Leer menos';
+            document.querySelectorAll('[data-expandible]').forEach((box) => {
+              const p = box.querySelector('[data-exp]');
+              const btn = box.querySelector('[data-exp-btn]');
+              if (!p || !btn || p.scrollHeight <= p.clientHeight + 4) return;
+              btn.hidden = false;
+              btn.addEventListener('click', () => {
+                const recortada = p.classList.toggle(p.dataset.clamp);
+                btn.textContent = recortada ? btn.dataset.mas : btn.dataset.menos;
+              });
             });
           };
           if (document.readyState === 'loading')
