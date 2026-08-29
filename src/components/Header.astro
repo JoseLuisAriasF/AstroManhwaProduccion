@@ -2,7 +2,7 @@
 import ThemeToggle from './ThemeToggle.astro';
 import AuthGoogleButton from './AuthGoogleButton.astro';
 import Translate from './Translate.astro';
-import { idiomaDeRuta, ruta, t, type Idioma } from '@/lib/i18n';
+import { IDIOMA_BASE, idiomaDeRuta, ruta, t, type Idioma } from '@/lib/i18n';
 
 interface Props {
   idiomas?: Idioma[];
@@ -10,35 +10,267 @@ interface Props {
 const { idiomas } = Astro.props;
 const idioma = idiomaDeRuta(Astro.url.pathname);
 const dic = t(idioma);
+
+/**
+ * Enlaces del navbar. Series/Ranking/Capítulos son páginas del catálogo base
+ * (solo `es`, ver idiomasDeObra), así que apuntan siempre a la ruta base aunque
+ * se navegue en otro idioma. Novelas y Biblioteca sí existen por idioma.
+ *
+ * `icono` es el path del SVG (mismo lienzo 24×24, stroke). En móvil el navbar
+ * se colapsa a dos iconos —buscar y menú— y estos enlaces salen CON su texto al
+ * abrir el menú: el icono solo, sin etiqueta, no dice nada en un panel.
+ */
+const enlaces = [
+  {
+    href: ruta(idioma, '/novelas'),
+    texto: dic.navNovelas,
+    icono: 'M4 5h12a2 2 0 0 1 2 2v11a1 1 0 0 1-1.4.9L10 17l-6.6 1.9A1 1 0 0 1 2 18V7a2 2 0 0 1 2-2Z',
+  },
+  {
+    href: ruta(IDIOMA_BASE, '/series'),
+    texto: dic.navSeries,
+    icono: 'M4 6h10M4 12h16M4 18h10',
+  },
+  {
+    href: ruta(IDIOMA_BASE, '/rankings'),
+    texto: dic.navRanking,
+    // Podio/trofeo.
+    icono: 'M7 4h10v4a5 5 0 0 1-10 0V4ZM4 5H2v2a4 4 0 0 0 4 4M20 5h2v2a4 4 0 0 1-4 4M9 18h6M12 13v5',
+  },
+  {
+    href: ruta(IDIOMA_BASE, '/novedades'),
+    texto: dic.navUltimos,
+    // Reloj.
+    icono: 'M12 8v4l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z',
+  },
+  {
+    href: ruta(idioma, '/biblioteca'),
+    texto: dic.navBiblioteca,
+    icono: 'M6 4h11a1 1 0 0 1 1 1v15l-6-3.5L6 20V4Z',
+  },
+];
 ---
 
 <header class="sticky top-0 z-40 backdrop-blur-md bg-[var(--superficie)]/80 border-b border-base-300/40 dark:border-base-700/40">
-  <div class="max-w-6xl mx-auto px-3 sm:px-6 h-16 flex items-center gap-1.5 sm:gap-3">
+  <div class="max-w-6xl mx-auto px-3 sm:px-6 h-16 flex items-center gap-1.5 sm:gap-2">
     <a
       href={ruta(idioma)}
-      class="font-semibold tracking-tight text-base-800 dark:text-base-100 mr-auto flex items-center gap-2 shrink-0"
+      class="font-semibold tracking-tight text-base-800 dark:text-base-100 flex items-center gap-2 shrink-0"
     >
       <span class="neu-sm grid place-items-center size-8 rounded-xl text-acento-500 text-sm font-bold">M</span>
       <span class="hidden sm:inline">ManhwaToNovel</span>
     </a>
 
-    <a href={ruta(idioma, '/novelas')} class="neu-sm neu-press rounded-xl px-3 py-2 text-sm hidden sm:block">
-      {dic.navNovelas}
-    </a>
-    {/* En móvil solo el icono: el texto no cabía y empujaba el botón de Google
-        fuera de la pantalla (scroll horizontal). */}
-    <a
-      href={ruta(idioma, '/biblioteca')}
-      aria-label={dic.navBiblioteca}
-      class="neu-sm neu-press rounded-xl px-2.5 sm:px-3 py-2 text-sm flex items-center gap-1.5 shrink-0"
+    {/* ── Enlaces de escritorio ──────────────────────────────────────────── */}
+    <nav class="hidden md:flex items-center gap-1 ml-1">
+      {enlaces.slice(0, 4).map((e) => (
+        <a href={e.href} class="neu-sm neu-press rounded-xl px-3 py-2 text-sm">{e.texto}</a>
+      ))}
+    </nav>
+
+    {/* ── Buscador ───────────────────────────────────────────────────────────
+        Ocupa el centro en escritorio; en móvil es solo la lupa, y al tocarla se
+        despliega a ancho completo. El listado de sugerencias lo pinta el script
+        con lo que descarga de /buscar.json al primer teclazo. */}
+    <div data-buscar class="relative ml-auto md:ml-4 md:flex-1 md:max-w-sm">
+      <form data-buscar-form role="search" class="hidden md:flex items-center">
+        <label class="neu-inset rounded-xl px-3 py-2 flex items-center gap-2 w-full">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" class="size-4 text-base-400 shrink-0">
+            <circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" />
+          </svg>
+          <input
+            data-buscar-input
+            data-nada={dic.navBuscarNada}
+            type="search"
+            autocomplete="off"
+            placeholder={dic.navBuscarPlaceholder}
+            aria-label={dic.navBuscarAria}
+            class="w-full bg-transparent outline-none text-sm"
+          />
+        </label>
+      </form>
+      {/* Lupa en móvil */}
+      <button
+        data-buscar-abrir
+        aria-label={dic.navBuscarAria}
+        class="md:hidden neu-sm neu-press rounded-xl p-2.5 flex items-center"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" class="size-4">
+          <circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" />
+        </svg>
+      </button>
+      {/* Sugerencias (compartido por escritorio y móvil) */}
+      <div
+        data-buscar-lista
+        hidden
+        role="listbox"
+        class="absolute top-full right-0 mt-2 w-72 sm:w-80 max-h-[70vh] overflow-y-auto neu rounded-2xl p-1.5 z-50"
+      >
+      </div>
+    </div>
+
+    {/* ── Menú móvil ─────────────────────────────────────────────────────────
+        En móvil los enlaces no caben: se colapsan a este botón. Al tocarlo (un
+        icono) salen los enlaces CON su texto —que es justo lo que se pide—. */}
+    <button
+      data-menu-abrir
+      aria-label="Menú"
+      aria-expanded="false"
+      class="md:hidden neu-sm neu-press rounded-xl p-2.5 flex items-center shrink-0"
     >
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" class="size-4">
-        <path d="M6 4h11a1 1 0 0 1 1 1v15l-6-3.5L6 20V4Z" />
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" class="size-4" data-menu-icono>
+        <path d="M4 7h16M4 12h16M4 17h16" />
       </svg>
-      <span class="hidden sm:inline">{dic.navBiblioteca}</span>
-    </a>
-    <Translate idiomas={idiomas} />
-    <ThemeToggle />
-    <AuthGoogleButton />
+    </button>
+
+    <div class="hidden sm:flex items-center gap-1.5 sm:gap-2 shrink-0">
+      <Translate idiomas={idiomas} />
+      <ThemeToggle />
+      <AuthGoogleButton />
+    </div>
+  </div>
+
+  {/* Panel desplegable en móvil: enlaces con texto + ajustes */}
+  <div data-menu-panel hidden class="md:hidden border-t border-base-300/40 dark:border-base-700/40">
+    <nav class="max-w-6xl mx-auto px-3 py-3 grid gap-1.5">
+      {enlaces.map((e) => (
+        <a href={e.href} class="neu-sm neu-press rounded-xl px-3 py-2.5 text-sm flex items-center gap-3">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" class="size-4 text-acento-500 shrink-0">
+            <path d={e.icono} />
+          </svg>
+          {e.texto}
+        </a>
+      ))}
+      <div class="flex items-center gap-2 pt-2 mt-1 border-t border-base-300/40 dark:border-base-700/40">
+        <Translate idiomas={idiomas} />
+        <ThemeToggle />
+        <AuthGoogleButton />
+      </div>
+    </nav>
   </div>
 </header>
+
+<script>
+  import { IDIOMA_BASE, ruta } from '@/lib/i18n';
+
+  // El índice de búsqueda es el catálogo base (es); una obra puede no tener
+  // ficha en el idioma actual (solo se generan las traducidas). Así que las
+  // sugerencias enlazan SIEMPRE a la ficha base, que existe siempre —enlazar a
+  // /en/novela/slug de una obra no traducida daría 404—.
+  const raiz = document.querySelector('header')!;
+
+  // ── Menú móvil ────────────────────────────────────────────────────────────
+  const menuBtn = raiz.querySelector<HTMLButtonElement>('[data-menu-abrir]');
+  const menuPanel = raiz.querySelector<HTMLElement>('[data-menu-panel]');
+  menuBtn?.addEventListener('click', () => {
+    const abierto = menuPanel!.hidden;
+    menuPanel!.hidden = !abierto;
+    menuBtn.setAttribute('aria-expanded', String(abierto));
+  });
+
+  // ── Buscador con sugerencias ──────────────────────────────────────────────
+  const caja = raiz.querySelector<HTMLElement>('[data-buscar]')!;
+  const form = caja.querySelector<HTMLFormElement>('[data-buscar-form]')!;
+  const input = caja.querySelector<HTMLInputElement>('[data-buscar-input]')!;
+  const lista = caja.querySelector<HTMLElement>('[data-buscar-lista]')!;
+  const abrirMovil = caja.querySelector<HTMLButtonElement>('[data-buscar-abrir]');
+  const nada = input.dataset.nada || 'Sin resultados';
+
+  // Normaliza igual que emparejar.mjs: minúsculas, sin acentos, sin puntuación.
+  const norm = (t: string) =>
+    t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+
+  let indice: { s: string; t: string; a: string[]; q: string }[] | null = null;
+  let cargando: Promise<void> | null = null;
+  async function cargar() {
+    if (indice || cargando) return cargando ?? Promise.resolve();
+    cargando = fetch('/buscar.json')
+      .then((r) => r.json())
+      .then((datos: { s: string; t: string; a: string[] }[]) => {
+        // Se precalcula la cadena de búsqueda (título + alternos) una vez.
+        indice = datos.map((d) => ({ ...d, q: norm([d.t, ...(d.a || [])].join(' ')) }));
+      })
+      .catch(() => { indice = []; });
+    return cargando;
+  }
+
+  let activo = -1;
+  function pintar(items: { s: string; t: string; a: string[] }[]) {
+    if (!input.value.trim()) { cerrar(); return; }
+    activo = -1;
+    lista.innerHTML = '';
+    if (!items.length) {
+      lista.innerHTML = `<p class="px-3 py-4 text-sm text-base-400 text-center">${nada}</p>`;
+    } else {
+      for (const it of items) {
+        const a = document.createElement('a');
+        a.href = ruta(IDIOMA_BASE, `/novela/${it.s}`);
+        a.setAttribute('role', 'option');
+        a.className =
+          'block rounded-xl px-3 py-2 text-sm hover:bg-acento-500/10 aria-selected:bg-acento-500/10';
+        const alt = it.a?.[0] && it.a[0] !== it.t ? `<span class="block text-[11px] text-base-400 truncate">${it.a[0]}</span>` : '';
+        a.innerHTML = `<span class="block font-medium text-base-700 dark:text-base-200 truncate">${it.t}</span>${alt}`;
+        lista.appendChild(a);
+      }
+    }
+    lista.hidden = false;
+  }
+  function cerrar() { lista.hidden = true; lista.innerHTML = ''; activo = -1; }
+
+  async function buscar() {
+    const q = norm(input.value);
+    if (!q) { cerrar(); return; }
+    await cargar();
+    if (!indice) return;
+    // Prioriza los que EMPIEZAN por lo tecleado; luego los que lo contienen.
+    const empieza: typeof indice = [];
+    const contiene: typeof indice = [];
+    for (const it of indice) {
+      const i = it.q.indexOf(q);
+      if (i === 0) empieza.push(it);
+      else if (i > 0) contiene.push(it);
+      if (empieza.length >= 8) break;
+    }
+    pintar([...empieza, ...contiene].slice(0, 8));
+  }
+
+  input.addEventListener('input', buscar);
+  input.addEventListener('focus', () => { cargar(); if (input.value) buscar(); });
+  form.addEventListener('submit', (e) => e.preventDefault());
+
+  // Teclado: flechas para moverse, Enter para ir, Esc para cerrar.
+  input.addEventListener('keydown', (e) => {
+    const ops = [...lista.querySelectorAll<HTMLAnchorElement>('[role=option]')];
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (!ops.length) return;
+      activo = (activo + (e.key === 'ArrowDown' ? 1 : -1) + ops.length) % ops.length;
+      ops.forEach((o, i) => o.setAttribute('aria-selected', String(i === activo)));
+      ops[activo].scrollIntoView({ block: 'nearest' });
+    } else if (e.key === 'Enter') {
+      if (activo >= 0 && ops[activo]) { e.preventDefault(); location.href = ops[activo].href; }
+    } else if (e.key === 'Escape') {
+      cerrar();
+    }
+  });
+
+  // Lupa en móvil: despliega el formulario a ancho completo y enfoca.
+  abrirMovil?.addEventListener('click', () => {
+    form.classList.toggle('hidden');
+    form.classList.toggle('flex');
+    if (!form.classList.contains('hidden')) {
+      // Ocupa el ancho por debajo del navbar en móvil.
+      caja.classList.add('absolute', 'left-3', 'right-3', 'top-16', 'ml-0');
+      menuPanel && (menuPanel.hidden = true);
+      input.focus();
+    } else {
+      caja.classList.remove('absolute', 'left-3', 'right-3', 'top-16', 'ml-0');
+      cerrar();
+    }
+  });
+
+  // Cerrar al hacer clic fuera.
+  document.addEventListener('click', (e) => {
+    if (!caja.contains(e.target as Node)) cerrar();
+  });
+</script>

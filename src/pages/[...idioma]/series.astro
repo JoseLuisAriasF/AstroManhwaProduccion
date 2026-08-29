@@ -1,0 +1,103 @@
+---
+import Base from '@/layouts/Base.astro';
+import NovelaCard from '@/components/NovelaCard.astro';
+import { formatos, getCapitulosExternos, getNovelas } from '@/lib/api';
+import { brechaDe } from '@/lib/brecha';
+import { IDIOMA_BASE, ruta, t } from '@/lib/i18n';
+import { migas } from '@/lib/seo';
+import type { Novela } from '@/types/novela';
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * SERIES: las obras que tienen manhwa Y novela a la vez
+ * ─────────────────────────────────────────────────────────────────────────────
+ * El resto del catálogo es "novelas" o "manhwas" sueltos. Estas son el producto:
+ * la obra donde el manhwa se quedó atrás y la novela sigue, con las dos fuentes
+ * ya cruzadas. Es la lista que un lector que acaba de terminar un manhwa quiere,
+ * y la que ninguna scan ni base de fichas puede armar (una solo ve su formato).
+ *
+ * Ordenadas por brecha: arriba, donde más historia queda por leer. Ese orden
+ * ES el gancho —"+1775 capítulos esperando"—, no un detalle estético.
+ *
+ * Solo en el idioma base, como el resto de páginas propias (idiomasDeObra).
+ */
+export function getStaticPaths() {
+  return [{ params: { idioma: undefined } }];
+}
+
+const idioma = IDIOMA_BASE;
+const dic = t(idioma);
+
+interface Fila {
+  novela: Novela;
+  manhwa: number;
+  novelaCap: number;
+  faltan: number;
+}
+
+const novelas = await getNovelas(idioma);
+const filas: Fila[] = [];
+for (const novela of novelas) {
+  const externos = await getCapitulosExternos(novela.slug);
+  // "Ambos" de verdad: los dos formatos con capítulos indexados, no el flag.
+  if (formatos(externos).length !== 2) continue;
+  const b = brechaDe(externos);
+  filas.push({ novela, manhwa: b?.manhwa ?? 0, novelaCap: b?.novela ?? 0, faltan: b?.faltan ?? 0 });
+}
+// Más historia esperando primero; a igualdad, la novela más larga.
+filas.sort((a, b) => b.faltan - a.faltan || b.novelaCap - a.novelaCap);
+
+const ruta_migas = migas(Astro.site, [
+  { nombre: dic.navInicio, href: ruta(idioma) },
+  { nombre: dic.navSeries, href: ruta(idioma, '/series') },
+]);
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'CollectionPage',
+  name: 'Series con manhwa y novela',
+  inLanguage: idioma,
+  numberOfItems: filas.length,
+};
+---
+
+<Base
+  titulo="Series con manhwa y novela — dónde sigue la historia · ManhwaToNovel"
+  descripcion={`${filas.length} obras que tienen el manhwa y la novela indexados a la vez. Terminaste el manhwa; aquí ves por qué capítulo va la novela y cuánto queda.`}
+  anchoCompleto
+  jsonLd={[jsonLd, ruta_migas]}
+>
+  <nav class="text-sm text-base-400 mb-4" aria-label="breadcrumb">
+    <a href={ruta(idioma)} class="hover:text-acento-500">{dic.navInicio}</a>
+    <span class="mx-1.5">/</span>
+    <span class="text-base-500">{dic.navSeries}</span>
+  </nav>
+
+  <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-base-800 dark:text-base-50">
+    Manhwa y novela, juntos
+  </h1>
+  <p class="mt-2 text-base-500 max-w-2xl text-pretty">
+    {filas.length} obras tienen los dos formatos indexados. Si terminaste el manhwa,
+    aquí ves exactamente por dónde va la novela — y cuánta historia te queda.
+  </p>
+
+  {filas.length === 0 && (
+    <p class="mt-8 neu-inset rounded-2xl p-5 text-base-500">
+      Todavía no hay obras con manhwa y novela indexados a la vez. Aparecen solas
+      conforme el indexador cruza las fuentes.
+    </p>
+  )}
+
+  <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-3">
+    {filas.map((f) => (
+      <div class="relative">
+        <NovelaCard novela={f.novela} formatos={['manhwa', 'novela']} />
+        {/* La brecha, en la esquina: el número por el que se vino. */}
+        {f.faltan > 0 && (
+          <span class="absolute top-2 right-2 text-[11px] font-semibold tabular-nums text-acento-500 neu-inset rounded-lg px-2 py-0.5">
+            +{f.faltan} en la novela
+          </span>
+        )}
+      </div>
+    ))}
+  </div>
+</Base>
