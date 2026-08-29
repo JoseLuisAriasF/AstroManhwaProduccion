@@ -5,10 +5,12 @@ import ListaCapitulos from '@/components/ListaCapitulos.astro';
 import CapitulosExternos from '@/components/CapitulosExternos.astro';
 import SyncExplanationBanner from '@/components/SyncExplanationBanner.astro';
 import { formatos, fuentesDe, getCapitulos, getCapitulosExternos, getEquivalencias, getNovelas } from '@/lib/api';
-import { IDIOMAS, idiomaDeRuta, ruta, t } from '@/lib/i18n';
+import { IDIOMA_BASE, IDIOMAS, idiomaDeRuta, ruta, t } from '@/lib/i18n';
 import { idiomasDeObra, paramsDeIdioma } from '@/lib/publicables';
 import { relacionadasDe } from '@/lib/catalogo';
 import { slugCategoria } from '@/lib/categorias';
+import { migas } from '@/lib/seo';
+import { brechaDe } from '@/lib/brecha';
 
 export async function getStaticPaths() {
   const novelas = await getNovelas();
@@ -50,7 +52,23 @@ const url = new URL(base, Astro.site).toString();
 // fuera de Latinoamérica, así que va también en el <title>.
 const [tituloIngles] = novela.titulosAlternativos;
 const relacionadas = await relacionadasDe(novela);
+
 const alternos = novela.titulosAlternativos.join(', ');
+
+// La brecha manhwa↔novela: el número por el que la gente llega. Si existe, se
+// pinta arriba y se le da su propia página (/equivalencia), que es la que pelea
+// la consulta "¿por qué capítulo sigo?".
+const brecha = brechaDe(externos);
+
+// La descripción es lo que decide el clic en el resultado de Google, y un
+// número concreto gana a cualquier adjetivo. Solo en español: es el idioma en
+// que está escrita esta frase, y meterla en /en/ sería texto suelto en otro
+// idioma. El resto de idiomas se queda con la del diccionario.
+const descripcionSeo =
+  idioma === IDIOMA_BASE && brecha?.faltan
+    ? `El manhwa va por el capítulo ${brecha.manhwa} y la novela por el ${brecha.novela}: te faltan ${brecha.faltan} capítulos de historia. Te decimos por cuál seguir y dónde leerla.`
+    : dic.seoNovelaDesc(novela.titulo, alternos, capitulos.length);
+
 
 const jsonLd = {
   '@context': 'https://schema.org',
@@ -78,14 +96,22 @@ const jsonLd = {
     },
   },
 };
+
+// Las mismas migas que se pintan abajo, marcadas para Google. Si el marcado y
+// lo visible no coinciden, el rich result se descarta: por eso salen de aquí.
+const ruta_migas = migas(Astro.site, [
+  { nombre: dic.navInicio, href: ruta(idioma) },
+  { nombre: dic.navNovelas, href: ruta(idioma, '/novelas') },
+  { nombre: novela.titulo, href: base },
+]);
 ---
 
 <Base
   titulo={dic.seoNovelaTitulo(novela.titulo, tituloIngles)}
-  descripcion={dic.seoNovelaDesc(novela.titulo, alternos, capitulos.length)}
+  descripcion={descripcionSeo}
   imagen={novela.portadaUrl}
   tipo="book"
-  jsonLd={jsonLd}
+  jsonLd={[jsonLd, ruta_migas]}
   idiomas={idiomasDeObra(novela)}
 >
   <nav class="text-sm text-base-400 mb-5" aria-label="breadcrumb">
@@ -239,6 +265,38 @@ const jsonLd = {
   </article>
 
   <div class="mt-6 grid gap-6">
+    {/* La brecha, en grande y antes que nada. Es un bucle abierto: un número
+        concreto de capítulos que YA existen y todavía no leíste pesa mucho más
+        que "hay novela disponible". Y lleva a /equivalencia, que responde la
+        pregunta entera. */}
+    {brecha && brecha.faltan > 0 && (
+      <a
+        href={`${base}/equivalencia`}
+        class="neu rounded-2xl p-5 flex flex-wrap items-center gap-x-6 gap-y-3 transition-transform duration-200 hover:-translate-y-0.5"
+      >
+        <span class="min-w-0 flex-1">
+          <span class="block font-semibold text-base-800 dark:text-base-100">
+            Te faltan {brecha.faltan} capítulos de historia
+          </span>
+          <span class="block mt-0.5 text-sm text-base-500 text-pretty">
+            El manhwa va por el {brecha.manhwa} y la novela por el {brecha.novela}. Mira por cuál
+            capítulo seguir →
+          </span>
+        </span>
+        <span class="flex items-center gap-3 tabular-nums">
+          <span class="text-center">
+            <span class="block text-lg font-bold text-base-700 dark:text-base-200">{brecha.manhwa}</span>
+            <span class="block text-[11px] text-base-400">manhwa</span>
+          </span>
+          <span class="text-base-300 dark:text-base-600">→</span>
+          <span class="text-center">
+            <span class="block text-lg font-bold text-acento-500">{brecha.novela}</span>
+            <span class="block text-[11px] text-base-400">novela</span>
+          </span>
+        </span>
+      </a>
+    )}
+
     {/* Puente manhwa↔novela: el valor agregado del sitio. Se muestra si hay
         anclas, aunque no exista lector interno (usa la lista externa). */}
     <ManhwaToNovelBridge slug={novela.slug} anclas={anclas} mostrar={tieneAmbos} />

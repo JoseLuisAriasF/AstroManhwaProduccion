@@ -29,6 +29,10 @@ npm run build    # dist/ listo para Cloudflare Pages
 | `src/components/SyncExplanationBanner.astro` | Explica local vs nube. Se cierra o desaparece al iniciar sesión. |
 | `supabase/schema.sql` | Tabla `progreso` + RLS. Pegar en el SQL Editor. |
 | `supabase/schema-catalogo.sql` | `obras`, `sitios`, `admins` y las políticas de escritura. Idempotente. |
+| `src/lib/brecha.ts` | Cuánto le lleva la novela al manhwa. El número por el que llega la gente; se calcula UNA vez y lo usan la ficha, /equivalencia y /rankings. |
+| `src/lib/seo.ts` | BreadcrumbList y FAQPage. Los datos estructurados que se repiten en varias páginas. |
+| `scripts/indexnow.mjs` | Avisa a Bing/Yandex/Naver/Seznam de lo que cambió. Gratis y sin cuenta. |
+| `scripts/palabras.mjs` | Qué escribe la gente de verdad, del autocompletado de Google. Herramienta de escritorio. |
 | `public/_headers` | `CDN-Cache-Control: s-maxage=86400, stale-while-revalidate` en el edge. |
 
 ## El agregador: de un sitio a un catálogo
@@ -162,6 +166,69 @@ una copia propia es justo para lo que está el campo.
 > otro sitio y auto-traducida a 7 idiomas es exactamente el contenido duplicado
 > que hunde un sitio multiidioma. Se escribe a mano y entonces sí se traduce.
 
+## SEO: qué se hace y por qué
+
+El sitio ya nacía con sitemap, hreflang, canonical y JSON-LD de `Book`/`Chapter`.
+Lo que se añadió encima es lo que un agregador puede hacer y una scan no.
+
+### Páginas que solo existen aquí
+
+| Ruta | Qué responde | Por qué gana |
+|---|---|---|
+| `/novela/<slug>/equivalencia` | «¿Por qué capítulo de la novela sigo?» | Es LA consulta que trae al lector, y el dato sale de cruzar manhwa y novela: ninguna scan ni base de fichas lo tiene. Con `FAQPage` (las preguntas están escritas y visibles, no solo en el marcado). |
+| `/rankings` | Dónde queda más historia sin dibujar | Listas ordenadas que se enlazan y se comparten; a una ficha suelta no se enlaza. Salen de un cálculo, no de escribir. |
+| `/novedades` + `/rss.xml` | Qué se movió hoy | Frescura, que es la mitad de la vida de un agregador. El RSS abre además una puerta que no depende de Google. |
+| `/titulos/<letra>` | La misma obra con sus otros nombres | Convierte los ~8 títulos alternativos de cada obra en enlaces internos con el nombre como texto: «화산귀환» apuntando a la ficha le dice al buscador, en coreano, de qué va. |
+
+Las cuatro se enlazan desde la portada y el pie **a propósito**: una página nueva
+que solo cuelga del sitemap tarda meses en despegar.
+
+### La brecha
+
+`src/lib/brecha.ts` calcula lo mismo para todos: último capítulo del manhwa,
+último de la novela, y la resta. Aparece en tres sitios y por eso vive en uno:
+
+- en la **descripción** de la ficha (en español), porque un número concreto gana
+  a cualquier adjetivo y la descripción es lo que decide el clic;
+- en un **bloque visible** arriba de la ficha —«te faltan 1.775 capítulos»—, que
+  es un bucle abierto y no un anuncio;
+- ordenada, en `/rankings`.
+
+### Avisar en vez de esperar
+
+```bash
+npm run avisar          # las obras con capítulo nuevo en 24 h
+npm run avisar -- --seco
+```
+
+Un POST a IndexNow y Bing, Yandex, Naver y Seznam saben qué URLs tocar. Gratis,
+sin cuenta y sin cuota real; la prueba de dominio es que se sirva
+`public/<clave>.txt` (si se cambia la clave hay que cambiar las dos cosas). Los
+dos workflows lo corren después del deploy.
+
+**Google no participa en IndexNow** y su Indexing API es solo para ofertas de
+empleo y directos. Ahí no hay atajo: sitemap y enlaces internos, que es lo que
+se reforzó arriba.
+
+### Saber qué escribe la gente
+
+```bash
+npm run palabras -- --titulo="Regreso de la Secta del Monte Hua"
+npm run palabras -- --top=25 --idiomas=es,en,pt
+```
+
+El autocompletado de Google es público y gratis: devuelve consultas que existen
+de verdad, por idioma y país, no volumen estimado. Sirve para saber cuál de los
+títulos alternativos se busca y con qué cola («… novela», «… 153»), que es lo
+que debe ir en el `<title>` y el `h1`.
+
+### Analítica sin banner
+
+`PUBLIC_CF_ANALYTICS_TOKEN` activa Cloudflare Web Analytics: gratis, sin límite
+y **sin cookies**, así que el sitio no necesita banner de consentimiento — que
+es fricción justo antes del primer scroll. Sin el token no se emite ningún
+script, y `npm run dev` sigue limpio.
+
 ## Idiomas
 
 **La base de datos guarda un solo idioma.** Las demás versiones se traducen en el *build*, no en la BD ni en el navegador:
@@ -236,7 +303,9 @@ Sin variables de Supabase el sitio compila y funciona igual, en modo invitado. S
 
 1. Sube el repo a GitHub → Cloudflare Pages → *Connect to Git*.
 2. Build command `npm run build`, output `dist`.
-3. Variables de entorno: `SITE_URL`, `PUBLIC_SUPABASE_URL`, `PUBLIC_SUPABASE_ANON_KEY`.
+3. Variables de entorno: `SITE_URL`, `PUBLIC_SUPABASE_URL`, `PUBLIC_SUPABASE_ANON_KEY`
+   y, si quieres analítica, `PUBLIC_CF_ANALYTICS_TOKEN`.
+   En los *secrets* de GitHub hace falta además `SITE_URL` (lo usa IndexNow).
 4. Apunta el dominio y actualiza el `Sitemap:` de `public/robots.txt`.
 
 ## Poner en marcha el catálogo

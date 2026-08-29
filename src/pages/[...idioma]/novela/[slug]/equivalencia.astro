@@ -1,0 +1,151 @@
+---
+import Base from '@/layouts/Base.astro';
+import ManhwaToNovelBridge from '@/components/ManhwaToNovelBridge.astro';
+import { formatos, getCapitulosExternos, getEquivalencias, getNovelas } from '@/lib/api';
+import { brechaDe } from '@/lib/brecha';
+import { IDIOMA_BASE, ruta, t } from '@/lib/i18n';
+import { faq, migas } from '@/lib/seo';
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * "¿Por qué capítulo de la novela sigo?" — una página por obra
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Es LA consulta que trae a este sitio, y hasta ahora la respuesta vivía dentro
+ * de la ficha, compitiendo por atención con la sinopsis, las fuentes y los
+ * capítulos. Una consulta con intención tan clara merece su propia URL: un
+ * título que es exactamente la pregunta, y la respuesta en el primer párrafo.
+ *
+ * Solo se genera para obras con manhwa Y novela indexados. Sin los dos no hay
+ * nada que cruzar, y una página que promete una comparación que no existe es
+ * peor que no tenerla.
+ *
+ * El FAQPage de aquí sí es legítimo: las preguntas están escritas en la página
+ * con su respuesta visible. Marcado sin contenido visible es una penalización
+ * esperando a ocurrir, no un atajo.
+ */
+export async function getStaticPaths() {
+  const novelas = await getNovelas();
+  const rutas = [];
+  for (const novela of novelas) {
+    const externos = await getCapitulosExternos(novela.slug);
+    if (formatos(externos).length === 2) {
+      rutas.push({ params: { idioma: undefined, slug: novela.slug } });
+    }
+  }
+  return rutas;
+}
+
+const idioma = IDIOMA_BASE;
+const dic = t(idioma);
+const { slug } = Astro.params;
+
+const novela = (await getNovelas(idioma)).find((n) => n.slug === slug)!;
+const externos = await getCapitulosExternos(novela.slug);
+const brecha = brechaDe(externos)!;
+const anclas = await getEquivalencias(novela.slug);
+
+const base = ruta(idioma, `/novela/${novela.slug}`);
+const aqui = `${base}/equivalencia`;
+const [tituloIngles] = novela.titulosAlternativos;
+
+// La respuesta, en una frase, antes de cualquier interfaz. Quien llega desde
+// Google tiene que leerla sin hacer clic ni esperar a que cargue un script.
+const respuestaCorta = brecha.faltan
+  ? `El manhwa de ${novela.titulo} va por el capítulo ${brecha.manhwa} y la novela por el ${brecha.novela}: hay ${brecha.faltan} capítulos de historia que el manhwa todavía no ha contado.`
+  : `El manhwa de ${novela.titulo} va por el capítulo ${brecha.manhwa} y la novela por el ${brecha.novela}: el manhwa está prácticamente al día con la novela.`;
+
+const preguntas = [
+  {
+    pregunta: `¿En qué capítulo de la novela continúa el manhwa de ${novela.titulo}?`,
+    respuesta: respuestaCorta,
+  },
+  {
+    pregunta: `¿Cuántos capítulos tiene la novela de ${novela.titulo}?`,
+    respuesta: `La novela lleva ${brecha.novela} capítulos indexados y el manhwa ${brecha.manhwa}.`,
+  },
+  {
+    pregunta: `¿Leer la novela de ${novela.titulo} tiene spoilers del manhwa?`,
+    respuesta: `Si empiezas por el capítulo que corresponde a donde dejaste el manhwa, no. Lo que se salta el manhwa está por delante, no por detrás: la novela solo te adelanta lo que el manhwa aún no dibujó.`,
+  },
+];
+
+const ruta_migas = migas(Astro.site, [
+  { nombre: dic.navInicio, href: ruta(idioma) },
+  { nombre: dic.navNovelas, href: ruta(idioma, '/novelas') },
+  { nombre: novela.titulo, href: base },
+  { nombre: 'Equivalencia de capítulos', href: aqui },
+]);
+---
+
+<Base
+  titulo={`${novela.titulo}: ¿por qué capítulo de la novela sigo? — Manhwa ${brecha.manhwa} → Novela ${brecha.novela}`}
+  descripcion={respuestaCorta}
+  imagen={novela.portadaUrl}
+  jsonLd={[faq(preguntas), ruta_migas]}
+>
+  <nav class="text-sm text-base-400 mb-5" aria-label="breadcrumb">
+    <a href={ruta(idioma)} class="hover:text-acento-500">{dic.navInicio}</a>
+    <span class="mx-1.5">/</span>
+    <a href={base} class="hover:text-acento-500">{novela.titulo}</a>
+    <span class="mx-1.5">/</span>
+    <span class="text-base-500">Equivalencia</span>
+  </nav>
+
+  <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-base-800 dark:text-base-50 text-balance">
+    ¿Por qué capítulo de la novela sigo {novela.titulo}?
+    {tituloIngles && tituloIngles !== novela.titulo && (
+      <span class="block mt-1 text-base sm:text-lg font-medium text-base-500">{tituloIngles}</span>
+    )}
+  </h1>
+
+  {/* La respuesta primero. Todo lo demás de esta página es cómo afinarla. */}
+  <p class="mt-4 text-lg text-base-700 dark:text-base-200 leading-relaxed text-pretty max-w-3xl">
+    {respuestaCorta}
+  </p>
+
+  {/* Los tres números, grandes: es lo que se viene a ver y lo que se comparte
+      en una captura. El del medio es el que duele, y por eso va en acento. */}
+  <div class="mt-6 grid grid-cols-3 gap-3 max-w-xl">
+    <div class="neu-inset rounded-2xl p-4 text-center">
+      <div class="text-2xl font-bold tabular-nums text-base-700 dark:text-base-200">{brecha.manhwa}</div>
+      <div class="mt-0.5 text-xs text-base-400">último del manhwa</div>
+    </div>
+    <div class="neu-inset rounded-2xl p-4 text-center">
+      <div class="text-2xl font-bold tabular-nums text-acento-500">
+        {brecha.faltan ? `+${brecha.faltan}` : '0'}
+      </div>
+      <div class="mt-0.5 text-xs text-base-400">capítulos por delante</div>
+    </div>
+    <div class="neu-inset rounded-2xl p-4 text-center">
+      <div class="text-2xl font-bold tabular-nums text-base-700 dark:text-base-200">{brecha.novela}</div>
+      <div class="mt-0.5 text-xs text-base-400">último de la novela</div>
+    </div>
+  </div>
+
+  <div class="mt-6 max-w-3xl">
+    <ManhwaToNovelBridge slug={novela.slug} anclas={anclas} mostrar />
+  </div>
+
+  {/* Las preguntas, escritas. El FAQPage del <head> las repite: si estuvieran
+      solo en el marcado y no aquí, Google lo trataría como marcado engañoso. */}
+  <section class="mt-10 max-w-3xl" aria-labelledby="preguntas">
+    <h2 id="preguntas" class="text-xl font-bold text-base-800 dark:text-base-50">Preguntas frecuentes</h2>
+    <dl class="mt-4 grid gap-4">
+      {preguntas.map((p) => (
+        <div class="neu-sm rounded-2xl p-4">
+          <dt class="font-medium text-base-700 dark:text-base-200">{p.pregunta}</dt>
+          <dd class="mt-1.5 text-base-500 leading-relaxed text-pretty">{p.respuesta}</dd>
+        </div>
+      ))}
+    </dl>
+  </section>
+
+  <div class="mt-8 flex flex-wrap gap-3">
+    <a href={base} class="neu-sm neu-press rounded-xl px-4 py-2.5 text-sm font-medium text-acento-500">
+      Ver dónde leer {novela.titulo} →
+    </a>
+    <a href={ruta(idioma, '/rankings')} class="neu-sm neu-press rounded-xl px-4 py-2.5 text-sm font-medium">
+      Otras obras con la novela adelantada
+    </a>
+  </div>
+</Base>

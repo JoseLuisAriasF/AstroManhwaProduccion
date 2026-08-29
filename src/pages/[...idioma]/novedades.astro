@@ -1,0 +1,135 @@
+---
+import Base from '@/layouts/Base.astro';
+import { getActividad, getNovelas } from '@/lib/api';
+import { IDIOMA_BASE, ruta, t } from '@/lib/i18n';
+import { migas } from '@/lib/seo';
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * NOVEDADES: qué se actualizó y cuándo
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Un agregador vive de la frescura, y hasta ahora el sitio no la enseñaba en
+ * ningún sitio: 40.000 capítulos indexados y ni una página que dijera "esto se
+ * movió hoy". Esta es esa página, y de paso alimenta el RSS (/rss.xml).
+ *
+ * El dato sale de `fuentes.ultimo_cambio`, que `scrapear.mjs` solo toca cuando
+ * la fuente CRECIÓ. Por eso no hay frescura falsa: re-scrapear sin capítulos
+ * nuevos no mueve nada aquí.
+ *
+ * Solo en el idioma base: el catálogo se publica en `es` (ver idiomasDeObra),
+ * así que las siete versiones de esta lista serían el mismo texto duplicado.
+ */
+export function getStaticPaths() {
+  return [{ params: { idioma: undefined } }];
+}
+
+const idioma = IDIOMA_BASE;
+const dic = t(idioma);
+
+const TOPE = 240; // dos semanas largas de actividad; el resto vive en el catálogo
+
+const [actividad, novelas] = await Promise.all([getActividad(), getNovelas(idioma)]);
+const porSlug = new Map(novelas.map((n) => [n.slug, n]));
+
+// Solo obras que de verdad se publican (getNovelas ya filtra las vacías).
+const recientes = actividad.filter((a) => porSlug.has(a.slug)).slice(0, TOPE);
+
+/** Agrupadas por día, que es como la gente lee una lista de novedades. */
+const dias = new Map<string, typeof recientes>();
+for (const a of recientes) {
+  const dia = a.cuando.slice(0, 10);
+  (dias.get(dia) ?? dias.set(dia, []).get(dia)!).push(a);
+}
+
+const fecha = new Intl.DateTimeFormat('es', { day: 'numeric', month: 'long', year: 'numeric' });
+const hoy = new Date().toISOString().slice(0, 10);
+const ayer = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+const etiquetaDia = (d: string) =>
+  d === hoy ? 'Hoy' : d === ayer ? 'Ayer' : fecha.format(new Date(`${d}T12:00:00Z`));
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'CollectionPage',
+  name: 'Capítulos nuevos',
+  inLanguage: idioma,
+  numberOfItems: recientes.length,
+};
+
+const ruta_migas = migas(Astro.site, [
+  { nombre: dic.navInicio, href: ruta(idioma) },
+  { nombre: 'Novedades', href: ruta(idioma, '/novedades') },
+]);
+---
+
+<Base
+  titulo="Capítulos nuevos de manhwa y novelas — Actualizado hoy · ManhwaToNovel"
+  descripcion={`Las ${recientes.length} obras que recibieron capítulo nuevo, ordenadas por fecha. Manhwas y novelas ligeras, con el enlace directo a donde leerlas.`}
+  anchoCompleto
+  jsonLd={[jsonLd, ruta_migas]}
+>
+  <Fragment slot="head">
+    <link rel="alternate" type="application/rss+xml" title="Capítulos nuevos" href="/rss.xml" />
+  </Fragment>
+
+  <nav class="text-sm text-base-400 mb-4" aria-label="breadcrumb">
+    <a href={ruta(idioma)} class="hover:text-acento-500">{dic.navInicio}</a>
+    <span class="mx-1.5">/</span>
+    <span class="text-base-500">Novedades</span>
+  </nav>
+
+  <div class="flex flex-wrap items-baseline gap-3">
+    <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-base-800 dark:text-base-50">
+      Capítulos nuevos
+    </h1>
+    <a href="/rss.xml" class="text-sm text-acento-500 hover:underline">RSS</a>
+  </div>
+  <p class="mt-2 text-base-500 max-w-2xl">
+    Lo que se movió últimamente: {recientes.length} obras con capítulo nuevo. Las fuentes se revisan
+    todos los días, así que esta lista es lo que hay de verdad, no un archivo viejo.
+  </p>
+
+  {recientes.length === 0 && (
+    <p class="mt-8 neu-inset rounded-2xl p-5 text-base-500">
+      Todavía no hay actividad registrada. Aparecerá sola en cuanto corra la primera indexación.
+    </p>
+  )}
+
+  {[...dias].map(([dia, items]) => (
+    <section class="mt-8">
+      <h2 class="text-sm font-semibold uppercase tracking-wide text-base-400">
+        {etiquetaDia(dia)}
+        <span class="ml-2 font-normal normal-case tabular-nums">{items.length} obras</span>
+      </h2>
+      <ul class="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        {items.map((a) => {
+          const n = porSlug.get(a.slug)!;
+          return (
+            <li>
+              <a
+                href={ruta(IDIOMA_BASE, `/novela/${n.slug}`)}
+                class="neu-sm rounded-xl p-3 flex gap-3 items-center transition-transform duration-200 hover:-translate-y-0.5"
+              >
+                <img
+                  src={n.portadaUrl}
+                  data-fb={JSON.stringify((n.portadas ?? []).filter((u) => u !== n.portadaUrl))}
+                  alt=""
+                  width="44"
+                  height="63"
+                  loading="lazy"
+                  decoding="async"
+                  class="w-11 aspect-[7/10] object-cover rounded-lg shrink-0"
+                />
+                <span class="min-w-0">
+                  <span class="block text-sm font-medium text-base-700 dark:text-base-200 line-clamp-2">
+                    {n.titulo}
+                  </span>
+                  <span class="block text-[11px] text-base-400 truncate">{a.fuentes.join(' · ')}</span>
+                </span>
+              </a>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  ))}
+</Base>

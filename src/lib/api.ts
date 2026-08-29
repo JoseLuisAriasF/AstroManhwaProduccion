@@ -67,30 +67,86 @@ async function todasLasFilas<T>(tabla: string, columnas: string, filtrar: (q: an
  * credenciales.
  */
 /**
- * La portada que vio cada fuente al descubrirla, agrupada por obra. Sirve de
- * respaldo: muchas `portada_url` de scans terminan en link roto, y así el
- * cliente cae a otra fuente en vez de a un ícono roto. Una lectura por build.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * La tabla `fuentes`, UNA vez por build
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Tres cosas distintas salen de la misma tabla —el nombre de cada fuente, la
+ * portada que vio al descubrir, y cuándo recibió capítulo nuevo— y antes eran
+ * tres lecturas paginadas de miles de filas. Ahora es una y las tres se derivan
+ * de ella; añadir un cuarto dato de `fuentes` ya no cuesta otra pasada.
  */
-let portadasFuenteCache: Promise<Map<string, string[]>> | null = null;
-function cargarPortadasFuente(): Promise<Map<string, string[]>> {
-  portadasFuenteCache ??= (async () => {
-    const mapa = new Map<string, string[]>();
-    if (!supabase) return mapa;
+export interface FilaFuente {
+  id: string;
+  obra_slug: string;
+  nombre: string;
+  portada_vista: string | null;
+  /** Cuándo creció por última vez. Lo pone scrapear.mjs, no cada corrida. */
+  ultimo_cambio: string | null;
+  tipo: 'manhwa' | 'novela';
+  idioma: string;
+}
+
+let fuentesCache: Promise<FilaFuente[]> | null = null;
+function cargarFuentes(): Promise<FilaFuente[]> {
+  fuentesCache ??= (async () => {
+    if (!supabase) return [];
     try {
-      const filas = await todasLasFilas<any>('fuentes', 'obra_slug, portada_vista', (q) =>
-        q.not('portada_vista', 'is', null),
+      return await todasLasFilas<FilaFuente>(
+        'fuentes',
+        'id, obra_slug, nombre, portada_vista, ultimo_cambio, tipo, idioma',
+        (q) => q,
       );
-      for (const f of filas) {
-        if (!f.portada_vista) continue;
-        const arr = mapa.get(f.obra_slug) ?? mapa.set(f.obra_slug, []).get(f.obra_slug)!;
-        if (!arr.includes(f.portada_vista)) arr.push(f.portada_vista);
-      }
     } catch (e) {
-      console.warn(`[portadas-fuente] ${(e as Error).message}`);
+      console.warn(`[fuentes] ${(e as Error).message}`);
+      return [];
     }
-    return mapa;
   })();
-  return portadasFuenteCache;
+  return fuentesCache;
+}
+
+/**
+ * La portada que vio cada fuente, agrupada por obra. Sirve de respaldo: muchas
+ * `portada_url` de scans terminan en link roto, y así el cliente cae a otra
+ * fuente en vez de a un ícono roto.
+ */
+async function portadasPorObra(): Promise<Map<string, string[]>> {
+  const mapa = new Map<string, string[]>();
+  for (const f of await cargarFuentes()) {
+    if (!f.portada_vista) continue;
+    const arr = mapa.get(f.obra_slug) ?? mapa.set(f.obra_slug, []).get(f.obra_slug)!;
+    if (!arr.includes(f.portada_vista)) arr.push(f.portada_vista);
+  }
+  return mapa;
+}
+
+/**
+ * Qué obras recibieron capítulo nuevo, de lo más reciente a lo más viejo. Es la
+ * señal de frescura del sitio: la usa /novedades, el RSS y el aviso a los
+ * buscadores. Sale de `ultimo_cambio`, que solo se toca cuando una fuente
+ * CRECIÓ — re-scrapear sin novedades no la mueve, así que no hay falsa frescura.
+ */
+export interface Actividad {
+  slug: string;
+  cuando: string;
+  fuentes: string[];
+}
+
+let actividadCache: Promise<Actividad[]> | null = null;
+export function getActividad(): Promise<Actividad[]> {
+  actividadCache ??= (async () => {
+    const porObra = new Map<string, Actividad>();
+    for (const f of await cargarFuentes()) {
+      if (!f.ultimo_cambio) continue;
+      const prev = porObra.get(f.obra_slug);
+      if (!prev) porObra.set(f.obra_slug, { slug: f.obra_slug, cuando: f.ultimo_cambio, fuentes: [f.nombre] });
+      else {
+        if (f.ultimo_cambio > prev.cuando) prev.cuando = f.ultimo_cambio;
+        if (!prev.fuentes.includes(f.nombre)) prev.fuentes.push(f.nombre);
+      }
+    }
+    return [...porObra.values()].sort((a, b) => b.cuando.localeCompare(a.cuando));
+  })();
+  return actividadCache;
 }
 
 let catalogoCache: Promise<Novela[]> | null = null;
@@ -103,7 +159,7 @@ function catalogo(): Promise<Novela[]> {
         todasLasFilas<any>('obras', '*', (q) =>
           q.eq('publicada', true).order('destacada', { ascending: false }).order('titulo'),
         ),
-        cargarPortadasFuente(),
+        portadasPorObra(),
       ]);
       if (!filas.length) return novelas;
       return filas.map((o) => {
@@ -272,20 +328,9 @@ export async function getEquivalenciasCombinadas(slug: string): Promise<Equivale
  * min. Ahora son unas pocas páginas de 1000 filas. Los 40k+ capítulos son filas
  * chicas (metadata + enlace), caben de sobra en memoria.
  */
-/** id de fuente → su nombre, en una lectura. RLS deja leer el nombre a anon. */
-let nombresFuenteCache: Promise<Map<string, string>> | null = null;
-function cargarNombresFuente(): Promise<Map<string, string>> {
-  nombresFuenteCache ??= (async () => {
-    const mapa = new Map<string, string>();
-    try {
-      const filas = await todasLasFilas<any>('fuentes', 'id, nombre', (q) => q);
-      for (const f of filas) mapa.set(f.id, f.nombre);
-    } catch (e) {
-      console.warn(`[fuentes] ${(e as Error).message}`);
-    }
-    return mapa;
-  })();
-  return nombresFuenteCache;
+/** id de fuente → su nombre. Deriva de la lectura única de `fuentes`. */
+async function cargarNombresFuente(): Promise<Map<string, string>> {
+  return new Map((await cargarFuentes()).map((f) => [f.id, f.nombre]));
 }
 
 let externosCache: Promise<Map<string, CapituloExterno[]>> | null = null;

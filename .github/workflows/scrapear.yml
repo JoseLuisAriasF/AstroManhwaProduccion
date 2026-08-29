@@ -73,3 +73,16 @@ jobs:
       # Cloudflare Pages reconstruye el sitio estático con lo nuevo ya aprobado.
       - run: curl -fsS -X POST "${{ secrets.CF_DEPLOY_HOOK }}"
         if: success()
+
+      # IndexNow: un POST y Bing, Yandex, Naver y Seznam saben qué URLs tocar.
+      # Solo las obras que recibieron capítulo nuevo de la corrida nocturna — mandar el catálogo
+      # entero en cada corrida es ruido. Google no participa en IndexNow: ahí
+      # trabajan el sitemap y los enlaces internos.
+      - name: Avisar a los buscadores (IndexNow)
+        if: success()
+        continue-on-error: true # que un 5xx suyo no marque en rojo la indexación
+        run: node scripts/indexnow.mjs
+        env:
+          SITE_URL: ${{ secrets.SITE_URL }}
+          PUBLIC_SUPABASE_URL: ${{ secrets.PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}

@@ -10,6 +10,8 @@
     "enriquecer": "node --env-file-if-exists=.env scripts/enriquecer.mjs",
     "scrapear": "node --env-file-if-exists=.env scripts/scrapear.mjs",
     "sugerir": "node --env-file-if-exists=.env scripts/sugerir-fusiones.mjs",
+    "avisar": "node --env-file-if-exists=.env scripts/indexnow.mjs",
+    "palabras": "node scripts/palabras.mjs",
     "fusionar": "node --env-file-if-exists=.env scripts/fusionar.mjs",
     "test:scrapear": "node scripts/scrapear.test.mjs && node scripts/emparejar.test.mjs",
     "verificar": "node --env-file-if-exists=.env scripts/verificar-supabase.mjs",

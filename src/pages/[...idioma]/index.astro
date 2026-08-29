@@ -186,6 +186,38 @@ const jsonLd = {
     </section>
   )}
 
+  {/* Las tres páginas que solo este sitio puede tener. Van en la portada
+      porque es de donde sale la autoridad que necesitan para posicionar: una
+      página nueva enlazada solo desde el pie tarda meses en despegar. */}
+  <nav class="mb-10 grid grid-cols-1 sm:grid-cols-3 gap-3" aria-label="Secciones">
+    {[
+      {
+        href: ruta(IDIOMA_BASE, '/rankings'),
+        titulo: 'La novela va por delante',
+        sub: 'Dónde queda más historia sin dibujar',
+      },
+      {
+        href: ruta(IDIOMA_BASE, '/novedades'),
+        titulo: 'Capítulos nuevos',
+        sub: 'Lo que se movió en los últimos días',
+      },
+      {
+        href: ruta(IDIOMA_BASE, '/titulos/a'),
+        titulo: 'Todos los títulos',
+        sub: 'La misma obra, con sus otros nombres',
+      },
+    ].map((x) => (
+      <a
+        href={x.href}
+        hreflang="es"
+        class="neu-sm neu-press rounded-2xl p-4 transition-transform duration-200 hover:-translate-y-0.5"
+      >
+        <span class="block font-medium text-base-700 dark:text-base-200">{x.titulo}</span>
+        <span class="block mt-0.5 text-sm text-base-400">{x.sub}</span>
+      </a>
+    ))}
+  </nav>
+
   <!-- Catálogo -->
   <section>
     <h2 id="titulo-catalogo" class="font-semibold text-base-800 dark:text-base-100">

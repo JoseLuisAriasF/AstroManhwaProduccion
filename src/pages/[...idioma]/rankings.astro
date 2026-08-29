@@ -1,0 +1,178 @@
+---
+import Base from '@/layouts/Base.astro';
+import { getCapitulosExternos, getNovelas } from '@/lib/api';
+import { brechaDe, type Brecha } from '@/lib/brecha';
+import { IDIOMA_BASE, ruta, t } from '@/lib/i18n';
+import { migas } from '@/lib/seo';
+import type { Novela } from '@/types/novela';
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * RANKINGS: listas que solo este sitio puede hacer
+ * ─────────────────────────────────────────────────────────────────────────────
+ * "Los manhwas cuya novela va más adelantada" no lo puede publicar una scan
+ * (solo ve su propio catálogo) ni una base de fichas (no indexa capítulos). Sale
+ * de cruzar las dos cosas, que es justo lo que hay en `capitulos_externos`.
+ *
+ * Una lista ordenada es además el tipo de página que la gente enlaza y comparte
+ * —a una ficha suelta no se enlaza—, y aquí sale de un cálculo, no de escribir.
+ *
+ * Solo en el idioma base, como el resto del catálogo (ver idiomasDeObra).
+ */
+export function getStaticPaths() {
+  return [{ params: { idioma: undefined } }];
+}
+
+const idioma = IDIOMA_BASE;
+const dic = t(idioma);
+
+interface Fila {
+  novela: Novela;
+  brecha: Brecha;
+}
+
+const novelas = await getNovelas(idioma);
+const filas: Fila[] = [];
+for (const novela of novelas) {
+  const brecha = brechaDe(await getCapitulosExternos(novela.slug));
+  if (brecha) filas.push({ novela, brecha });
+}
+
+const TOPE = 50;
+
+// El gancho del sitio, ordenado: dónde hay más historia esperando.
+const masAdelantadas = [...filas].sort((a, b) => b.brecha.faltan - a.brecha.faltan).slice(0, TOPE);
+// Lo contrario, que también se busca: el manhwa ya alcanzó (o casi) a la novela.
+const alDia = filas
+  .filter((f) => f.brecha.faltan <= 5)
+  .sort((a, b) => a.brecha.faltan - b.brecha.faltan || b.brecha.manhwa - a.brecha.manhwa)
+  .slice(0, TOPE);
+// Las novelas más largas indexadas: "novelas con más capítulos" es una consulta
+// con volumen propio y esta es la respuesta real, no una lista a ojo.
+const masLargas = [...filas].sort((a, b) => b.brecha.novela - a.brecha.novela).slice(0, TOPE);
+
+const listas = [
+  {
+    id: 'mas-adelantadas',
+    titulo: 'La novela va más adelantada que el manhwa',
+    sub: 'Terminaste el manhwa y la historia sigue. Aquí es donde más sigue.',
+    filas: masAdelantadas,
+    // Qué número pintar a la derecha de cada fila, y cómo leerlo.
+    valor: (b: Brecha) => `+${b.faltan}`,
+    detalle: (b: Brecha) => `manhwa ${b.manhwa} · novela ${b.novela}`,
+  },
+  {
+    id: 'al-dia',
+    titulo: 'El manhwa ya alcanzó a la novela',
+    sub: 'Aquí no te estás perdiendo nada: van a la par.',
+    filas: alDia,
+    valor: (b: Brecha) => (b.faltan === 0 ? 'al día' : `+${b.faltan}`),
+    detalle: (b: Brecha) => `manhwa ${b.manhwa} · novela ${b.novela}`,
+  },
+  {
+    id: 'mas-largas',
+    titulo: 'Las novelas más largas',
+    sub: 'Por capítulos indexados. Para leer durante meses.',
+    filas: masLargas,
+    valor: (b: Brecha) => `${b.novela}`,
+    detalle: (b: Brecha) => `capítulos de novela`,
+  },
+];
+
+const jsonLd = listas.map((l) => ({
+  '@context': 'https://schema.org',
+  '@type': 'ItemList',
+  name: l.titulo,
+  numberOfItems: l.filas.length,
+  itemListElement: l.filas.slice(0, 10).map((f, i) => ({
+    '@type': 'ListItem',
+    position: i + 1,
+    name: f.novela.titulo,
+    url: new URL(ruta(idioma, `/novela/${f.novela.slug}`), Astro.site).toString(),
+  })),
+}));
+
+const ruta_migas = migas(Astro.site, [
+  { nombre: dic.navInicio, href: ruta(idioma) },
+  { nombre: 'Rankings', href: ruta(idioma, '/rankings') },
+]);
+---
+
+<Base
+  titulo="Manhwas cuya novela va más adelantada — Rankings · ManhwaToNovel"
+  descripcion={`Qué manhwas tienen la novela mucho más avanzada, cuáles ya están al día y las novelas más largas. ${filas.length} obras con los dos formatos indexados.`}
+  anchoCompleto
+  jsonLd={[...jsonLd, ruta_migas]}
+>
+  <nav class="text-sm text-base-400 mb-4" aria-label="breadcrumb">
+    <a href={ruta(idioma)} class="hover:text-acento-500">{dic.navInicio}</a>
+    <span class="mx-1.5">/</span>
+    <span class="text-base-500">Rankings</span>
+  </nav>
+
+  <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-base-800 dark:text-base-50">
+    Rankings manhwa ↔ novela
+  </h1>
+  <p class="mt-2 text-base-500 max-w-2xl">
+    Cruzando los capítulos del manhwa con los de su novela salen listas que no
+    existen en ningún otro sitio. {filas.length} obras tienen los dos formatos indexados.
+  </p>
+
+  {filas.length === 0 && (
+    <p class="mt-8 neu-inset rounded-2xl p-5 text-base-500">
+      Todavía no hay obras con manhwa y novela indexados a la vez. Aparecerán solas
+      conforme el indexador cruce las fuentes.
+    </p>
+  )}
+
+  {/* Índice de la propia página: en móvil, tres listas de 50 son mucho scroll. */}
+  {filas.length > 0 && (
+    <nav class="mt-5 flex flex-wrap gap-2" aria-label="Secciones">
+      {listas.map((l) => (
+        <a href={`#${l.id}`} class="text-sm neu-inset neu-press rounded-lg px-3 py-1.5 hover:text-acento-500">
+          {l.titulo}
+        </a>
+      ))}
+    </nav>
+  )}
+
+  {listas.filter((l) => l.filas.length > 0).map((l) => (
+    <section id={l.id} class="mt-10 scroll-mt-24">
+      <h2 class="text-xl font-bold text-base-800 dark:text-base-50">{l.titulo}</h2>
+      <p class="mt-1 text-sm text-base-500">{l.sub}</p>
+      <ol class="mt-4 grid gap-2">
+        {l.filas.map((f, i) => (
+          <li>
+            <a
+              href={ruta(idioma, `/novela/${f.novela.slug}`)}
+              class="neu-sm rounded-xl p-3 flex items-center gap-3 transition-transform duration-200 hover:-translate-y-0.5"
+            >
+              <span class="w-7 shrink-0 text-center text-sm font-semibold tabular-nums text-base-400">
+                {i + 1}
+              </span>
+              <img
+                src={f.novela.portadaUrl}
+                data-fb={JSON.stringify((f.novela.portadas ?? []).filter((u) => u !== f.novela.portadaUrl))}
+                alt=""
+                width="36"
+                height="51"
+                loading="lazy"
+                decoding="async"
+                class="w-9 aspect-[7/10] object-cover rounded-lg shrink-0"
+              />
+              <span class="min-w-0 flex-1">
+                <span class="block text-sm font-medium text-base-700 dark:text-base-200 line-clamp-1">
+                  {f.novela.titulo}
+                </span>
+                <span class="block text-[11px] text-base-400 tabular-nums">{l.detalle(f.brecha)}</span>
+              </span>
+              <span class="shrink-0 text-sm font-semibold tabular-nums text-acento-500">
+                {l.valor(f.brecha)}
+              </span>
+            </a>
+          </li>
+        ))}
+      </ol>
+    </section>
+  ))}
+</Base>

@@ -10,7 +10,9 @@ interface Props {
   descripcion: string;
   imagen?: string;
   tipo?: 'website' | 'article' | 'book';
-  jsonLd?: Record<string, unknown>;
+  /** Un nodo JSON-LD, o varios: un array se sirve como lista de nodos sueltos,
+      que es como se describe la obra Y su ruta de migas en la misma página. */
+  jsonLd?: Record<string, unknown> | Record<string, unknown>[];
   anchoCompleto?: boolean;
   /** Idiomas en que existe ESTA página. Una ficha de obra pasa los suyos para
       que hreflang y el selector no ofrezcan versiones que no se generaron. */
@@ -35,6 +37,8 @@ const canonical = new URL(Astro.url.pathname, Astro.site).toString();
 const imagenAbs = new URL(imagen, Astro.site).toString();
 const idiomasAlternos = alternativas(Astro.url.pathname, idiomas);
 const SITIO = 'ManhwaToNovel';
+// Se lee en el build (variable de entorno de Cloudflare Pages), no en cliente.
+const TOKEN_ANALYTICS = import.meta.env.PUBLIC_CF_ANALYTICS_TOKEN ?? '';
 ---
 
 <!doctype html>
@@ -84,6 +88,21 @@ const SITIO = 'ManhwaToNovel';
     />
 
     {jsonLd && <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />}
+
+    {/* Cloudflare Web Analytics: gratis, sin límite de visitas y sin cookies —
+        por eso el sitio no necesita banner de consentimiento, que es fricción
+        justo antes del primer scroll. Sin el token no se emite nada, así que
+        `npm run dev` y los clones sin credenciales no cargan ningún script. */}
+    {
+      TOKEN_ANALYTICS && (
+        <script
+          is:inline
+          defer
+          src="https://static.cloudflareinsights.com/beacon.min.js"
+          data-cf-beacon={`{"token": "${TOKEN_ANALYTICS}"}`}
+        />
+      )
+    }
 
     <slot name="head" />
 

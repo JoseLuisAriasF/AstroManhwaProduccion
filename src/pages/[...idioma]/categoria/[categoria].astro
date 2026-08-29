@@ -3,6 +3,7 @@ import Base from '@/layouts/Base.astro';
 import NovelaCard from '@/components/NovelaCard.astro';
 import { formatos, getCapitulosExternos } from '@/lib/api';
 import { IDIOMA_BASE, ruta, t } from '@/lib/i18n';
+import { migas } from '@/lib/seo';
 import { generos, generosDestacados } from '@/lib/categorias';
 
 export async function getStaticPaths() {
@@ -28,6 +29,12 @@ const conFormatos = await Promise.all(
 // Otros géneros, para enlazar hubs entre sí (más malla interna, más contexto).
 const otros = (await generosDestacados()).filter((g) => g.slug !== slug).slice(0, 14);
 
+const ruta_migas = migas(Astro.site, [
+  { nombre: dic.navInicio, href: ruta(idioma) },
+  { nombre: dic.catalogo, href: ruta(idioma, '/novelas') },
+  { nombre: genero.nombre, href: ruta(idioma, `/categoria/${slug}`) },
+]);
+
 const jsonLd = {
   '@context': 'https://schema.org',
   '@type': 'CollectionPage',
@@ -41,7 +48,7 @@ const jsonLd = {
   titulo={`Manhwas y novelas de ${genero.nombre} — Leer en español · ManhwaToNovel`}
   descripcion={`Los mejores manhwas y novelas ligeras de ${genero.nombre} en español, con sus títulos alternativos y dónde leerlos. ${genero.obras.length} obras.`}
   anchoCompleto
-  jsonLd={jsonLd}
+  jsonLd={[jsonLd, ruta_migas]}
 >
   <nav class="text-sm text-base-400 mb-4" aria-label="breadcrumb">
     <a href={ruta(idioma)} class="hover:text-acento-500">{dic.navInicio}</a>

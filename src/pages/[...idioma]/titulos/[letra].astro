@@ -1,0 +1,134 @@
+---
+import Base from '@/layouts/Base.astro';
+import { getNovelas } from '@/lib/api';
+import { IDIOMA_BASE, ruta, t } from '@/lib/i18n';
+import { migas } from '@/lib/seo';
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * ÍNDICE DE TÍTULOS ALTERNATIVOS
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Cada obra llega con hasta 8 nombres —inglés, coreano, romanizado, el que usa
+ * cada scan— y cada uno es una consulta real de alguien que busca la misma
+ * historia con otro nombre. Ya viven en la ficha, pero solo ahí: nada los
+ * enlaza, y un nombre alternativo sin enlace no reparte nada.
+ *
+ * Esto los convierte en enlaces internos con el texto del propio nombre, que es
+ * la señal de relevancia más barata que existe: "화산귀환" apuntando a la ficha
+ * le dice al buscador, en coreano, de qué va esa página.
+ *
+ * Una página por inicial y no una por título: 35.000 páginas de un renglón son
+ * contenido pobre, y 27 índices densos hacen el mismo trabajo de rastreo.
+ */
+
+/** La inicial bajo la que se archiva un nombre. Todo lo no A-Z cae en "#". */
+function inicial(nombre: string): string {
+  const c = nombre
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .trim()
+    .charAt(0)
+    .toUpperCase();
+  return /^[A-Z]$/.test(c) ? c : '#';
+}
+
+const LETRAS = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ', '#'];
+
+export function getStaticPaths() {
+  const letras = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ', '#'];
+  return letras.map((l) => ({
+    // "#" no puede ir en una ruta: se archiva como "otros".
+    params: { idioma: undefined, letra: l === '#' ? 'otros' : l.toLowerCase() },
+  }));
+}
+
+const idioma = IDIOMA_BASE;
+const dic = t(idioma);
+const param = Astro.params.letra!;
+const letra = param === 'otros' ? '#' : param.toUpperCase();
+
+const novelas = await getNovelas(idioma);
+
+// Un renglón por NOMBRE, no por obra: la misma obra aparece bajo cada uno de
+// sus nombres, que es justo lo que se quiere (quien busca "화산귀환" y quien
+// busca "Return of the Mount Hua" llegan a la misma ficha).
+const entradas = novelas
+  .flatMap((n) =>
+    [...new Set([n.titulo, ...n.titulosAlternativos])]
+      .filter(Boolean)
+      .map((nombre) => ({ nombre, novela: n })),
+  )
+  .filter((e) => inicial(e.nombre) === letra)
+  .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+
+const href = (l: string) => ruta(idioma, `/titulos/${l === '#' ? 'otros' : l.toLowerCase()}`);
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'CollectionPage',
+  name: `Títulos que empiezan por ${letra}`,
+  inLanguage: idioma,
+  numberOfItems: entradas.length,
+};
+
+const ruta_migas = migas(Astro.site, [
+  { nombre: dic.navInicio, href: ruta(idioma) },
+  { nombre: 'Títulos', href: href('A') },
+  { nombre: letra, href: href(letra) },
+]);
+---
+
+<Base
+  titulo={`Manhwas y novelas por título: ${letra} — Todos sus nombres · ManhwaToNovel`}
+  descripcion={`${entradas.length} títulos que empiezan por ${letra}, incluidos los nombres alternativos en inglés, coreano y romanizado. Encuentra la obra aunque la conozcas por otro nombre.`}
+  anchoCompleto
+  jsonLd={[jsonLd, ruta_migas]}
+>
+  <nav class="text-sm text-base-400 mb-4" aria-label="breadcrumb">
+    <a href={ruta(idioma)} class="hover:text-acento-500">{dic.navInicio}</a>
+    <span class="mx-1.5">/</span>
+    <span class="text-base-500">Títulos · {letra}</span>
+  </nav>
+
+  <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-base-800 dark:text-base-50">
+    Títulos que empiezan por {letra}
+  </h1>
+  <p class="mt-2 text-base-500 max-w-2xl">
+    La misma obra circula con varios nombres según la scan y el idioma. Aquí están
+    todos, cada uno llevando a su ficha. {entradas.length} en esta letra.
+  </p>
+
+  <nav class="mt-5 flex flex-wrap gap-1.5" aria-label="Índice alfabético">
+    {LETRAS.map((l) => (
+      <a
+        href={href(l)}
+        aria-current={l === letra ? 'page' : undefined}
+        class:list={[
+          'neu-inset neu-press rounded-lg px-2.5 py-1 text-sm tabular-nums',
+          l === letra ? 'text-acento-500 font-semibold' : 'text-base-500 hover:text-acento-500',
+        ]}
+      >
+        {l}
+      </a>
+    ))}
+  </nav>
+
+  {entradas.length === 0 ? (
+    <p class="mt-8 neu-inset rounded-2xl p-5 text-base-500">
+      Ningún título empieza por {letra} todavía.
+    </p>
+  ) : (
+    <ul class="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-1">
+      {entradas.map((e) => (
+        <li class="text-sm border-b border-base-300/30 dark:border-base-700/30 py-1.5">
+          <a href={ruta(idioma, `/novela/${e.novela.slug}`)} class="hover:text-acento-500">
+            {e.nombre}
+          </a>
+          {e.nombre !== e.novela.titulo && (
+            <span class="text-base-400"> · {e.novela.titulo}</span>
+          )}
+        </li>
+      ))}
+    </ul>
+  )}
+</Base>
