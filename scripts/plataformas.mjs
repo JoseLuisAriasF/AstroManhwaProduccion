@@ -624,7 +624,60 @@ const blogger = {
   },
 };
 
-export const PLATAFORMAS = { madara, mangareader, css, mangadex, sheet, wetriedtls, olympus, blogger, manhwaweb };
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * asura: Asura Scans (asurascans.com) — la web es React, la API no
+ * ─────────────────────────────────────────────────────────────────────────────
+ * El HTML del sitio es un cascarón (por eso el README lo daba por no indexable),
+ * pero su backend `api.asurascans.com` es JSON público y limpio: el catálogo
+ * pagina de 20 en 20 y cada serie trae ya título, títulos alternativos, portada,
+ * estado y géneros —la metadata que en una scan normal hay que rellenar a mano—.
+ * Y a diferencia de Olympus, aquí sí hay índice de capítulos completo.
+ *
+ * La URL pública lleva un hash al final (/comics/<slug>-b57aa235) que es el
+ * MISMO para todas las series, o sea de build, no de serie: puede rotar. Se
+ * enlaza a propósito la versión SIN hash —/comics/<slug>—, que el sitio
+ * redirige (302) a la de hoy. Así el enlace no caduca aunque el hash cambie,
+ * que es justo lo que rompe los de Olympus.
+ *
+ * El robots.txt de asurascans.com prohíbe /api/, pero eso es SU ruta /api/, no
+ * el host api.asurascans.com —otro origen, sin robots.txt—, que es al que se
+ * pide. Las páginas que se enlazan (/comics/…) las permite explícitamente.
+ */
+const ASURA_API = 'https://api.asurascans.com/api';
+const ASURA_WEB = 'https://asurascans.com';
+
+const asura = {
+  async series(url) {
+    const j = await traerJson(url); // url = ASURA_API/series?page=N
+    return (j.data ?? [])
+      .filter((s) => s.title && s.slug)
+      .map((s) => ({
+        titulo: s.title,
+        slugBase: s.title, // catálogo en inglés: el título ya es la identidad
+        url: `${ASURA_WEB}/comics/${s.slug}`,
+        portadaUrl: s.cover || '',
+        titulosAlt: [...new Set((s.alt_titles ?? []).filter((t) => t && t !== s.title))].slice(0, 8),
+        estado: s.status === 'ongoing' ? 'En emisión' : 'Finalizado',
+        categorias: (s.genres ?? []).map((g) => g?.name).filter(Boolean).slice(0, 6),
+      }));
+  },
+  async capitulos(url) {
+    const slug = url.replace(/\/+$/, '').split('/').pop();
+    if (!slug) return [];
+    // Índice completo en una sola petición: este endpoint no pagina.
+    const j = await traerJson(`${ASURA_API}/series/${slug}/chapters`);
+    return (j.data ?? []).map((c) => ({
+      numero: c.number,
+      // La URL del capítulo va por su NÚMERO, no por su slug (a veces un UUID).
+      titulo: `Chapter ${c.number}`,
+      url: `${url}/chapter/${c.number}`,
+      fecha_texto: c.published_at?.slice(0, 10) ?? null,
+    }));
+  },
+};
+
+export const PLATAFORMAS = { madara, mangareader, css, mangadex, sheet, wetriedtls, olympus, blogger, manhwaweb, asura };
 
 /**
  * Plataformas "link-out": su capitulos() no hace ni una petición HTTP, solo lee

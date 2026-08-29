@@ -196,32 +196,77 @@ const mwCaps = await PLATAFORMAS.manhwaweb.capitulos(mwSeries[0].url);
 assert.equal(mwCaps[0].numero, 212);
 assert.equal(mwCaps[0].url, 'https://manhwaweb.com/manhwa/rey_123', 'enlace limpio');
 
-// ── blogger: series desde las etiquetas (Novela), capítulos desde el feed ────
+// ── blogger: series desde las PÁGINAS (/p/…), capítulos desde sus enlaces ───
 const BLOG = 'https://b.test';
 json[`${BLOG}/robots.txt`] = 'User-agent: *';
-json[`${BLOG}/feeds/posts/default?alt=json&max-results=1`] = {
-  feed: { category: [{ term: 'Monte Hua (Novela)' }, { term: 'Solo Manhwa (Manhwa)' }, { term: 'Ruido suelto' }] },
-};
-const catUrl = `${BLOG}/feeds/posts/default/-/${encodeURIComponent('Monte Hua (Novela)')}`;
-json[`${catUrl}?alt=json&max-results=150&start-index=1`] = {
+paginas[`${BLOG}/robots.txt`] = 'User-agent: *';
+json[`${BLOG}/feeds/pages/default?alt=json&max-results=150&start-index=1`] = {
   feed: {
     entry: [
-      { title: { $t: 'Monte Hua (Novela) Capítulo 2' }, link: [{ rel: 'alternate', href: `${BLOG}/c2.html` }], published: { $t: '2026-01-02T00:00:00Z' } },
-      { title: { $t: 'Monte Hua (Novela) Capítulo 1' }, link: [{ rel: 'alternate', href: `${BLOG}/c1.html` }], published: { $t: '2026-01-01T00:00:00Z' } },
+      { title: { $t: 'Monte Hua Novela' }, link: [{ rel: 'alternate', href: `${BLOG}/p/monte-hua.html` }] },
+      { title: { $t: 'Solo Manhwa' }, link: [{ rel: 'alternate', href: `${BLOG}/p/solo.html` }] },
+      { title: { $t: 'Ruido suelto' }, link: [{ rel: 'alternate', href: `${BLOG}/p/ruido.html` }] },
     ],
   },
 };
-json[`${catUrl}?alt=json&max-results=150&start-index=3`] = { feed: { entry: [] } };
+json[`${BLOG}/feeds/pages/default?alt=json&max-results=150&start-index=4`] = { feed: { entry: [] } };
+// El índice de capítulos vive en la página, y a menudo apunta a OTRO host.
+paginas[`${BLOG}/p/monte-hua.html`] = `<div>
+    <a href="https://otro.test/c2">Capítulo 2</a>
+    <a href="https://otro.test/c1">Capítulo 1</a>
+    <a href="https://ko-fi.com/x">Apóyanos</a>
+  </div>`;
 
-const blSeries = await PLATAFORMAS.blogger.series(`${BLOG}/feeds/posts/default`, { tipo: 'novela' });
-assert.equal(blSeries.length, 1, 'solo las etiquetas (Novela), no el ruido ni el manhwa');
-assert.equal(blSeries[0].titulo, 'Monte Hua', 'quita el marcador (Novela)');
-assert.equal(blSeries[0].url, catUrl);
+const blSeries = await PLATAFORMAS.blogger.series(`${BLOG}/feeds/pages/default`, { tipo: 'novela' });
+assert.equal(blSeries.length, 1, 'solo las páginas marcadas Novela, no el ruido ni el manhwa');
+assert.equal(blSeries[0].titulo, 'Monte Hua', 'quita el marcador "Novela" del final');
 const blCaps = await PLATAFORMAS.blogger.capitulos(blSeries[0].url);
-assert.equal(blCaps.length, 2, 'pagina hasta vaciar');
+assert.equal(blCaps.length, 2, 'solo los enlaces de capítulo; el ko-fi fuera');
 assert.equal(blCaps[0].numero, 2);
-assert.equal(blCaps[0].url, `${BLOG}/c2.html`);
-assert.equal(blCaps[0].fecha_texto, '2026-01-02');
+assert.equal(blCaps[0].url, 'https://otro.test/c2', 'enlaza al host que aloja el capítulo');
+
+// ── asura: API JSON + enlaces SIN el hash (que caduca) ──────────────────────
+json['https://api.asurascans.com/robots.txt'] = 'User-agent: *';
+json['https://api.asurascans.com/api/series?page=1'] = {
+  data: [
+    {
+      id: 7,
+      slug: 'obra-asura',
+      title: 'Obra Asura',
+      alt_titles: ['La Obra Asura', 'Obra Asura'],
+      cover: 'https://cdn.asurascans.com/tapa.webp',
+      status: 'ongoing',
+      // El hash de public_url es el mismo para todas las series (es de build):
+      // por eso NO se usa, y el enlace va a /comics/<slug> a secas.
+      public_url: '/comics/obra-asura-b57aa235',
+      genres: [{ name: 'Action' }],
+    },
+    { id: 8, title: 'Sin slug' }, // se descarta: no se puede pedir su índice
+  ],
+};
+json['https://api.asurascans.com/api/series/obra-asura/chapters'] = {
+  data: [
+    { number: 12, slug: 'chapter-12', published_at: '2026-08-29T12:28:39.325864Z' },
+    { number: 11, slug: 'bf06afb5-6317-44e7-8ccf-987128faa03f', published_at: '2026-08-01T00:00:00Z' },
+  ],
+};
+
+const asSeries = await PLATAFORMAS.asura.series('https://api.asurascans.com/api/series?page=1');
+assert.equal(asSeries.length, 1, 'sin slug no hay serie');
+assert.equal(asSeries[0].url, 'https://asurascans.com/comics/obra-asura', 'enlace sin el hash de build');
+assert.deepEqual(asSeries[0].titulosAlt, ['La Obra Asura'], 'el alterno igual al título no se repite');
+assert.equal(asSeries[0].estado, 'En emisión');
+assert.deepEqual(asSeries[0].categorias, ['Action']);
+
+const asCaps = await PLATAFORMAS.asura.capitulos(asSeries[0].url);
+assert.equal(asCaps.length, 2);
+assert.equal(asCaps[0].numero, 12);
+assert.equal(
+  asCaps[0].url,
+  'https://asurascans.com/comics/obra-asura/chapter/12',
+  'la URL del capítulo va por su número, no por su slug (que a veces es un UUID)',
+);
+assert.equal(asCaps[0].fecha_texto, '2026-08-29');
 
 // ── robots.txt manda ─────────────────────────────────────────────────────────
 await assert.rejects(

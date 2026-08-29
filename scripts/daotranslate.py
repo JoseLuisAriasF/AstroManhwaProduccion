@@ -61,9 +61,23 @@ def normalizar(t):
     t = re.sub(r'\s+', ' ', t)
     return unicodedata.normalize('NFC', t)
 def claves(nombre):
+    # Mismas claves que emparejar.mjs: con/sin artículo y con las palabras
+    # ORDENADAS (desde 3 palabras). El orden es lo que une "El Lancero Genio
+    # Inmortal" de Olympus con "El genio lancero inmortal" de las fichas, y por
+    # ahí las novelas en inglés de aquí caen en el manhwa en español ya indexado.
+    # Lista, no set: el orden importa. Las claves exactas van primero para que
+    # una coincidencia literal gane siempre a una por palabras reordenadas.
+    out, exactas, ordenadas = [], [], []
     b = normalizar(nombre)
-    sa = ART.sub('', b)
-    return {b, sa} - {''}
+    for c in (b, ART.sub('', b)):
+        exactas.append(c)
+        p = c.split()
+        if len(p) >= 3:
+            ordenadas.append(' '.join(sorted(p)))
+    for k in exactas + ordenadas:
+        if k and k not in out:
+            out.append(k)
+    return out
 
 def numero_de(txt):
     m = re.search(r'(?:cap[ií]tulo|chapter|ch)[\s._-]*#?\s*(\d{1,6})', txt or '', re.I) or re.search(r'\b(\d{1,6})\b', txt or '')

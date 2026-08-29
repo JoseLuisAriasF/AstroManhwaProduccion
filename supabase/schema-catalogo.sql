@@ -56,7 +56,7 @@ create table if not exists public.obras (
 create table if not exists public.sitios (
   id uuid primary key default gen_random_uuid(),
   nombre text not null,
-  plataforma text not null default 'css' check (plataforma in ('madara','mangareader','css','mangadex','sheet','wetriedtls','olympus','blogger','manhwaweb')),
+  plataforma text not null default 'css' check (plataforma in ('madara','mangareader','css','mangadex','sheet','wetriedtls','olympus','blogger','manhwaweb','asura')),
   tipo text not null default 'manhwa' check (tipo in ('manhwa','novela')),
   idioma text not null default 'es',
   -- Listado de series con {page} como marcador de paginación.
@@ -195,12 +195,12 @@ create policy "admin gestiona capitulos" on public.capitulos_externos
 -- ── Migración de plataformas ─────────────────────────────────────────────────
 -- El CHECK de `plataforma` vive inline en el CREATE, que `if not exists` no
 -- vuelve a aplicar. Este ALTER sí actualiza una tabla ya creada, para añadir
--- 'mangadex' y 'sheet' sin recrear nada. Idempotente.
+-- plataformas nuevas ('mangadex', 'sheet', 'asura'…) sin recrear nada. Idempotente.
 do $$
 begin
   alter table public.sitios drop constraint if exists sitios_plataforma_check;
   alter table public.sitios add constraint sitios_plataforma_check
-    check (plataforma in ('madara','mangareader','css','mangadex','sheet','wetriedtls','olympus','blogger','manhwaweb'));
+    check (plataforma in ('madara','mangareader','css','mangadex','sheet','wetriedtls','olympus','blogger','manhwaweb','asura'));
 end $$;
 
 -- ── Anclas manhwa ↔ novela ───────────────────────────────────────────────────

@@ -11,6 +11,7 @@
  *
  *   node --env-file-if-exists=.env scripts/scrapear.mjs
  *   node --env-file-if-exists=.env scripts/scrapear.mjs --obra=slug   # una sola
+ *   node ... scripts/scrapear.mjs --plataforma=olympus   # solo las de un adaptador
  *
  * Necesita SUPABASE_SERVICE_KEY (Settings → API → service_role). Nunca la
  * pongas en PUBLIC_* ni la subas al repo: salta RLS.
@@ -99,6 +100,21 @@ export async function scrapearFuente(db, f) {
       .upsert(encontrados, { onConflict: 'fuente_id,url', ignoreDuplicates: true });
     if (error) throw new Error(error.message);
   }
+  // Las fuentes link-out llevan en la URL un token que caduca: Olympus le pega
+  // la FECHA DE HOY al slug de la serie y el enlace de anteayer devuelve un 500.
+  // `descubrir.mjs` refresca la URL de la fuente, pero el upsert va por
+  // (fuente_id, url): la URL nueva entraba como fila NUEVA y la vieja —ya rota—
+  // se quedaba enseñándose en la ficha. Una fuente link-out es exactamente una
+  // fila, así que se borra todo lo que no sea la URL de ahora.
+  if (esEnlace(f.plataforma) && encontrados.length) {
+    const { error } = await db
+      .from('capitulos_externos')
+      .delete()
+      .eq('fuente_id', f.id)
+      .neq('url', encontrados[0].url);
+    if (error) console.error(`  no se pudo limpiar el enlace viejo: ${error.message}`);
+  }
+
   // Marca de actividad para el backoff (ver debeScrapear): si la fuente creció
   // respecto a la última vez, hubo capítulo nuevo → ultimo_cambio = ahora. Solo
   // se toca n_caps si la descarga funcionó; si falló, no se pisa el conteo real
@@ -136,6 +152,10 @@ if (import.meta.main) {
       .order('ultimo_scrape', { ascending: true, nullsFirst: true })
       .range(desde, desde + 999);
     if (args.obra) q = q.eq('obra_slug', args.obra);
+    // --plataforma=olympus: solo las de un adaptador. Lo usa el workflow de
+    // refresco, que corre dos veces al día únicamente para volver a poner los
+    // enlaces de Olympus (su slug caduca cada día).
+    if (args.plataforma) q = q.eq('plataforma', args.plataforma);
     const { data, error } = await q;
     if (error) throw new Error(error.message);
     if (!data?.length) break;
@@ -153,7 +173,7 @@ if (import.meta.main) {
   const DIA = 86400000;
   const ahora = Date.now();
   const debeScrapear = (f) => {
-    if (!f.ultimo_scrape || args.obra) return true;
+    if (!f.ultimo_scrape || args.obra || args.plataforma) return true;
     const desdeScrape = ahora - Date.parse(f.ultimo_scrape);
     const desdeCambio = f.ultimo_cambio ? ahora - Date.parse(f.ultimo_cambio) : Infinity;
     const intervalo = desdeCambio < 7 * DIA ? DIA : desdeCambio < 30 * DIA ? 3 * DIA : 7 * DIA;

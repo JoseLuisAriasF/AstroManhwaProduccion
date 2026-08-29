@@ -6,6 +6,7 @@
  *
  *   node --env-file-if-exists=.env scripts/enriquecer.mjs
  *   node ... scripts/enriquecer.mjs --max=2000 --obra=slug
+ *   node ... scripts/enriquecer.mjs --reintentar   # las que quedaron sin match
  *
  * La coincidencia es conservadora (igual que emparejar): se acepta un resultado
  * solo si alguno de SUS títulos normalizados coincide con el de la obra o con
@@ -18,7 +19,7 @@
  * Necesita SUPABASE_SERVICE_KEY (salta RLS). Solo en GitHub Secrets.
  */
 import { createClient } from '@supabase/supabase-js';
-import { normalizar } from './emparejar.mjs';
+import { clavesDe } from './emparejar.mjs';
 import { espera } from './plataformas.mjs';
 
 const args = Object.fromEntries(
@@ -133,10 +134,17 @@ const FUENTES = {
 const ORDEN = ['anilist', 'mangaupdates', 'mangabaka', 'mal'];
 const CORTESIA = { anilist: 700, mangaupdates: 1100, mangabaka: 700, mal: 1300 };
 
-/** ¿Alguno de los títulos del resultado coincide (normalizado) con la obra? */
+/**
+ * ¿Alguno de los títulos del resultado coincide con la obra? Se comparan las
+ * mismas claves que usa el emparejado (sin artículo, sin sufijo de tipo y con
+ * las palabras ordenadas), no el texto crudo: una obra descubierta en Olympus
+ * como "El Lancero Genio Inmortal" casa así con "El genio lancero inmortal" de
+ * MangaBaka, y se lleva de vuelta sus títulos en inglés y coreano — que son los
+ * que luego enganchan la novela de DaoTranslate con este mismo manhwa.
+ */
 function casa(nombresObra, res) {
-  const set = new Set(nombresObra.map(normalizar));
-  return res.titulos.some((t) => set.has(normalizar(t)));
+  const set = new Set(nombresObra.flatMap(clavesDe));
+  return res.titulos.some((t) => clavesDe(t).some((c) => set.has(c)));
 }
 
 /** Busca en la cascada la primera fuente que casa con la obra. */
@@ -191,11 +199,14 @@ if (import.meta.main) {
     obras = data ?? [];
   } else {
     for (let desde = 0; obras.length < max; desde += 1000) {
-      const { data, error } = await db
-        .from('obras')
-        .select(cols)
-        .eq('enriquecida', false)
-        .range(desde, desde + 999);
+      // --reintentar: las que YA se enriquecieron pero no casaron con ninguna
+      // ficha (metadatos_fuente vacío). Sin esto, un fallo de emparejado quedaba
+      // congelado para siempre —`enriquecida` se marca aunque no haya match—.
+      let q = db.from('obras').select(cols).range(desde, desde + 999);
+      q = args.reintentar
+        ? q.eq('enriquecida', true).is('metadatos_fuente', null)
+        : q.eq('enriquecida', false);
+      const { data, error } = await q;
       if (error) throw new Error(error.message);
       if (!data?.length) break;
       obras.push(...data);

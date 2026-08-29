@@ -49,6 +49,13 @@ values
   ('ManhwaWeb (novelas)', 'manhwaweb', 'novela', 'es',
    'https://manhwawebbackend-production.up.railway.app/manhwa/library?page={page}', 200, true),
 
+  -- Asura Scans: manhwa en inglés. La web es React pero su API (api.asurascans
+  -- .com) es JSON público, con índice de capítulos y metadata ya rellena. Se
+  -- enlaza /comics/<slug> SIN el hash: el sitio redirige al hash de hoy, así el
+  -- enlace no caduca. 20 series por página × 20 = las ~340 del catálogo.
+  ('Asura Scans', 'asura', 'manhwa', 'en',
+   'https://api.asurascans.com/api/series?page={page}', 20, true),
+
   -- animeshoy12: blog de Blogger, un post por capítulo, etiqueta = serie. Son
   -- ~2.700 novelas en español con lista de capítulos completa (no link-out).
   ('Animeshoy', 'blogger', 'novela', 'es',

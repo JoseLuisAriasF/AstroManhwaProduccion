@@ -39,6 +39,24 @@ const conArt = new IndiceObras();
 conArt.registrar('x', ['La Villana Rica']);
 assert.equal(conArt.buscar(['Villana Rica']), 'x', 'empareja sin el artículo');
 
+// Dos manos traduciendo el mismo título coreano lo ordenan distinto: Olympus
+// publica "El Lancero Genio Inmortal" y las fichas guardan "El genio lancero
+// inmortal". Mismas palabras → misma obra (y por ahí engancha su novela en
+// inglés, que es lo que estaba quedándose en una ficha aparte).
+const orden = new IndiceObras();
+orden.registrar('lancero-inmortal', ['El genio lancero inmortal', 'The Immortal Genius Spearman']);
+assert.equal(
+  orden.buscar(['El Lancero Genio Inmortal']),
+  'lancero-inmortal',
+  'empareja con las palabras en otro orden',
+);
+assert.equal(orden.buscar(['The Immortal Genius Spearman']), 'lancero-inmortal');
+
+// Con dos palabras el orden SÍ distingue obras: ahí no se reordena nada.
+const dosPalabras = new IndiceObras();
+dosPalabras.registrar('rey-demonio', ['Rey Demonio']);
+assert.equal(dosPalabras.buscar(['Demonio Rey']), null, 'con 2 palabras el orden manda');
+
 // Nombres muy cortos no indexan: evitan choques absurdos.
 const corto = new IndiceObras();
 corto.registrar('obra-a', ['Go']);

@@ -1,0 +1,52 @@
+name: Refrescar enlaces que caducan
+
+# Olympus le pega la FECHA DE HOY al slug de cada serie
+# (/series/comic-…-20260829-110503838) y los regenera cada mañana, sobre las
+# 11:05 UTC. El enlace de ayer no redirige: devuelve un 500. Así que no hay
+# forma de guardar una URL estable —solo volver a leer su catálogo a menudo—.
+#
+# Este workflow hace justo eso y nada más: descubrir vuelve a escribir la
+# `url_listado` de cada fuente de Olympus, scrapear reescribe el enlace que se
+# enseña en la ficha (y borra el viejo, ya roto), y Cloudflare rehace el sitio.
+#
+# cron va en UTC: 14:00 UTC = 09:00 Perú · 20:00 UTC = 15:00 Perú.
+# La corrida de la mañana es la que importa (va detrás de la regeneración de
+# Olympus); la de la tarde es la red de seguridad por si esa falló.
+on:
+  schedule:
+    - cron: '0 14 * * *'
+    - cron: '0 20 * * *'
+  workflow_dispatch: # botón manual en la pestaña Actions
+
+jobs:
+  refrescar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      # Relee el catálogo de Olympus (~60 páginas de su API) y refresca la URL
+      # de cada fuente. No crea obras nuevas salvo que Olympus haya publicado
+      # alguna, que también es bienvenida.
+      - name: Releer el catálogo de Olympus
+        run: node scripts/descubrir.mjs --sitio=olympus
+        env:
+          PUBLIC_SUPABASE_URL: ${{ secrets.PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+
+      # Pasa esa URL nueva al enlace que ve el lector. --plataforma se salta el
+      # backoff (si no, las fuentes vistas hoy quedarían en reposo justo cuando
+      # hay que reescribirlas). Son link-out: cero peticiones a Olympus.
+      - name: Reescribir los enlaces
+        run: node scripts/scrapear.mjs --plataforma=olympus --max=20000
+        env:
+          PUBLIC_SUPABASE_URL: ${{ secrets.PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+
+      - run: curl -fsS -X POST "${{ secrets.CF_DEPLOY_HOOK }}"
+        if: success()

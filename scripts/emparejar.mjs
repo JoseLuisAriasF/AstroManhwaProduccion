@@ -40,13 +40,27 @@ const ARTICULO = /^(el|la|los|las|un|una|the|a|an)\s+/;
 // la versión sin el sufijo para que el manhwa y la novela caigan en una ficha.
 const TIPO_SUFIJO = /\s+(novela|manhwa|novel|manga|manhua|comic|webtoon)$/;
 
-/** Las claves con las que una obra entra y se busca: con/sin artículo y sin
- *  sufijo de tipo. Se prueban todas las combinaciones para maximizar el match. */
-function clavesDe(nombre) {
+/**
+ * Las claves con las que una obra entra y se busca: con/sin artículo, sin
+ * sufijo de tipo y con las palabras ORDENADAS.
+ *
+ * Lo de ordenar las palabras es lo que salva las traducciones hechas por manos
+ * distintas: Olympus publica "El Lancero Genio Inmortal" y MangaBaka guarda
+ * "El genio lancero inmortal" — mismas palabras, otro orden. Sin esta clave no
+ * casaban y la obra quedaba partida en dos fichas (el manhwa en español por un
+ * lado, la novela en inglés por otro). Sigue siendo conservador: exige EL MISMO
+ * conjunto de palabras, no un parecido difuso.
+ */
+export function clavesDe(nombre) {
   const claves = new Set();
   for (const v of [normalizar(nombre), normalizar(nombre).replace(TIPO_SUFIJO, '')]) {
-    claves.add(v);
-    claves.add(v.replace(ARTICULO, ''));
+    for (const c of [v, v.replace(ARTICULO, '')]) {
+      claves.add(c);
+      // Solo desde 3 palabras: con 2 ("Rey Demonio"/"Demonio Rey") el orden
+      // distingue obras de verdad y ordenarlas fundiría cosas distintas.
+      const palabras = c.split(' ');
+      if (palabras.length >= 3) claves.add(palabras.sort().join(' '));
+    }
   }
   return [...claves].filter(Boolean);
 }

@@ -16,7 +16,7 @@ npm run build    # dist/ listo para Cloudflare Pages
 | `src/lib/i18n.ts` | **Idiomas del sitio.** Añadir uno aquí genera sus rutas, hreflang, sitemap y selector. |
 | `src/types/novela.ts` | `Novela`, `Capitulo`, `EquivalenciaManhwa`, `UserProgress`. |
 | `src/lib/mockData.ts` | Catálogo de respaldo. Solo se usa si `obras` está vacía o no hay credenciales. |
-| `scripts/plataformas.mjs` | **Adaptadores de sitio.** `madara`, `mangareader` y `css`. Lo único que hay que tocar cuando una scan cambia su HTML. |
+| `scripts/plataformas.mjs` | **Adaptadores de sitio.** `madara`, `mangareader`, `mangadex`, `asura`, `css`… Lo único que hay que tocar cuando una scan cambia su HTML. |
 | `scripts/descubrir.mjs` | Recorre el catálogo de cada sitio y crea sus obras y fuentes. Trae `--probar`. |
 | `scripts/detectar.mjs` | De un dominio suelto a una fila de `sitios` lista para pegar. No escribe en la BD. |
 | `src/pages/admin.astro` | Panel de administración. Página estática; quien manda es RLS. |
@@ -54,16 +54,17 @@ Imprime las series que encuentra y los capítulos de la primera. Si sale la list
 el sitio se añade desde `/admin` o con un INSERT (ver `supabase/seed-sitios.sql`)
 y esa noche entra solo.
 
-### Las cuatro plataformas
+### Las plataformas
 
 | `plataforma` | Cuándo | Qué hace falta |
 |---|---|---|
 | `mangadex` | **La fuente principal.** API pública, catálogo enorme, feed por idioma. | Solo la URL del endpoint. |
 | `madara` | El tema de WordPress más común en scans. Capítulos por AJAX. | Solo la URL del listado. |
 | `mangareader` | El otro tema grande (leemiau, legionscans…). | Solo la URL del listado. |
+| `asura` | Asura Scans. La web es React, pero su backend `api.asurascans.com` es JSON público con índice de capítulos y metadata. | Solo la URL del endpoint. |
 | `css` | Sitios sueltos con HTML propio. | Los selectores, en la fila de `sitios`. |
 
-Un sitio nuevo de las tres primeras familias es **una URL**: sin selectores, sin
+Un sitio nuevo de las cuatro primeras familias es **una URL**: sin selectores, sin
 deploy. Cuando una scan rediseña su HTML se arregla en `plataformas.mjs` y
 quedan arreglados todos los sitios de esa familia a la vez.
 
@@ -86,17 +87,50 @@ vacío y el catálogo lo pinta JavaScript después. Comprobado con `detectar.mjs
 | Sitio | Qué es |
 |---|---|
 | libribar.com | 474 bytes de cascarón JS |
-| manhwaweb.com, asurascans.com | React |
-| olympusbiblioteca (→olympusxyz), lectortmoo.com | Nuxt |
+| lectortmoo.com | Nuxt |
 
-Para esos no sirve ningún selector: harían falta su API JSON (una por sitio) o
-un navegador headless. **No se han añadido a propósito** — MangaDex cubre ese
-catálogo mejor y sin mantenimiento. `node scripts/detectar.mjs dominio.com`
-distingue los dos casos en segundos.
+Para esos no sirve ningún selector ni hay API que pedir: harían falta un
+navegador headless. `node scripts/detectar.mjs dominio.com` distingue los casos
+en segundos.
+
+**Pero una SPA con API pública sí se indexa, y sale mejor que raspar HTML.** Por
+ahí entraron manhwaweb, olympus y asurascans (`asura`): vienen con portada,
+estado y géneros ya rellenos y sin un selector que se rompa. Antes de dar un
+sitio por imposible, mira qué pide su pestaña de red.
+
+### Emparejar la misma obra entre idiomas
+
+Olympus publica *El Lancero Genio Inmortal*, las fichas guardan *El genio
+lancero inmortal* y DaoTranslate *The Immortal Genius Spearman*. Las dos
+primeras casan porque `emparejar.mjs` indexa el título también con las palabras
+**ordenadas** (desde 3 palabras; con 2 el orden sí distingue obras de verdad).
+
+Eso es lo que destraba la cadena: con ese match `enriquecer.mjs` acepta la ficha
+de MangaBaka y se trae sus títulos en inglés y coreano, y con el inglés ya
+guardado la novela de DaoTranslate cae en el mismo manhwa en vez de abrir una
+ficha aparte. `enriquecer.mjs --reintentar` repasa las que en su día quedaron
+sin ficha; el workflow nocturno lo corre solo.
 
 > ⚠ Usa el dominio real, no el de marca. `samuraiscan.com/son/page/2/` redirige
 > a su host actual **pero se come la ruta** y acaba en la portada: el descubridor
 > no encontraría nada y el fallo sería mudo. `--probar` lo detecta en 5 segundos.
+
+### Enlaces que caducan
+
+Olympus le pega **la fecha de hoy** al slug de cada serie
+(`/series/comic-la-historia-…-20260829-110503838`) y los regenera cada mañana
+sobre las 11:05 UTC. El enlace de anteayer no redirige: devuelve un 500. No hay
+URL estable que guardar, así que `.github/workflows/refrescar.yml` vuelve a leer
+su catálogo **dos veces al día** —09:00 y 15:00 de Perú— y reescribe las URLs.
+
+Dos detalles hacen que eso de verdad arregle la ficha y no solo la BD:
+
+- `scrapear.mjs` **borra el enlace viejo** de las fuentes link-out. El upsert va
+  por `(fuente_id, url)`: sin ese borrado, la URL nueva entraba como fila nueva
+  y la rota se quedaba enseñándose al lector.
+- Asura tiene el mismo vicio (un hash al final de `/comics/<slug>-b57aa235`),
+  pero ahí **el sitio redirige**: se enlaza `/comics/<slug>` a secas y no caduca.
+  Cuando una fuente ofrece las dos formas, siempre la que redirige.
 
 ### Varias versiones de la misma obra
 

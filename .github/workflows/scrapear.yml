@@ -59,6 +59,17 @@ jobs:
           PUBLIC_SUPABASE_URL: ${{ secrets.PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
 
+      # Segunda pasada sobre las obras que se enriquecieron pero no casaron con
+      # ninguna ficha. Ahora que el emparejado acepta las mismas palabras en
+      # otro orden, muchas de esas sí casan — y son las que traen los títulos en
+      # inglés que unen el manhwa en español con su novela. Tope bajo: cada obra
+      # son ~4 s de cortesía repartida entre las cuatro bases.
+      - name: Reintentar las obras sin ficha
+        run: node scripts/enriquecer.mjs --reintentar --max=150
+        env:
+          PUBLIC_SUPABASE_URL: ${{ secrets.PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+
       # Cloudflare Pages reconstruye el sitio estático con lo nuevo ya aprobado.
       - run: curl -fsS -X POST "${{ secrets.CF_DEPLOY_HOOK }}"
         if: success()
