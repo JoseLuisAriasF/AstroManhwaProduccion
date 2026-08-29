@@ -141,7 +141,7 @@ const jsonLd = {
 
       {/* Texto visible, no meta keywords: es lo que Google indexa de verdad. */}
       {novela.titulosAlternativos.length > 0 && (
-        <p class="mt-2 text-sm text-base-500">
+        <p class="mt-2 text-sm text-base-500 line-clamp-2">
           <span class="text-base-400">{dic.tambienConocida}</span>{' '}
           <span class="text-base-600 dark:text-base-300">
             {novela.titulosAlternativos.join(' · ')}
@@ -162,7 +162,44 @@ const jsonLd = {
         }
       </div>
 
-      <p class="mt-4 text-base-600 dark:text-base-300 leading-relaxed text-pretty">{novela.sinopsis}</p>
+      {novela.sinopsis && (
+        <div class="mt-4" data-sinopsis>
+          {/* Recortada a ~6 líneas; el botón (que el script muestra solo si el
+              texto rebasa) la despliega. En móvil una sinopsis larga comía media
+              pantalla antes de ver los capítulos. */}
+          <p
+            data-sinopsis-texto
+            class="text-base-600 dark:text-base-300 leading-relaxed text-pretty line-clamp-6"
+          >
+            {novela.sinopsis}
+          </p>
+          <button hidden data-sinopsis-toggle class="mt-1 text-sm font-medium text-acento-500">
+            Leer más
+          </button>
+        </div>
+      )}
+
+      <script is:inline>
+        (() => {
+          // Tras el layout (si no, scrollHeight/clientHeight aún no están medidos
+          // y el botón nunca aparecería aunque el texto se recorte).
+          const run = () => {
+            const box = document.querySelector('[data-sinopsis]');
+            if (!box) return;
+            const p = box.querySelector('[data-sinopsis-texto]');
+            const btn = box.querySelector('[data-sinopsis-toggle]');
+            if (p.scrollHeight <= p.clientHeight + 4) return;
+            btn.hidden = false;
+            btn.addEventListener('click', () => {
+              const recortada = p.classList.toggle('line-clamp-6');
+              btn.textContent = recortada ? 'Leer más' : 'Leer menos';
+            });
+          };
+          if (document.readyState === 'loading')
+            addEventListener('DOMContentLoaded', () => requestAnimationFrame(run));
+          else requestAnimationFrame(run);
+        })();
+      </script>
 
       <div class="mt-5 flex flex-wrap gap-3">
         {hayLecturaInterna && (
