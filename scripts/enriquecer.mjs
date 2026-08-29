@@ -19,7 +19,7 @@
  * Necesita SUPABASE_SERVICE_KEY (salta RLS). Solo en GitHub Secrets.
  */
 import { createClient } from '@supabase/supabase-js';
-import { clavesDe } from './emparejar.mjs';
+import { clavesDe, normalizar } from './emparejar.mjs';
 import { espera } from './plataformas.mjs';
 
 const args = Object.fromEntries(
@@ -147,20 +147,73 @@ function casa(nombresObra, res) {
   return res.titulos.some((t) => clavesDe(t).some((c) => set.has(c)));
 }
 
-/** Busca en la cascada la primera fuente que casa con la obra. */
+/**
+ * Traduce al inglés (MyMemory, gratis y sin clave). El catálogo en español de
+ * Olympus no está indexado por su título en NINGUNA base de fichas: "Emperador
+ * Mágico" no encuentra nada, pero "Magic Emperor" sí. Sin esto, todo el catálogo
+ * español se queda sin sinopsis, sin géneros y —lo que importa para el puente—
+ * sin los títulos en inglés/chino que enganchan su novela (DaoTranslate, WTR).
+ * Devuelve null si no cambia nada (título ya en inglés) o si la API falla.
+ */
+async function aIngles(texto) {
+  try {
+    const j = await fetchJson(
+      `https://api.mymemory.translated.net/get?langpair=es|en&q=${encodeURIComponent(texto)}`,
+    );
+    const t = j?.responseData?.translatedText?.trim();
+    return t && normalizar(t) !== normalizar(texto) ? t : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Enriquece una obra desde las bases de fichas. Dos cosas la hacen cruzar
+ * idiomas —que es de lo que vive el sitio—:
+ *
+ *  1. Si el título (en español) no casa con nada, se reintenta con su
+ *     TRADUCCIÓN al inglés. Así "Emperador Mágico" llega a "Magic Emperor" y de
+ *     ahí a la ficha real.
+ *  2. Los títulos alternativos se FUSIONAN de todas las fuentes que casan, no
+ *     solo de la primera. Una base trae el nombre en inglés, otra el coreano,
+ *     otra "The Steward Demonic Emperor"… y son justo esos nombres los que
+ *     luego enganchan la novela de WTR/DaoTranslate con este manhwa. La
+ *     sinopsis, los géneros y el estado sí salen de la PRIMERA que casa (la más
+ *     fiable), para no mezclar descripciones.
+ */
 export async function enriquecerObra(obra) {
   const nombres = [obra.titulo, ...(obra.titulos_alternativos ?? [])].filter(Boolean);
-  for (const fuente of ORDEN) {
-    let res;
-    try {
-      res = await FUENTES[fuente](obra.titulo);
-    } catch (e) {
-      res = null; // una fuente caída (p.ej. Jikan 504) no rompe la cascada
+
+  /** Recorre las cuatro bases con una consulta; junta base + todos los alternos.
+   *  `extra` son nombres que también valen para el match (p.ej. la traducción). */
+  const barrer = async (query, extra = []) => {
+    const validos = [...nombres, ...extra];
+    let base = null;
+    const alt = new Set();
+    for (const fuente of ORDEN) {
+      let res;
+      try {
+        res = await FUENTES[fuente](query);
+      } catch {
+        res = null; // una fuente caída (p.ej. Jikan 504) no rompe la cascada
+      }
+      await espera(CORTESIA[fuente]);
+      if (res && casa(validos, res)) {
+        base ??= { fuente, ...res }; // la primera manda para sinopsis/géneros
+        for (const t of res.titulos) alt.add(t);
+      }
     }
-    await espera(CORTESIA[fuente]);
-    if (res && casa(nombres, res)) return { fuente, ...res };
-  }
-  return null;
+    return base ? { ...base, titulos: [...new Set([...base.titulos, ...alt])] } : null;
+  };
+
+  const directo = await barrer(obra.titulo);
+  if (directo) return directo;
+
+  // Nada por el título tal cual: se traduce al inglés y se reintenta. La
+  // traducción entra como nombre válido para el match (es el nombre por el que
+  // la obra existe en las bases en inglés).
+  const tr = await aIngles(obra.titulo);
+  return tr ? barrer(tr, [tr]) : null;
 }
 
 /** El parche para Supabase: rellena vacíos y fusiona alternos; nunca pisa datos. */
