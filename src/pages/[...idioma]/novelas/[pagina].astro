@@ -77,7 +77,7 @@ const ventana = [...new Set([1, 2, actual - 1, actual, actual + 1, paginas - 1, 
     {todas.length} obras indexadas · página {actual - 1} de {paginas - 1}
   </p>
 
-  <div class="mt-6 grid sm:grid-cols-2 gap-4">
+  <div class="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
     {conFormatos.map(({ novela, formatos }) => <NovelaCard novela={novela} formatos={formatos} />)}
   </div>
 

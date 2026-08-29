@@ -50,7 +50,7 @@ const etiquetaTipo = (tipo: 'manhwa' | 'novela') => (tipo === 'manhwa' ? 'Manhwa
         Una tarjeta por scan, como zonascans. Se pican para elegir la fuente;
         vienen ordenadas por número de capítulos, la más completa primero.
       */}
-      <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4" role="tablist">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4" role="tablist">
         {fuentes.map((f, i) => (
           <button
             role="tab"

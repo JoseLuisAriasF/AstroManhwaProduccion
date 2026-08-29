@@ -154,7 +154,7 @@ const jsonLd = {
   <!-- Continuar leyendo (solo si hay progreso guardado) -->
   <section id="continuar" hidden class="mb-10">
     <h2 class="font-semibold text-base-800 dark:text-base-100 mb-4">{dic.continuarLeyendo}</h2>
-    <div id="continuar-lista" class="grid sm:grid-cols-2 gap-3"></div>
+    <div id="continuar-lista" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
   </section>
 
   <div class="mb-10"><SyncExplanationBanner /></div>
@@ -165,7 +165,7 @@ const jsonLd = {
       <h2 class="font-semibold text-base-800 dark:text-base-100">{dic.tendencias}</h2>
       <span class="text-xs text-base-400">{dic.tendenciasSub}</span>
     </div>
-    <div class="grid sm:grid-cols-3 gap-4">
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
       {
         tendencias.map(({ novela, total, rangos }, i) => (
           <a
@@ -203,7 +203,7 @@ const jsonLd = {
   {recientes.length > 0 && (
     <section id="recientes" class="mb-10">
       <h2 class="font-semibold text-base-800 dark:text-base-100 mb-4">{dic.ultimosCapitulos}</h2>
-      <ul class="grid sm:grid-cols-2 gap-2">
+      <ul class="grid grid-cols-1 sm:grid-cols-2 gap-2">
         {recientes.map(({ novela, capitulo }) => (
           <li>
             <a
@@ -234,12 +234,12 @@ const jsonLd = {
     <p class="mt-1 mb-4 text-sm text-base-500" data-sub>
       {destacadas.length} obras con <strong class="text-acento-500">manhwa y novela</strong>. Busca arriba para ver todo el catálogo.
     </p>
-    <div id="destacadas" class="grid sm:grid-cols-2 gap-4">
+    <div id="destacadas" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
       {destacadas.map(({ novela, total, rangos, formatos }) => (
         <NovelaCard novela={novela} totalCapitulos={total} rangos={rangos} formatos={formatos} />
       ))}
     </div>
-    <div id="resultados" hidden class="grid sm:grid-cols-2 gap-4"></div>
+    <div id="resultados" hidden class="grid grid-cols-1 sm:grid-cols-2 gap-4"></div>
     <p id="sin-resultados" hidden class="neu-inset rounded-2xl p-8 text-center text-base-500 mt-2">
       {dic.sinResultados}
     </p>

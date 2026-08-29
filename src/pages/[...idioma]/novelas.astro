@@ -79,14 +79,14 @@ const indice = obras.map((o) => ({
   </label>
 
   {/* Grid por defecto: solo las de doble formato, renderizadas en el servidor. */}
-  <div id="destacadas" class="mt-6 grid sm:grid-cols-2 gap-4">
+  <div id="destacadas" class="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
     {destacadas.map(({ novela, formatos }) => (
       <NovelaCard novela={novela} formatos={formatos} />
     ))}
   </div>
 
   {/* Grid de resultados de búsqueda: se llena desde el índice al escribir. */}
-  <div id="resultados" hidden class="mt-6 grid sm:grid-cols-2 gap-4"></div>
+  <div id="resultados" hidden class="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4"></div>
 
   <p id="sin-resultados" hidden class="mt-8 neu-inset rounded-2xl p-8 text-center text-base-500">
     No hay resultados. Prueba otro título.
