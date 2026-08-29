@@ -20,6 +20,9 @@
   html {
     scroll-behavior: smooth;
     -webkit-text-size-adjust: 100%;
+    /* Red de seguridad: nunca un scroll horizontal, pase lo que pase con un
+       elemento suelto. `clip` (no `hidden`) no rompe el header sticky. */
+    overflow-x: clip;
   }
 
   body {
