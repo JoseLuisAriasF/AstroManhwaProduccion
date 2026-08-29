@@ -5,20 +5,15 @@ import type { EquivalenciaManhwa } from '@/types/novela';
 interface Props {
   slug: string;
   anclas: EquivalenciaManhwa[];
-  /** Se muestra aunque no haya anclas: la obra tiene manhwa Y novela, así que
-      la comunidad puede aportar la primera equivalencia. */
+  /** Se muestra aunque no haya anclas: la obra tiene manhwa Y novela, así que la
+      comunidad puede aportar/votar la primera equivalencia. */
   mostrar?: boolean;
-  /** Último capítulo del manhwa: el valor por defecto del cálculo (el lector
-      suele venir de terminar el manhwa y querer seguir en la novela). */
-  ultimoManhwa?: number;
   compacto?: boolean;
 }
 
-const { slug, anclas, mostrar = false, ultimoManhwa = 0, compacto = false } = Astro.props;
+const { slug, anclas, mostrar = false, compacto = false } = Astro.props;
 const idioma = idiomaDeRuta(Astro.url.pathname);
 const dic = t(idioma);
-const maxManhwa = anclas.length ? Math.max(...anclas.map((a) => a.capituloManhwa)) : 0;
-const defecto = ultimoManhwa || maxManhwa || 0;
 ---
 
 {
@@ -28,8 +23,6 @@ const defecto = ultimoManhwa || maxManhwa || 0;
       data-cruce
       data-slug={slug}
       data-base={ruta(idioma, `/novela/${slug}`)}
-      data-anclas={JSON.stringify(anclas)}
-      data-ultimo-manhwa={defecto}
       aria-labelledby={`cruce-${slug}`}
     >
       <div class="flex items-start gap-3">
@@ -42,38 +35,34 @@ const defecto = ultimoManhwa || maxManhwa || 0;
           <h2 id={`cruce-${slug}`} class="font-semibold text-base-800 dark:text-base-100">
             {dic.puenteTitulo}
           </h2>
-          <p class="text-sm text-base-500 mt-0.5">{dic.puenteSub}</p>
+          <p class="text-sm text-base-500 mt-0.5">
+            Equivalencias de capítulo aportadas por la comunidad. La más votada se muestra;
+            la del admin manda.
+          </p>
         </div>
       </div>
 
-      <div class="mt-4 flex flex-wrap items-center gap-3">
-        <label class="neu-inset rounded-xl flex items-center gap-2 px-3 py-2">
-          <span class="text-sm text-base-500 whitespace-nowrap">{dic.puenteEtiqueta}</span>
-          <input
-            type="number"
-            min="1"
-            value={defecto || undefined}
-            placeholder={String(defecto || 86)}
-            data-cruce-input
-            aria-label={dic.puenteAria}
-            class="w-20 bg-transparent outline-none text-base-800 dark:text-base-100 font-medium tabular-nums"
-          />
-        </label>
+      {/* Fallback SEO/no-JS: las anclas oficiales en HTML estático. El script las
+          reemplaza por la lista interactiva y votada. */}
+      <ol data-lista class="mt-4 grid gap-2 text-sm">
+        {anclas
+          .slice()
+          .sort((a, b) => a.capituloManhwa - b.capituloManhwa)
+          .map((a) => (
+            <li class="neu-inset rounded-xl px-3 py-2 tabular-nums">
+              Cap. manhwa <b>{a.capituloManhwa}</b> = cap. novela <b>{a.capituloNovela}</b>
+            </li>
+          ))}
+      </ol>
 
-        <button data-cruce-ir class="neu-sm neu-press rounded-xl px-4 py-2 text-sm font-medium text-acento-500" disabled>
-          {dic.puenteBoton}
-        </button>
-      </div>
+      <p data-cruce-vacio hidden class="mt-4 text-sm text-base-500">
+        Aún no hay equivalencias. ¡Sé el primero en aportar una!
+      </p>
 
-      <p data-cruce-resultado hidden class="mt-3 text-sm neu-inset rounded-xl px-4 py-3 text-base-600 dark:text-base-300" />
-
-      {/* Aporte de la comunidad. Oculto por defecto; el script revela el bloque
-          según haya o no sesión. Precisión que mejora con el uso. */}
-      <div data-cruce-aporte class="mt-4 border-t border-base-300/40 dark:border-base-700/40 pt-4">
-        <p data-cruce-estado class="text-xs text-base-400" />
-
-        <div data-cruce-form hidden class="mt-2">
-          <p class="text-sm text-base-500 mb-2">¿Sabes una equivalencia exacta? Ayúdanos a afinarla:</p>
+      {/* Aporte / voto. El script revela el formulario según haya sesión. */}
+      <div class="mt-4 border-t border-base-300/40 dark:border-base-700/40 pt-4">
+        <div data-cruce-form hidden>
+          <p class="text-sm text-base-500 mb-2">Aporta una equivalencia (o vota una existente en “ver detalle”):</p>
           <div class="flex flex-wrap items-center gap-2 text-sm">
             <span class="text-base-500">Cap. manhwa</span>
             <input type="number" min="1" data-aporte-manhwa class="neu-inset rounded-lg w-16 px-2 py-1.5 bg-transparent outline-none tabular-nums" />
@@ -86,8 +75,8 @@ const defecto = ultimoManhwa || maxManhwa || 0;
           <p data-aporte-msg hidden class="mt-2 text-xs" />
         </div>
 
-        <p data-cruce-login hidden class="mt-1 text-xs text-base-400">
-          Inicia sesión con Google (arriba a la derecha) para aportar equivalencias.
+        <p data-cruce-login hidden class="text-xs text-base-400">
+          Inicia sesión con Google (arriba a la derecha) para aportar y votar equivalencias.
         </p>
       </div>
     </section>
@@ -95,97 +84,14 @@ const defecto = ultimoManhwa || maxManhwa || 0;
 }
 
 <script>
-  import { manhwaANovela } from '@/lib/equivalencia';
   import { supabase } from '@/lib/supabaseClient';
-  import { idiomaDeRuta, t } from '@/lib/i18n';
-  import type { EquivalenciaManhwa } from '@/types/novela';
 
-  const dic = t(idiomaDeRuta(location.pathname));
-
-  /** Consenso: por cada cap. de manhwa, el cap. de novela MÁS votado (la moda). */
-  function consenso(filas: { capitulo_manhwa: number; capitulo_novela: number }[]) {
-    const porManhwa = new Map<number, Map<number, number>>();
-    for (const f of filas) {
-      const votos = porManhwa.get(f.capitulo_manhwa) ?? new Map<number, number>();
-      votos.set(f.capitulo_novela, (votos.get(f.capitulo_novela) ?? 0) + 1);
-      porManhwa.set(f.capitulo_manhwa, votos);
-    }
-    const anclas: EquivalenciaManhwa[] = [];
-    for (const [capituloManhwa, votos] of porManhwa) {
-      let mejor = 0;
-      let max = -1;
-      for (const [novela, n] of votos) if (n > max) ((max = n), (mejor = novela));
-      anclas.push({ capituloManhwa, capituloNovela: mejor });
-    }
-    return anclas;
-  }
+  type Fila = { capitulo_manhwa: number; capitulo_novela: number };
 
   for (const caja of document.querySelectorAll<HTMLElement>('[data-cruce]')) {
     const slug = caja.dataset.slug!;
-    const base = caja.dataset.base!;
-    const input = caja.querySelector<HTMLInputElement>('[data-cruce-input]')!;
-    const boton = caja.querySelector<HTMLButtonElement>('[data-cruce-ir]')!;
-    const salida = caja.querySelector<HTMLElement>('[data-cruce-resultado]')!;
-    const estado = caja.querySelector<HTMLElement>('[data-cruce-estado]')!;
-
-    // Arranca con las anclas del admin embebidas (funcionan sin JS/red); el
-    // fetch en vivo las completa con el consenso de la comunidad.
-    let anclas: EquivalenciaManhwa[] = JSON.parse(caja.dataset.anclas || '[]');
-    let destino: number | null = null;
-
-    function calcular() {
-      const cap = parseInt(input.value, 10);
-      destino = Number.isFinite(cap) ? manhwaANovela(anclas, cap) : null;
-      salida.hidden = destino === null;
-      if (destino === null) {
-        boton.disabled = true;
-        return;
-      }
-      const exacta = anclas.some((a) => a.capituloManhwa === cap);
-      const enPagina = !!document.querySelector(`[data-cap="${destino}"]`);
-      boton.disabled = !enPagina;
-      salida.innerHTML =
-        dic.puenteResultado(cap, destino) +
-        (exacta ? '' : ` <span class="text-base-400">${dic.puenteAproximado}</span>`) +
-        (enPagina ? '' : ' <span class="text-base-400">(aún no indexado en esta fuente)</span>');
-      document
-        .querySelectorAll('[data-cap].ring-2')
-        .forEach((e) => e.classList.remove('ring-2', 'ring-acento-400'));
-      document.querySelector(`[data-cap="${destino}"]`)?.classList.add('ring-2', 'ring-acento-400');
-    }
-
-    async function cargarAnclas() {
-      if (!supabase) return;
-      const [admin, sug] = await Promise.all([
-        supabase.from('equivalencias').select('capitulo_manhwa,capitulo_novela').eq('novela_slug', slug),
-        supabase.from('equivalencias_sugeridas').select('capitulo_manhwa,capitulo_novela').eq('obra_slug', slug),
-      ]);
-      const fusion = new Map<number, number>();
-      for (const a of consenso(sug.data ?? [])) fusion.set(a.capituloManhwa, a.capituloNovela);
-      // El admin manda: pisa el consenso de la comunidad donde exista.
-      for (const a of admin.data ?? []) fusion.set(a.capitulo_manhwa, a.capitulo_novela);
-      if (fusion.size) {
-        anclas = [...fusion].map(([capituloManhwa, capituloNovela]) => ({ capituloManhwa, capituloNovela }));
-      }
-      const nAdmin = admin.data?.length ?? 0;
-      const nCom = fusion.size - nAdmin;
-      estado.textContent = fusion.size
-        ? `Basado en ${fusion.size} ${fusion.size === 1 ? 'ancla' : 'anclas'}` +
-          (nCom > 0 ? ` (${nCom} de la comunidad)` : '')
-        : 'Aún sin equivalencias: sé el primero en aportar una.';
-      if (input.value) calcular();
-    }
-
-    input.addEventListener('input', calcular);
-    input.addEventListener('keydown', (e) => e.key === 'Enter' && boton.click());
-    boton.addEventListener('click', () => {
-      if (destino === null) return;
-      const el = document.querySelector(`[data-cap="${destino}"]`);
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      else location.href = `${base}/capitulo-${destino}`;
-    });
-
-    // ── Aporte de la comunidad ──────────────────────────────────────────────
+    const lista = caja.querySelector<HTMLElement>('[data-lista]')!;
+    const vacio = caja.querySelector<HTMLElement>('[data-cruce-vacio]')!;
     const form = caja.querySelector<HTMLElement>('[data-cruce-form]')!;
     const avisoLogin = caja.querySelector<HTMLElement>('[data-cruce-login]')!;
     const inM = caja.querySelector<HTMLInputElement>('[data-aporte-manhwa]')!;
@@ -193,48 +99,132 @@ const defecto = ultimoManhwa || maxManhwa || 0;
     const enviar = caja.querySelector<HTMLButtonElement>('[data-aporte-enviar]')!;
     const msg = caja.querySelector<HTMLElement>('[data-aporte-msg]')!;
 
-    async function initAporte() {
+    let usuarioId: string | null = null;
+
+    const mostrarMsg = (texto: string, ok: boolean) => {
+      msg.textContent = texto;
+      msg.className = `mt-2 text-xs ${ok ? 'text-emerald-500' : 'text-red-500'}`;
+      msg.hidden = false;
+    };
+
+    /** Registra (o cambia) el voto del usuario para un cap. de manhwa. */
+    async function votar(capManhwa: number, capNovela: number) {
+      if (!supabase || !usuarioId) return;
+      const { error } = await supabase.from('equivalencias_sugeridas').upsert(
+        { obra_slug: slug, capitulo_manhwa: capManhwa, capitulo_novela: capNovela, usuario_id: usuarioId },
+        { onConflict: 'obra_slug,capitulo_manhwa,usuario_id' },
+      );
+      if (error) {
+        const esLimite = /aporte|l[ií]mite|d[ií]a/i.test(error.message);
+        mostrarMsg(esLimite ? error.message : 'No se pudo guardar. Intenta de nuevo.', false);
+        return;
+      }
+      mostrarMsg('¡Listo! Tu voto cuenta.', true);
+      await cargar();
+    }
+
+    function render(admin: Map<number, number>, com: Map<number, Map<number, number>>, mias: Map<number, number>) {
+      const caps = [...new Set([...admin.keys(), ...com.keys()])].sort((a, b) => a - b);
+      if (caps.length === 0) {
+        lista.hidden = true;
+        vacio.hidden = false;
+        return;
+      }
+      vacio.hidden = true;
+      lista.hidden = false;
+      lista.innerHTML = caps
+        .map((cap) => {
+          const oficial = admin.get(cap);
+          const opciones = [...(com.get(cap) ?? new Map<number, number>()).entries()].sort(
+            (a, b) => b[1] - a[1] || a[0] - b[0],
+          );
+          const ganadora = oficial ?? opciones[0]?.[0];
+          const votosGana = oficial ? 0 : (opciones[0]?.[1] ?? 0);
+          const miVoto = mias.get(cap);
+          const badge = oficial
+            ? '<span class="text-[11px] text-acento-500 neu-inset rounded px-1.5 py-0.5">oficial</span>'
+            : `<span class="text-[11px] text-base-400">${votosGana} ${votosGana === 1 ? 'voto' : 'votos'}</span>`;
+
+          // Alternativas con menos votos (para "ver detalle").
+          const alternativas = opciones
+            .filter(([nov]) => nov !== ganadora)
+            .map(([nov, v]) => {
+              const yo = miVoto === nov ? ' · <span class="text-emerald-500">tu voto</span>' : '';
+              const botn = usuarioId && miVoto !== nov
+                ? ` <button data-votar="${cap}:${nov}" class="text-acento-500 underline ml-1">votar</button>`
+                : '';
+              return `<li class="text-base-500">cap. novela <b>${nov}</b> · ${v} ${v === 1 ? 'voto' : 'votos'}${yo}${botn}</li>`;
+            })
+            .join('');
+          const votarGanadora =
+            usuarioId && !oficial && miVoto !== ganadora
+              ? ` <button data-votar="${cap}:${ganadora}" class="text-acento-500 underline ml-1">votar</button>`
+              : '';
+          const tuVotoGana = miVoto === ganadora ? ' · <span class="text-emerald-500">tu voto</span>' : '';
+          const detalle =
+            alternativas.length || (usuarioId && !oficial)
+              ? `<details class="mt-1"><summary class="cursor-pointer text-[11px] text-base-400">ver detalle</summary>
+                   <ul class="mt-1 grid gap-1 text-xs pl-1">${alternativas}${oficial && opciones.length ? `<li class="text-base-400">(propuestas de la comunidad; la oficial manda)</li>` : ''}</ul>
+                 </details>`
+              : '';
+
+          return `<li class="neu-inset rounded-xl px-3 py-2">
+            <div class="tabular-nums">Cap. manhwa <b>${cap}</b> = cap. novela <b>${ganadora}</b> ${badge}${tuVotoGana}${votarGanadora}</div>
+            ${detalle}
+          </li>`;
+        })
+        .join('');
+
+      lista.querySelectorAll<HTMLButtonElement>('[data-votar]').forEach((b) =>
+        b.addEventListener('click', () => {
+          const [c, n] = b.dataset.votar!.split(':').map(Number);
+          votar(c, n);
+        }),
+      );
+    }
+
+    async function cargar() {
+      if (!supabase) return;
+      const [adminR, comR, miaR] = await Promise.all([
+        supabase.from('equivalencias').select('capitulo_manhwa,capitulo_novela').eq('novela_slug', slug),
+        supabase.from('equivalencias_sugeridas').select('capitulo_manhwa,capitulo_novela').eq('obra_slug', slug),
+        usuarioId
+          ? supabase.from('equivalencias_sugeridas').select('capitulo_manhwa,capitulo_novela').eq('obra_slug', slug).eq('usuario_id', usuarioId)
+          : Promise.resolve({ data: [] as Fila[] }),
+      ]);
+      const admin = new Map<number, number>((adminR.data ?? []).map((r: Fila) => [r.capitulo_manhwa, r.capitulo_novela]));
+      const com = new Map<number, Map<number, number>>();
+      for (const r of (comR.data ?? []) as Fila[]) {
+        const op = com.get(r.capitulo_manhwa) ?? new Map<number, number>();
+        op.set(r.capitulo_novela, (op.get(r.capitulo_novela) ?? 0) + 1);
+        com.set(r.capitulo_manhwa, op);
+      }
+      const mias = new Map<number, number>(((miaR.data ?? []) as Fila[]).map((r) => [r.capitulo_manhwa, r.capitulo_novela]));
+      render(admin, com, mias);
+    }
+
+    async function init() {
       if (!supabase) return;
       const { data } = await supabase.auth.getUser();
-      const usuario = data.user;
-      form.hidden = !usuario;
-      avisoLogin.hidden = !!usuario;
-      if (!usuario) return;
+      usuarioId = data.user?.id ?? null;
+      form.hidden = !usuarioId;
+      avisoLogin.hidden = !!usuarioId;
 
-      enviar.addEventListener('click', async () => {
+      enviar.addEventListener('click', () => {
         const m = parseInt(inM.value, 10);
         const n = parseInt(inN.value, 10);
         if (!Number.isFinite(m) || !Number.isFinite(n) || m < 1 || n < 1) {
           mostrarMsg('Pon dos números de capítulo válidos.', false);
           return;
         }
-        enviar.disabled = true;
-        const { error } = await supabase!.from('equivalencias_sugeridas').upsert(
-          { obra_slug: slug, capitulo_manhwa: m, capitulo_novela: n, usuario_id: usuario.id },
-          { onConflict: 'obra_slug,capitulo_manhwa,usuario_id' },
-        );
-        enviar.disabled = false;
-        if (error) {
-          // El trigger de límite lanza un mensaje amable ("10 aportes por día");
-          // se muestra tal cual. Para el resto, un genérico.
-          const esLimite = /aporte|l[ií]mite|d[ií]a/i.test(error.message);
-          mostrarMsg(esLimite ? error.message : 'No se pudo guardar. Intenta de nuevo.', false);
-          return;
-        }
-        mostrarMsg('¡Gracias! Tu aporte ya cuenta.', true);
         inM.value = '';
         inN.value = '';
-        await cargarAnclas(); // refleja el nuevo consenso al instante
+        votar(m, n);
       });
+
+      await cargar();
     }
 
-    function mostrarMsg(texto: string, ok: boolean) {
-      msg.textContent = texto;
-      msg.className = `mt-2 text-xs ${ok ? 'text-emerald-500' : 'text-red-500'}`;
-      msg.hidden = false;
-    }
-
-    cargarAnclas();
-    initAporte();
+    init();
   }
 </script>
