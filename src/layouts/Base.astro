@@ -124,5 +124,16 @@ const SITIO = 'ManhwaToNovel';
       import { init } from '@/lib/progress';
       init();
     </script>
+
+    {/* Cloudflare Web Analytics: mide el tráfico en el dominio real (sin cookies,
+        privacy-friendly). Antes solo medía el .pages.dev porque el beacon vivía
+        ahí; en el dominio propio estaba en modo "snippet manual" y no se había
+        puesto. El .pages.dev ya redirige aquí (301), así que no se duplica. */}
+    <script
+      is:inline
+      type="module"
+      src="https://static.cloudflareinsights.com/beacon.min.js"
+      data-cf-beacon='{"token": "a0297c97343840d6b85ccebfd8d885ff"}'
+    ></script>
   </body>
 </html>
