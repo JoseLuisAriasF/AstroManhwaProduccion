@@ -101,6 +101,6 @@ values (
   'return-of-the-mount-hua', 'ambos', 'Regreso de la Secta del Monte Hua',
   array['Return of the Mount Hua Sect','Return of the Blossoming Blade','Hwasan Jaerim','화산귀환','RotMH'],
   'Chung Myung, el trece veces campeón de la secta Hwasan, muere derrotando al Rey Demonio. Cien años después despierta en el cuerpo de un discípulo débil, y Hwasan —antes cumbre del jianghu— hoy es una sombra. Está de vuelta, y no para verla caer.',
-  '/portadas/espadachin.svg', 'En emisión',
+  '/portadas/sin-portada.svg', 'En emisión',
   array['Artes marciales','Regresión','Wuxia'], true
 ) on conflict (slug) do nothing;

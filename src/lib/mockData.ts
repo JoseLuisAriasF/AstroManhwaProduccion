@@ -20,7 +20,7 @@ export const novelas: Novela[] = [
     ],
     sinopsis:
       'Chung Myung, el trece veces campeón de la secta Hwasan, muere derrotando al Rey Demonio. Cien años después despierta en el cuerpo de un discípulo débil, y Hwasan —antes cumbre del jianghu— hoy es una sombra. Está de vuelta, y no para verla caer.',
-    portadaUrl: '/portadas/espadachin.svg',
+    portadaUrl: '/portadas/sin-portada.svg',
     estado: 'En emisión',
     categorias: ['Artes marciales', 'Regresión', 'Wuxia'],
   },

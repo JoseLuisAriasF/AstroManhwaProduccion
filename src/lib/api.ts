@@ -178,7 +178,7 @@ function catalogo(): Promise<Novela[]> {
           titulo: o.titulo,
           titulosAlternativos: o.titulos_alternativos ?? [],
           sinopsis: o.sinopsis ?? '',
-          portadaUrl: candidatos[0] || '/portadas/espadachin.svg',
+          portadaUrl: candidatos[0] || '/portadas/sin-portada.svg',
           portadas: candidatos,
           estado: o.estado,
           categorias: o.categorias ?? [],

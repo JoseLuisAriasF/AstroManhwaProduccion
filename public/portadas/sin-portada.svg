@@ -1,4 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 350 500" width="350" height="500" role="img" aria-label="El Regreso del Espadachín Solitario">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 350 500" width="350" height="500" role="img" aria-label="Sin portada">
+<!--
+  Portada de reserva GENÉRICA. Se usa cuando una obra no trae portada o cuando
+  la del sitio de origen da link roto (ver el onerror de Base.astro).
+
+  Antes este comodín era la portada de UNA obra concreta, con su título escrito
+  dentro y la etiqueta "NOVELA": miles de obras distintas —manhwa incluidos—
+  enseñaban el nombre de otra historia, que es justo lo que un lector lee como
+  "esta web está rota". Aquí no va ningún texto de obra a propósito: el título
+  real ya se pinta al lado de la imagen.
+-->
 <defs>
 <linearGradient id="fondo" x1="0.15" y1="0" x2="0.85" y2="1"><stop offset="0" stop-color="#5b6ba8"/><stop offset="0.55" stop-color="#20263d"/><stop offset="1" stop-color="#0d1017"/></linearGradient>
 <linearGradient id="velo" x1="0" y1="0.45" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity="0.72"/></linearGradient>
@@ -14,8 +24,9 @@
 <rect width="350" height="500" fill="url(#velo)"/>
 <rect x="0" y="0" width="14" height="500" fill="url(#lomo)"/>
 <rect x="18" y="18" width="314" height="464" rx="10" fill="none" stroke="#fff" stroke-opacity="0.16"/>
-<rect x="40" y="42" width="86" height="22" rx="11" fill="#fff" fill-opacity="0.12"/>
-<text x="83" y="57" text-anchor="middle" font-family="Inter,Segoe UI,sans-serif" font-size="10" letter-spacing="2.5" fill="#fff" opacity="0.85">NOVELA</text>
-<text x="40" y="402" font-family="Inter,Segoe UI,sans-serif" font-size="27" font-weight="700" fill="#fff" letter-spacing="-0.4">El Regreso del</text><text x="40" y="436" font-family="Inter,Segoe UI,sans-serif" font-size="27" font-weight="700" fill="#fff" letter-spacing="-0.4">Espadachín</text><text x="40" y="470" font-family="Inter,Segoe UI,sans-serif" font-size="27" font-weight="700" fill="#fff" letter-spacing="-0.4">Solitario</text>
-<text x="40" y="512" font-family="Inter,Segoe UI,sans-serif" font-size="13" fill="#fff" opacity="0.55">The Return of the Lonely</text><text x="40" y="529" font-family="Inter,Segoe UI,sans-serif" font-size="13" fill="#fff" opacity="0.55">Swordsman</text>
+<!-- Marcador de libro, neutro: dice "sin portada" sin nombrar ninguna obra. -->
+<g transform="translate(175 250)" opacity="0.5">
+  <path d="M-34 -44 h50 a12 12 0 0 1 12 12 v76 l-31 -18 -31 18 v-76 a12 12 0 0 1 12 -12 z"
+        fill="none" stroke="#fff" stroke-width="3.5" stroke-linejoin="round"/>
+</g>
 </svg>
