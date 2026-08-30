@@ -47,48 +47,113 @@ const soloIdioma = args.find((a) => a.startsWith('--idioma='))?.split('=')[1];
 const fuenteI18n = readFileSync('src/lib/i18n.ts', 'utf8');
 const base = fuenteI18n.match(/IDIOMA_BASE = '(\w+)'/)[1];
 const codigos = [...fuenteI18n.matchAll(/^  (\w+): \{ nombre:/gm)].map((m) => m[1]);
-const destinos = codigos.filter((c) => c !== base && (!soloIdioma || c === soloIdioma));
+// Los idiomas destino se calculan más abajo (`objetivos`): incluyen el base,
+// porque un texto en inglés también necesita su versión española.
+
+// ── Idioma de cada texto ─────────────────────────────────────────────────────
+// El catálogo NO está todo en español: `enriquecer.mjs` rellena las sinopsis
+// desde AniList/MangaBaka y llegan EN INGLÉS, junto a títulos que sí son
+// españoles. Declarar `source: es` sobre un texto inglés produce basura, así que
+// cada texto viaja con su propio idioma de origen.
+//
+// La detección es una heurística local (sin red, así vale igual para DeepL):
+// palabras vacías muy frecuentes de cada idioma más los caracteres que solo
+// existen en español. Ante la duda —textos cortos, recuentos parejos— se queda
+// con el idioma base: la opción que no estropea nada, porque como mucho deja un
+// texto sin traducir en vez de mandarlo al traductor con el idioma equivocado.
+const VACIAS_ES = /\b(que|de|la|el|los|las|un|una|con|por|para|del|al|se|su|no|pero|como|cuando|donde|sin|sobre|es|son)\b/gi;
+const VACIAS_EN = /\b(the|of|and|to|in|is|was|his|her|with|that|for|from|by|on|at|as|but|not|are|this)\b/gi;
+
+function idiomaDe(texto) {
+  const es = (texto.match(VACIAS_ES) ?? []).length + (/[ñáéíóú¿¡]/i.test(texto) ? 3 : 0);
+  const en = (texto.match(VACIAS_EN) ?? []).length;
+  // Margen de 2: sin ventaja clara gana el base. Evita destrozar títulos cortos.
+  return en > es + 2 ? 'en' : base;
+}
 
 // ── Todo el texto traducible del sitio ───────────────────────────────────────
-// Se lee del mismo módulo que consume la web, así nada se queda fuera.
-// Al migrar a Supabase, esto pasa a ser un `select` sobre la tabla en idioma base.
+// La interfaz y los capítulos de ejemplo salen de mockData.ts; el CATÁLOGO sale
+// de Supabase, que es donde vive de verdad. Antes solo se leía el mock: con una
+// obra de ejemplo el script decía "todo al día" y las miles de obras reales no
+// se traducían nunca.
 const mock = readFileSync('src/lib/mockData.ts', 'utf8');
 const literales = (bloque) =>
   [...bloque.matchAll(/'((?:[^'\\]|\\.)*)'/g)].map((m) =>
     m[1].replace(/\\n/g, '\n').replace(/\\'/g, "'"),
   );
 
-const textos = new Set();
+/** texto → idioma de origen. El Map evita traducir dos veces el mismo texto. */
+const textos = new Map();
+const anadir = (t, src) => {
+  const limpio = String(t ?? '').trim();
+  if (limpio) textos.set(limpio, src ?? idiomaDe(limpio));
+};
 
-// Títulos y sinopsis de novelas
-for (const m of mock.matchAll(/^\s*titulo: '((?:[^'\\]|\\.)*)',$/gm)) textos.add(m[1]);
-for (const m of mock.matchAll(/sinopsis:\n\s*'((?:[^'\\]|\\.)*)',/g)) textos.add(m[1]);
-
-// Párrafos del cuerpo (el caché va por párrafo: granularidad fina, menos gasto)
+// Interfaz y capítulos de ejemplo: escritos en español, sin detección.
+for (const m of mock.matchAll(/^\s*titulo: '((?:[^'\\]|\\.)*)',$/gm)) anadir(m[1], base);
+for (const m of mock.matchAll(/sinopsis:\n\s*'((?:[^'\\]|\\.)*)',/g)) anadir(m[1], base);
 const parrafos = mock.match(/const PARRAFOS_ES = \[([\s\S]*?)\n\];/);
-if (parrafos) for (const p of literales(parrafos[1])) textos.add(p);
-
-// Títulos de capítulo
+if (parrafos) for (const p of literales(parrafos[1])) anadir(p, base);
 const totales = [...mock.matchAll(/^\s*'[\w-]+': (\d+),$/gm)].map((m) => +m[1]);
-for (let n = 1; n <= Math.max(0, ...totales); n++) textos.add(`Capítulo ${n}`);
+for (let n = 1; n <= Math.max(0, ...totales); n++) anadir(`Capítulo ${n}`, base);
 
-const lista = [...textos].filter(Boolean);
+// El catálogo real. La anon key basta: `obras` es de lectura pública.
+const urlSb = process.env.PUBLIC_SUPABASE_URL;
+const claveSb = process.env.PUBLIC_SUPABASE_ANON_KEY;
+if (urlSb && claveSb) {
+  const { createClient } = require('@supabase/supabase-js');
+  const db = createClient(urlSb, claveSb, { auth: { persistSession: false } });
+  const TAM = 1000;
+  const tope = Number(args.find((a) => a.startsWith('--limite='))?.split('=')[1]) || Infinity;
+  let leidas = 0;
+  for (let desde = 0; leidas < tope; desde += TAM) {
+    const { data, error } = await db
+      .from('obras')
+      .select('titulo, sinopsis')
+      .eq('publicada', true)
+      .range(desde, desde + TAM - 1);
+    if (error) throw new Error(`Supabase: ${error.message}`);
+    if (!data?.length) break;
+    for (const o of data) {
+      if (leidas >= tope) break;
+      anadir(o.titulo);
+      // Párrafo a párrafo, igual que lo consume `traducirTexto()` en el sitio:
+      // si no, el hash del bloque entero no casaría con el que busca la web.
+      for (const parr of String(o.sinopsis ?? '').split('\n\n')) anadir(parr);
+      leidas++;
+    }
+    if (data.length < TAM) break;
+  }
+  console.log(`Catálogo leído de Supabase: ${leidas} obras`);
+} else {
+  console.log('Sin credenciales de Supabase: solo se traducen los textos del mock.');
+}
+
+const lista = [...textos.entries()].map(([texto, src]) => ({ texto, src }));
 
 // ── Qué falta ────────────────────────────────────────────────────────────────
+// Los destinos son TODOS los idiomas del sitio, el base incluido: una sinopsis
+// en inglés necesita su versión española tanto como la francesa. Lo único que
+// nunca se hace es traducir un texto a su propio idioma.
 const cache = JSON.parse(readFileSync(RUTA_CACHE, 'utf8'));
+const objetivos = codigos.filter((c) => !soloIdioma || c === soloIdioma);
 const faltan = {};
 let caracteres = 0;
 
-for (const idioma of destinos) {
-  faltan[idioma] = lista.filter((t) => !cache[hash(t)]?.[idioma]);
-  caracteres += faltan[idioma].reduce((s, t) => s + t.length, 0);
+for (const idioma of objetivos) {
+  faltan[idioma] = lista.filter((x) => x.src !== idioma && !cache[hash(x.texto)]?.[idioma]);
+  caracteres += faltan[idioma].reduce((s, x) => s + x.texto.length, 0);
 }
 
-console.log(`Textos del sitio: ${lista.length}`);
-for (const idioma of destinos) {
-  const hechos = lista.length - faltan[idioma].length;
-  const pct = Math.round((hechos / lista.length) * 100);
-  console.log(`  ${idioma}: ${hechos}/${lista.length} (${pct}%) · faltan ${faltan[idioma].length}`);
+const foraneos = lista.filter((x) => x.src !== base).length;
+console.log(`Textos del sitio: ${lista.length} (${foraneos} detectados en otro idioma)`);
+for (const idioma of objetivos) {
+  // El denominador es cuántos textos PUEDEN traducirse a este idioma (los que
+  // no están ya en él), para que el porcentaje signifique algo.
+  const posibles = lista.filter((x) => x.src !== idioma).length;
+  const hechos = posibles - faltan[idioma].length;
+  const pct = posibles ? Math.round((hechos / posibles) * 100) : 100;
+  console.log(`  ${idioma}: ${hechos}/${posibles} (${pct}%) · faltan ${faltan[idioma].length}`);
 }
 
 if (caracteres === 0) {
@@ -136,13 +201,13 @@ const endpoint = clave?.endsWith(':fx')
   : 'https://api.deepl.com/v2/translate';
 
 /** LibreTranslate acepta un array en `q` y devuelve otro en `translatedText`. */
-async function loteLibre(textos, idioma) {
+async function loteLibre(textos, idioma, origen) {
   const res = await fetch(`${urlLibre}/translate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       q: textos,
-      source: base,
+      source: origen,
       target: idioma, // usa códigos planos: 'pt', no 'PT-BR'
       format: 'text',
       ...(process.env.LIBRETRANSLATE_API_KEY ? { api_key: process.env.LIBRETRANSLATE_API_KEY } : {}),
@@ -155,7 +220,7 @@ async function loteLibre(textos, idioma) {
   return salida;
 }
 
-async function loteDeepL(textos, idioma) {
+async function loteDeepL(textos, idioma, origen) {
   const res = await fetch(endpoint, {
     method: 'POST',
     headers: {
@@ -164,7 +229,7 @@ async function loteDeepL(textos, idioma) {
     },
     body: JSON.stringify({
       text: textos,
-      source_lang: base.toUpperCase(),
+      source_lang: origen.toUpperCase(),
       target_lang: idioma === 'pt' ? 'PT-BR' : idioma.toUpperCase(),
       // Es prosa de ficción: preserva el formato y no parte los diálogos.
       preserve_formatting: true,
@@ -182,20 +247,45 @@ console.log(`Proveedor: ${urlLibre ? `LibreTranslate (${urlLibre})` : 'DeepL'}`)
 // queda guardado y el siguiente intento retoma donde se quedó.
 const LOTE = 40;
 
-for (const idioma of destinos) {
+for (const idioma of objetivos) {
   const pendientes = faltan[idioma];
-  for (let i = 0; i < pendientes.length; i += LOTE) {
-    const trozo = pendientes.slice(i, i + LOTE);
-    const traducidos = await traducirLote(trozo, idioma);
+  if (!pendientes.length) continue;
 
-    trozo.forEach((origen, j) => {
-      const k = hash(origen);
-      cache[k] ??= {};
-      cache[k][idioma] = traducidos[j];
-    });
+  // Un lote solo puede llevar textos del MISMO idioma de origen: el traductor
+  // recibe un único `source` por petición. Se agrupan por origen y se manda
+  // cada grupo por separado.
+  const porOrigen = new Map();
+  for (const x of pendientes) {
+    (porOrigen.get(x.src) ?? porOrigen.set(x.src, []).get(x.src)).push(x.texto);
+  }
 
-    writeFileSync(RUTA_CACHE, JSON.stringify(cache) + '\n');
-    console.log(`  ${idioma}: ${Math.min(i + LOTE, pendientes.length)}/${pendientes.length}`);
+  let hechos = 0;
+  for (const [origen, grupo] of porOrigen) {
+    for (let i = 0; i < grupo.length; i += LOTE) {
+      const trozo = grupo.slice(i, i + LOTE);
+      let traducidos;
+      try {
+        traducidos = await traducirLote(trozo, idioma, origen);
+      } catch (e) {
+        // Un par de idiomas sin modelo (o un lote que el motor rechaza) no debe
+        // tirar la corrida entera: se anota y se sigue con el resto.
+        console.error(`  ${origen}→${idioma}: ${e.message.slice(0, 120)}`);
+        break;
+      }
+
+      trozo.forEach((texto, j) => {
+        if (!traducidos[j]) return;
+        const k = hash(texto);
+        cache[k] ??= {};
+        cache[k][idioma] = traducidos[j];
+      });
+
+      // Se escribe tras cada lote: si algo falla a mitad, lo ya traducido queda
+      // guardado y el siguiente intento retoma donde se quedó.
+      writeFileSync(RUTA_CACHE, JSON.stringify(cache) + '\n');
+      hechos += trozo.length;
+      console.log(`  ${idioma} (desde ${origen}): ${hechos}/${pendientes.length}`);
+    }
   }
 }
 

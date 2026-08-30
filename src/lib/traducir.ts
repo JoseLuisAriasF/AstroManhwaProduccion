@@ -35,9 +35,17 @@ export function hash(texto: string): string {
   return h.toString(36);
 }
 
-/** Devuelve la traducción cacheada, o el texto original si aún no existe. */
+/**
+ * Devuelve la traducción cacheada, o el texto original si aún no existe.
+ *
+ * También consulta el caché para el idioma BASE, y eso no es un detalle: buena
+ * parte de las sinopsis las rellena `enriquecer.mjs` desde AniList/MangaBaka, y
+ * vienen EN INGLÉS. Con el atajo anterior ("si es el idioma base, devuelve tal
+ * cual"), la web en español enseñaba título en español y sinopsis en inglés.
+ * Ahora, si el caché tiene la versión española de un texto inglés, se usa; si no
+ * la hay, cae al original y no rompe nada.
+ */
 export function traducir(texto: string, idioma: Idioma): string {
-  if (idioma === IDIOMA_BASE) return texto;
   return (cache as Cache)[hash(texto)]?.[idioma] ?? texto;
 }
 
@@ -47,7 +55,8 @@ export function traducir(texto: string, idioma: Idioma): string {
  * una sola vez para todo el sitio.
  */
 export function traducirTexto(texto: string, idioma: Idioma): string {
-  if (idioma === IDIOMA_BASE) return texto;
+  // Sin atajo para el idioma base: ver el comentario de `traducir()`. Las
+  // sinopsis en inglés necesitan su versión española como cualquier otra.
   return texto
     .split('\n\n')
     .map((p) => traducir(p, idioma))
