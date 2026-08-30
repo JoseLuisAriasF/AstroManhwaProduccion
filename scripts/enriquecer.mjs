@@ -174,22 +174,25 @@ async function aIngles(texto) {
  *  1. Si el título (en español) no casa con nada, se reintenta con su
  *     TRADUCCIÓN al inglés. Así "Emperador Mágico" llega a "Magic Emperor" y de
  *     ahí a la ficha real.
- *  2. Los títulos alternativos se FUSIONAN de todas las fuentes que casan, no
- *     solo de la primera. Una base trae el nombre en inglés, otra el coreano,
- *     otra "The Steward Demonic Emperor"… y son justo esos nombres los que
- *     luego enganchan la novela de WTR/DaoTranslate con este manhwa. La
- *     sinopsis, los géneros y el estado sí salen de la PRIMERA que casa (la más
- *     fiable), para no mezclar descripciones.
+ *  2. Los títulos alternativos se completan con MangaBaka, que es la base con
+ *     los nombres en más idiomas (inglés, coreano, "The Steward Demonic
+ *     Emperor"…) — justo los que enganchan la novela de WTR/DaoTranslate con
+ *     este manhwa. La sinopsis, los géneros y el estado salen de la PRIMERA que
+ *     casa (la más fiable); MangaBaka solo aporta nombres.
+ *
+ * Para en la primera que casa y consulta MangaBaka una vez: ~2 bases por obra,
+ * no las 4. Consultarlas todas costaba ~5× y hacía que el workflow nocturno se
+ * pasara del límite de tiempo. Con esto vuelve a caber.
  */
 export async function enriquecerObra(obra) {
   const nombres = [obra.titulo, ...(obra.titulos_alternativos ?? [])].filter(Boolean);
 
-  /** Recorre las cuatro bases con una consulta; junta base + todos los alternos.
-   *  `extra` son nombres que también valen para el match (p.ej. la traducción). */
+  /** Consulta las bases: PARA en la primera que casa (sinopsis/géneros/estado) y
+   *  suma los nombres de MangaBaka para el emparejado cruzado. `extra` son
+   *  nombres que también valen para el match (p.ej. la traducción al inglés). */
   const barrer = async (query, extra = []) => {
     const validos = [...nombres, ...extra];
     let base = null;
-    const alt = new Set();
     for (const fuente of ORDEN) {
       let res;
       try {
@@ -199,11 +202,25 @@ export async function enriquecerObra(obra) {
       }
       await espera(CORTESIA[fuente]);
       if (res && casa(validos, res)) {
-        base ??= { fuente, ...res }; // la primera manda para sinopsis/géneros
-        for (const t of res.titulos) alt.add(t);
+        base = { fuente, ...res };
+        break;
       }
     }
-    return base ? { ...base, titulos: [...new Set([...base.titulos, ...alt])] } : null;
+    if (!base) return null;
+
+    // MangaBaka trae los nombres en más idiomas; se suma para el match cruzado.
+    // Si ya fue la base, no se repite.
+    const titulos = new Set(base.titulos);
+    if (base.fuente !== 'mangabaka') {
+      try {
+        const mb = await FUENTES.mangabaka(query);
+        await espera(CORTESIA.mangabaka);
+        if (mb && casa(validos, mb)) for (const t of mb.titulos) titulos.add(t);
+      } catch {
+        /* MangaBaka caída: nos quedamos con los nombres de la base */
+      }
+    }
+    return { ...base, titulos: [...titulos] };
   };
 
   const directo = await barrer(obra.titulo);

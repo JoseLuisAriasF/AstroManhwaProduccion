@@ -23,7 +23,7 @@ on:
 jobs:
   indexar:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -54,7 +54,7 @@ jobs:
       # Metadata (sinopsis, títulos alternos, géneros) desde AniList/MangaUpdates/
       # MangaBaka/MAL. Cada obra se enriquece una vez; solo entran las nuevas.
       - name: Enriquecer metadatos
-        run: node scripts/enriquecer.mjs --max=1500 ${{ github.event.inputs.obra && format('--obra={0}', github.event.inputs.obra) || '' }}
+        run: node scripts/enriquecer.mjs --max=700 ${{ github.event.inputs.obra && format('--obra={0}', github.event.inputs.obra) || '' }}
         env:
           PUBLIC_SUPABASE_URL: ${{ secrets.PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
