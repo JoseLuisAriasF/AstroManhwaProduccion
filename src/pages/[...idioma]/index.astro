@@ -398,4 +398,22 @@ const jsonLd = {
     vacio.hidden = hits.length > 0;
     titulo.textContent = dic.resultados(todos.length);
   });
+
+  // ?q=… : deja la búsqueda enlazable y compartible, y es lo que hace legítimo
+  // el SearchAction del schema (la caja de búsqueda propia en Google apunta
+  // aquí). Sin esto, marcar una URL de búsqueda que no filtra nada sería
+  // marcado engañoso. Se aplica al cargar y se refleja en la barra al teclear,
+  // con replaceState para no llenar el historial con una entrada por letra.
+  const qInicial = new URLSearchParams(location.search).get('q');
+  if (qInicial) {
+    input.value = qInicial;
+    input.dispatchEvent(new Event('input'));
+  }
+  input.addEventListener('input', () => {
+    const url = new URL(location.href);
+    const v = input.value.trim();
+    if (v) url.searchParams.set('q', v);
+    else url.searchParams.delete('q');
+    history.replaceState(null, '', url);
+  });
 </script>

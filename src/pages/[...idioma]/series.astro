@@ -3,7 +3,7 @@ import Base from '@/layouts/Base.astro';
 import NovelaCard from '@/components/NovelaCard.astro';
 import { formatos, getCapitulosExternos, getNovelas } from '@/lib/api';
 import { brechaDe } from '@/lib/brecha';
-import { IDIOMA_BASE, ruta, t } from '@/lib/i18n';
+import { IDIOMA_BASE, ruta, t, type Idioma } from '@/lib/i18n';
 import { migas } from '@/lib/seo';
 import type { Novela } from '@/types/novela';
 
@@ -58,6 +58,12 @@ const jsonLd = {
   inLanguage: idioma,
   numberOfItems: filas.length,
 };
+// Esta página SOLO se genera en el idioma base (ver getStaticPaths). Sin pasar
+// esto a <Base>, `alternativas()` anunciaba hreflang a /en/…, /pt/… y cuatro
+// más: seis URLs que devuelven 404. Google descarta el clúster de idiomas
+// entero y gasta rastreo en páginas que no existen.
+const SOLO_BASE: Idioma[] = [IDIOMA_BASE];
+
 ---
 
 <Base
@@ -65,6 +71,7 @@ const jsonLd = {
   descripcion={`${filas.length} obras que tienen el manhwa y la novela indexados a la vez. Terminaste el manhwa; aquí ves por qué capítulo va la novela y cuánto queda.`}
   anchoCompleto
   jsonLd={[jsonLd, ruta_migas]}
+  idiomas={SOLO_BASE}
 >
   <nav class="text-sm text-base-400 mb-4" aria-label="breadcrumb">
     <a href={ruta(idioma)} class="hover:text-acento-500">{dic.navInicio}</a>

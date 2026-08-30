@@ -39,10 +39,12 @@ export default defineConfig({
       // propias y las fichas "ambos" (el contenido único), y con la fecha del
       // último capítulo sabe cuáles re-rastrear.
       serialize(item) {
+        // `as typeof item`: el tipo de `changefreq` es un ENUM del paquete
+        // sitemap, y un literal 'daily' no le encaja aunque valga en runtime.
         const path = new URL(item.url).pathname;
         // Portada (con o sin prefijo de idioma).
         if (path === '/' || /^\/[a-z]{2}\/?$/.test(path)) {
-          return { ...item, priority: 1.0, changefreq: 'daily' };
+          return { ...item, priority: 1.0, changefreq: 'daily' } as typeof item;
         }
         const slug = slugFicha(item.url);
         if (slug) {
@@ -52,11 +54,11 @@ export default defineConfig({
             ...(meta?.lastmod ? { lastmod: new Date(meta.lastmod).toISOString() } : {}),
             priority: meta?.ambos ? 0.9 : 0.6,
             changefreq: 'weekly',
-          };
+          } as typeof item;
         }
         // Páginas propias de alto valor (series, rankings, novedades…).
         if (/\/(series|rankings|novedades|titulos)(\/|$)/.test(path)) {
-          return { ...item, priority: 0.8, changefreq: 'daily' };
+          return { ...item, priority: 0.8, changefreq: 'daily' } as typeof item;
         }
         return item;
       },

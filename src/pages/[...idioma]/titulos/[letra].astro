@@ -1,7 +1,7 @@
 ---
 import Base from '@/layouts/Base.astro';
 import { getNovelas } from '@/lib/api';
-import { IDIOMA_BASE, ruta, t } from '@/lib/i18n';
+import { IDIOMA_BASE, ruta, t, type Idioma } from '@/lib/i18n';
 import { migas } from '@/lib/seo';
 
 /**
@@ -76,6 +76,12 @@ const ruta_migas = migas(Astro.site, [
   { nombre: 'Títulos', href: href('A') },
   { nombre: letra, href: href(letra) },
 ]);
+// Esta página SOLO se genera en el idioma base (ver getStaticPaths). Sin pasar
+// esto a <Base>, `alternativas()` anunciaba hreflang a /en/…, /pt/… y cuatro
+// más: seis URLs que devuelven 404. Google descarta el clúster de idiomas
+// entero y gasta rastreo en páginas que no existen.
+const SOLO_BASE: Idioma[] = [IDIOMA_BASE];
+
 ---
 
 <Base
@@ -83,6 +89,7 @@ const ruta_migas = migas(Astro.site, [
   descripcion={`${entradas.length} títulos que empiezan por ${letra}, incluidos los nombres alternativos en inglés, coreano y romanizado. Encuentra la obra aunque la conozcas por otro nombre.`}
   anchoCompleto
   jsonLd={[jsonLd, ruta_migas]}
+  idiomas={SOLO_BASE}
 >
   <nav class="text-sm text-base-400 mb-4" aria-label="breadcrumb">
     <a href={ruta(idioma)} class="hover:text-acento-500">{dic.navInicio}</a>
