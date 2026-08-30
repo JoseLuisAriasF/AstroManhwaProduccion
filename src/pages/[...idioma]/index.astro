@@ -39,15 +39,11 @@ const conTotales = await Promise.all(
 // gancho); el resto vive en un índice y aparece al buscar. Renderizar las 8.600
 // pesaba 10 MB y arrastraba el navegador.
 const destacadas = conTotales.filter((o) => o.ambos);
-const indice = conTotales.map((o) => ({
-  slug: o.novela.slug,
-  q: [o.novela.titulo, ...o.novela.titulosAlternativos].join(' ').toLowerCase(),
-  titulo: o.novela.titulo,
-  alt: o.novela.titulosAlternativos[0] ?? '',
-  portada: o.novela.portadaUrl,
-  fmt: (o.formatos.length ? o.formatos : o.novela.tipo === 'ambos' ? ['manhwa', 'novela'] : [o.novela.tipo]) as string[],
-  href: fichaHref(o.novela),
-}));
+// El índice del buscador YA NO se incrusta aquí: vive en /buscar.json y se pide
+// solo cuando hace falta (al teclear, o al pintar "Continuar leyendo"). Estaba
+// inline y eran 2,5 MB de JSON en el HTML de CADA visita a la portada —más de la
+// mitad del peso de la página más importante del sitio— para un dato que la
+// mayoría de visitantes nunca usa.
 
 // Carrusel: las de doble formato (el gancho) más "populares". Sin datos de
 // vistas, se ordena por nº de capítulos indexados (proxy: obra popular = mucha
@@ -86,11 +82,16 @@ const jsonLd = {
   name: 'ManhwaToNovel',
   inLanguage: idioma,
   description: dic.sitioDescripcion,
-  hasPart: novelas.map((n) => ({
+  // Solo las destacadas del carrusel, NO el catálogo entero. `hasPart` con las
+  // 6.800 obras eran 1,5 MB de JSON-LD en cada carga de la portada —un tercio
+  // del peso de la página— y Google no lo aprovecha: descubre las fichas por el
+  // sitemap y los enlaces, no por un schema gigante. Las obras siguen enlazadas
+  // en el HTML (tarjetas, /titulos/*), que es lo que de verdad cuenta.
+  hasPart: carrusel.map((c) => ({
     '@type': 'Book',
-    name: n.titulo,
-    alternateName: n.titulosAlternativos,
-    url: new URL(fichaHref(n), Astro.site).toString(),
+    name: c.novela.titulo,
+    alternateName: c.novela.titulosAlternativos,
+    url: new URL(c.href, Astro.site).toString(),
   })),
 };
 ---
@@ -259,19 +260,46 @@ const jsonLd = {
     <p id="sin-resultados" hidden class="neu-inset rounded-2xl p-8 text-center text-base-500 mt-2">
       {dic.sinResultados}
     </p>
-    <script is:inline define:vars={{ indice }}>
-      window.__indice = indice;
-    </script>
   </section>
 </Base>
 
 <script>
   import { getAll, ultimoLeido } from '@/lib/progress';
-  import { idiomaDeRuta, t } from '@/lib/i18n';
+  import { IDIOMA_BASE, idiomaDeRuta, ruta, t } from '@/lib/i18n';
 
   type Item = { slug: string; q: string; titulo: string; alt: string; portada: string; fmt: string[]; href: string };
-  const indice: Item[] = (window as any).__indice ?? [];
-  const porSlug = new Map(indice.map((it) => [it.slug, it]));
+
+  /**
+   * El catálogo se pide a /buscar.json la PRIMERA vez que hace falta —al
+   * teclear, o al pintar "Continuar leyendo"— en vez de venir incrustado en el
+   * HTML. Se memoiza la promesa: varias llamadas seguidas comparten la descarga.
+   */
+  let indice: Item[] = [];
+  let porSlug = new Map<string, Item>();
+  let cargando: Promise<void> | null = null;
+
+  function cargarIndice(): Promise<void> {
+    if (indice.length) return Promise.resolve();
+    cargando ??= fetch('/buscar.json')
+      .then((r) => r.json())
+      .then((datos: { s: string; t: string; a?: string[]; p?: string; f?: string[] }[]) => {
+        indice = datos.map((d) => ({
+          slug: d.s,
+          titulo: d.t,
+          alt: d.a?.[0] ?? '',
+          q: [d.t, ...(d.a ?? [])].join(' ').toLowerCase(),
+          portada: d.p ?? '',
+          fmt: d.f ?? [],
+          // El índice es del catálogo base; la ficha base existe siempre.
+          href: ruta(IDIOMA_BASE, `/novela/${d.s}`),
+        }));
+        porSlug = new Map(indice.map((it) => [it.slug, it]));
+      })
+      .catch(() => {
+        /* sin índice, el buscador no encuentra: mejor que romper la página */
+      });
+    return cargando;
+  }
 
   const idioma = idiomaDeRuta(location.pathname);
   const dic = t(idioma);
@@ -349,7 +377,11 @@ const jsonLd = {
       })
       .join('');
   }
+  // Se pinta ya con lo que hay (el slug basta como texto) y, si el lector tiene
+  // progreso guardado, se baja el índice para completar título y portada. Quien
+  // llega por primera vez no descarga nada: es la mayoría del tráfico.
   pintarProgreso();
+  if (Object.keys(getAll()).length) cargarIndice().then(pintarProgreso);
   window.addEventListener('progress:synced', pintarProgreso);
 
   // "Ver más / Ver menos": expande la lista colapsada de su misma sección.
@@ -375,7 +407,7 @@ const jsonLd = {
     .filter((s): s is HTMLElement => s !== null);
   const visiblePrevio = new Map(secciones.map((s) => [s, !s.hidden]));
 
-  input.addEventListener('input', () => {
+  input.addEventListener('input', async () => {
     const q = input.value.trim().toLowerCase();
     if (q === '') {
       resultados.hidden = true;
@@ -388,6 +420,11 @@ const jsonLd = {
       pintarProgreso();
       return;
     }
+    // La primera pulsación baja el índice; las siguientes ya lo tienen.
+    await cargarIndice();
+    // Con el índice ya en memoria, el usuario pudo seguir tecleando: se relee
+    // el valor actual para no pintar resultados de una consulta vieja.
+    if (input.value.trim().toLowerCase() !== q) return;
     const todos = indice.filter((it) => it.q.includes(q));
     const hits = todos.slice(0, 60);
     destacadas.hidden = true;

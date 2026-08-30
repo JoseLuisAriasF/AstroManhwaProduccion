@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { getNovelas } from '@/lib/api';
+import { formatos, getCapitulosExternos, getNovelas } from '@/lib/api';
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
@@ -19,13 +19,24 @@ import { getNovelas } from '@/lib/api';
  */
 export const GET: APIRoute = async () => {
   const novelas = await getNovelas();
-  const indice = novelas.map((n) => ({
-    s: n.slug,
-    t: n.titulo,
-    // Hasta 4 nombres alternativos: suficientes para enganchar el título en
-    // inglés/coreano sin inflar el índice con los 15 que trae alguna obra.
-    a: (n.titulosAlternativos ?? []).slice(0, 4),
-  }));
+  const indice = await Promise.all(
+    novelas.map(async (n) => {
+      const fmt = formatos(await getCapitulosExternos(n.slug));
+      return {
+        s: n.slug,
+        t: n.titulo,
+        // Hasta 4 nombres alternativos: suficientes para enganchar el título en
+        // inglés/coreano sin inflar el índice con los 15 que trae alguna obra.
+        a: (n.titulosAlternativos ?? []).slice(0, 4),
+        // Portada y formatos: lo que necesita la tarjeta de resultado de la
+        // portada. Van aquí para que la home NO tenga que incrustar el catálogo
+        // en su HTML (eran 2,5 MB en cada visita); esto se pide una vez, solo
+        // cuando hace falta, y queda cacheado.
+        p: n.portadaUrl,
+        f: fmt.length ? fmt : n.tipo === 'ambos' ? ['manhwa', 'novela'] : [n.tipo],
+      };
+    }),
+  );
   return new Response(JSON.stringify(indice), {
     headers: {
       'Content-Type': 'application/json; charset=utf-8',
