@@ -9,7 +9,7 @@ import { IDIOMA_BASE, IDIOMAS, idiomaDeRuta, ruta, t } from '@/lib/i18n';
 import { idiomasDeObra, paramsDeIdioma } from '@/lib/publicables';
 import { relacionadasDe } from '@/lib/catalogo';
 import { slugCategoria } from '@/lib/categorias';
-import { migas } from '@/lib/seo';
+import { faq, migas, type Pregunta } from '@/lib/seo';
 import { brechaDe } from '@/lib/brecha';
 
 export async function getStaticPaths() {
@@ -104,6 +104,66 @@ const ruta_migas = migas(Astro.site, [
   { nombre: dic.navNovelas, href: ruta(idioma, '/novelas') },
   { nombre: novela.titulo, href: base },
 ]);
+
+// ── Texto propio para fichas "pobres" ────────────────────────────────────────
+// Muchas fichas solo tienen enlaces externos y sin sinopsis son thin content:
+// Google las rastrea y no las indexa. Esta intro las convierte en algo propio,
+// SIN copiar nada de otro sitio —son datos nuestros: formatos, conteos, brecha—.
+// Solo se pinta cuando NO hay sinopsis escrita (ver más abajo).
+const formatoTexto =
+  formatosDisponibles.length === 2
+    ? 'manhwa y novela'
+    : formatosDisponibles[0] ?? (novela.tipo === 'ambos' ? 'manhwa y novela' : novela.tipo);
+const introGenerada = [
+  `${novela.titulo}${tituloIngles && tituloIngles !== novela.titulo ? ` (${tituloIngles})` : ''} está disponible como ${formatoTexto}.`,
+  fuentes.length
+    ? `Está indexada en ${fuentes.length} ${fuentes.length === 1 ? 'fuente' : 'fuentes'}, cada una con enlace al sitio original.`
+    : '',
+  brecha
+    ? `La novela va por el capítulo ${brecha.novela} y el manhwa por el ${brecha.manhwa}${brecha.faltan ? `: ${brecha.faltan} capítulos por delante` : ''}.`
+    : '',
+]
+  .filter(Boolean)
+  .join(' ');
+
+// ── FAQ: solo preguntas que se pueden responder con datos ────────────────────
+// El FAQPage del <head> repite estas mismas preguntas, que se pintan visibles
+// más abajo. Marcado sin contenido visible es penalización, no atajo.
+const nombresFuentes = [...new Set(fuentes.map((f) => f.nombre).filter(Boolean))];
+const preguntas: Pregunta[] = [];
+if (fuentes.length) {
+  preguntas.push({
+    pregunta: `¿Dónde leer ${novela.titulo}?`,
+    respuesta: `Está indexada en ${fuentes.length} ${fuentes.length === 1 ? 'fuente' : 'fuentes'}${
+      nombresFuentes.length ? ` (${nombresFuentes.slice(0, 5).join(', ')})` : ''
+    }. Cada una enlaza al sitio original donde se lee gratis.`,
+  });
+}
+if (brecha) {
+  preguntas.push({
+    pregunta: `¿Cuántos capítulos tiene ${novela.titulo}?`,
+    respuesta: `El manhwa lleva ${brecha.manhwa} capítulos indexados y la novela ${brecha.novela}${
+      brecha.faltan ? `, ${brecha.faltan} por delante del manhwa` : ''
+    }.`,
+  });
+  preguntas.push({
+    pregunta: `¿Puedo leer la novela de ${novela.titulo} sin spoilers del manhwa?`,
+    respuesta: `Sí: empieza por el capítulo de la novela que corresponde a donde dejaste el manhwa. Lo que la novela te adelanta es lo que el manhwa aún no ha dibujado, no lo que ya leíste.`,
+  });
+}
+if (novela.estado) {
+  preguntas.push({
+    pregunta: `¿${novela.titulo} está terminada?`,
+    respuesta:
+      novela.estado === 'Finalizado'
+        ? `Sí, ${novela.titulo} está finalizada.`
+        : `No, ${novela.titulo} sigue en emisión y recibe capítulos nuevos.`,
+  });
+}
+// FAQPage solo si hay al menos dos (una sola no es una FAQ) y solo en el idioma
+// base: las preguntas están escritas en español, y el schema DEBE coincidir con
+// lo visible —que también es es-only—, o Google lo descarta por marcado engañoso.
+const jsonLdFaq = preguntas.length >= 2 && idioma === IDIOMA_BASE ? [faq(preguntas)] : [];
 ---
 
 <Base
@@ -111,9 +171,13 @@ const ruta_migas = migas(Astro.site, [
   descripcion={descripcionSeo}
   imagen={novela.portadaUrl}
   tipo="book"
-  jsonLd={[jsonLd, ruta_migas]}
+  jsonLd={[jsonLd, ruta_migas, ...jsonLdFaq]}
   idiomas={idiomasDeObra(novela)}
 >
+  {/* La portada es el LCP de la ficha: precargarla adelanta la mayor pintura y
+      mejora Core Web Vitals (además del fetchpriority del <img>). */}
+  <link slot="head" rel="preload" as="image" href={novela.portadaUrl} fetchpriority="high" />
+
   <nav class="text-sm text-base-400 mb-5" aria-label="breadcrumb">
     <a href={ruta(idioma)} class="hover:text-acento-500">{dic.navInicio}</a>
     <span class="mx-1.5">/</span>
@@ -215,6 +279,14 @@ const ruta_migas = migas(Astro.site, [
         </div>
       )}
 
+      {/* Sin sinopsis escrita: un párrafo propio con nuestros datos, para que la
+          ficha no sea thin content. Solo en el idioma base (está en español). */}
+      {!novela.sinopsis && idioma === IDIOMA_BASE && (
+        <p class="mt-4 text-base-600 dark:text-base-300 leading-relaxed text-pretty">
+          {introGenerada}
+        </p>
+      )}
+
       {/* Un solo script para todos los bloques expandibles (sinopsis, títulos
           alternos): mide TRAS el layout —si no, scrollHeight/clientHeight aún no
           están calculados y el botón nunca saldría aunque el texto se recorte—. */}
@@ -307,6 +379,25 @@ const ruta_migas = migas(Astro.site, [
       </>
     )}
     <CapitulosExternos fuentes={fuentes} slug={novela.slug} />
+
+    {/* Preguntas frecuentes: contenido propio, útil y con FAQPage en el <head>
+        (mismas preguntas, visibles aquí). Solo en el idioma base, donde están
+        escritas. Sube el CTR: Google las muestra desplegables bajo el resultado. */}
+    {jsonLdFaq.length > 0 && idioma === IDIOMA_BASE && (
+      <section aria-labelledby="faq">
+        <h2 id="faq" class="font-semibold text-base-800 dark:text-base-100 mb-4">
+          Preguntas frecuentes
+        </h2>
+        <dl class="grid gap-3">
+          {preguntas.map((p) => (
+            <div class="neu-sm rounded-2xl p-4">
+              <dt class="font-medium text-base-700 dark:text-base-200">{p.pregunta}</dt>
+              <dd class="mt-1.5 text-sm text-base-500 leading-relaxed text-pretty">{p.respuesta}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
+    )}
 
     {/* Obras relacionadas: además de ser útil, teje la malla de enlaces internos.
         Sin ella cada ficha es un callejón sin salida —el buscador entra y no
