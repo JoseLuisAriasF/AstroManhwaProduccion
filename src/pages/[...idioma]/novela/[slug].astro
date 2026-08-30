@@ -242,8 +242,8 @@ const jsonLdFaq = preguntas.length >= 2 && idioma === IDIOMA_BASE ? [faq(pregunt
               {novela.titulosAlternativos.join(' · ')}
             </span>
           </p>
-          <button hidden data-exp-btn data-mas="Ver más" data-menos="Ver menos" class="mt-0.5 text-xs font-medium text-acento-500">
-            Ver más
+          <button hidden data-exp-btn data-mas={dic.verMas} data-menos={dic.verMenos} class="mt-0.5 text-xs font-medium text-acento-500">
+            {dic.verMas}
           </button>
         </div>
       )}
@@ -273,8 +273,8 @@ const jsonLdFaq = preguntas.length >= 2 && idioma === IDIOMA_BASE ? [faq(pregunt
           >
             {novela.sinopsis}
           </p>
-          <button hidden data-exp-btn data-mas="Leer más" data-menos="Leer menos" class="mt-1 text-sm font-medium text-acento-500">
-            Leer más
+          <button hidden data-exp-btn data-mas={dic.verMas} data-menos={dic.verMenos} class="mt-1 text-sm font-medium text-acento-500">
+            {dic.verMas}
           </button>
         </div>
       )}
@@ -405,7 +405,7 @@ const jsonLdFaq = preguntas.length >= 2 && idioma === IDIOMA_BASE ? [faq(pregunt
     {relacionadas.length > 0 && (
       <section aria-labelledby="relacionadas">
         <h2 id="relacionadas" class="font-semibold text-base-800 dark:text-base-100 mb-4">
-          Obras similares
+          {dic.obrasSimilares}
         </h2>
         <ul class="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {relacionadas.map((r) => (
