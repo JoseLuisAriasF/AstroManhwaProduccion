@@ -17,9 +17,10 @@
  *   npm run traducir -- --aplicar → traduce de verdad
  *   npm run traducir -- --idioma=pt --aplicar
  *
- * Proveedor vía .env:
- *   DEEPL_API_KEY=...     (recomendado: 500.000 caracteres/mes gratis)
- * Para cambiar de proveedor solo se reescribe `traducirLote()`.
+ * Proveedor vía .env (ver el bloque "Proveedor" más abajo):
+ *   LIBRETRANSLATE_URL=http://localhost:5000   gratis e ILIMITADO, local
+ *   DEEPL_API_KEY=...                          mejor prosa, 500.000 chars/mes
+ * Si están los dos, manda LibreTranslate: es el que no tiene tope.
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -104,18 +105,57 @@ if (!aplicar) {
 }
 
 // ── Proveedor ────────────────────────────────────────────────────────────────
+// Dos opciones, y la elige el .env:
+//
+//   LIBRETRANSLATE_URL=http://localhost:5000   → LibreTranslate, gratis e
+//     ILIMITADO, pero corriendo en TU máquina. Las instancias públicas ya no
+//     sirven (comprobadas 12: caídas, 403 o con clave de pago), así que la
+//     única vía libre es levantarlo local:
+//         pip install libretranslate
+//         libretranslate --load-only es,en,pt,fr,de,id,vi
+//     Traduce con Argos: peor que DeepL, pero sin límite de caracteres. Para
+//     6.800 sinopsis × 6 idiomas es la única forma que no cuesta dinero —lo que
+//     cuesta es tiempo de CPU, y eso se deja corriendo por la noche—.
+//
+//   DEEPL_API_KEY=...   → DeepL, 500.000 caracteres/mes gratis. Mucha mejor
+//     prosa; alcanza para las obras que de verdad traen tráfico, no para todas.
+//
+// Se prefiere LibreTranslate si está configurado: es el que no tiene tope.
+const urlLibre = process.env.LIBRETRANSLATE_URL?.replace(/\/+$/, '');
 const clave = process.env.DEEPL_API_KEY;
-if (!clave) {
-  console.error('\nFalta DEEPL_API_KEY. Alta gratuita: https://www.deepl.com/pro-api');
+if (!urlLibre && !clave) {
+  console.error('\nFalta proveedor. Pon una de las dos en .env:');
+  console.error('  LIBRETRANSLATE_URL=http://localhost:5000   (gratis, ilimitado, local)');
+  console.error('  DEEPL_API_KEY=...                          (mejor prosa, 500k/mes)');
   process.exit(1);
 }
 
-// La API gratuita vive en api-free; la de pago en api. La clave lo dice.
-const endpoint = clave.endsWith(':fx')
+// La API gratuita de DeepL vive en api-free; la de pago en api. La clave lo dice.
+const endpoint = clave?.endsWith(':fx')
   ? 'https://api-free.deepl.com/v2/translate'
   : 'https://api.deepl.com/v2/translate';
 
-async function traducirLote(textos, idioma) {
+/** LibreTranslate acepta un array en `q` y devuelve otro en `translatedText`. */
+async function loteLibre(textos, idioma) {
+  const res = await fetch(`${urlLibre}/translate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      q: textos,
+      source: base,
+      target: idioma, // usa códigos planos: 'pt', no 'PT-BR'
+      format: 'text',
+      ...(process.env.LIBRETRANSLATE_API_KEY ? { api_key: process.env.LIBRETRANSLATE_API_KEY } : {}),
+    }),
+  });
+  if (!res.ok) throw new Error(`LibreTranslate ${res.status}: ${await res.text()}`);
+  const j = await res.json();
+  const salida = j.translatedText;
+  if (!Array.isArray(salida)) throw new Error(`LibreTranslate devolvió algo raro: ${JSON.stringify(j).slice(0, 200)}`);
+  return salida;
+}
+
+async function loteDeepL(textos, idioma) {
   const res = await fetch(endpoint, {
     method: 'POST',
     headers: {
@@ -133,6 +173,9 @@ async function traducirLote(textos, idioma) {
   if (!res.ok) throw new Error(`DeepL ${res.status}: ${await res.text()}`);
   return (await res.json()).translations.map((t) => t.text);
 }
+
+const traducirLote = urlLibre ? loteLibre : loteDeepL;
+console.log(`Proveedor: ${urlLibre ? `LibreTranslate (${urlLibre})` : 'DeepL'}`);
 
 // ── Traducir en lotes, guardando sobre la marcha ─────────────────────────────
 // Se escribe el caché tras cada lote: si algo falla a mitad, lo ya pagado
