@@ -101,6 +101,12 @@ const jsonLd = {
   anchoCompleto
   jsonLd={jsonLd}
 >
+  {/* Colapso por CSS: sin JS igual se ve la lista recortada (el botón solo la
+      expande). El valor de data-colapsable dice cuántas caben antes de cortar. */}
+  <style is:inline>
+    [data-colapsable="6"]:not([data-expandido]) > :nth-child(n + 7) { display: none; }
+    [data-colapsable="4"]:not([data-expandido]) > :nth-child(n + 5) { display: none; }
+  </style>
   {/* Carrusel como PORTADA: lo primero que se ve, en grande. El texto de héroe
       va debajo. */}
   <div id="destacados" class="mb-8">
@@ -169,7 +175,15 @@ const jsonLd = {
   <!-- Continuar leyendo (solo si hay progreso guardado) -->
   <section id="continuar" hidden class="mb-10">
     <h2 class="font-semibold text-base-800 dark:text-base-100 mb-4">{dic.continuarLeyendo}</h2>
-    <div id="continuar-lista" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+    {/* Se muestran 4; el resto, tras "Ver más". El JS pone/quita el botón según
+        cuántas haya en progreso. */}
+    <div id="continuar-lista" data-colapsable="4" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+    <button
+      id="continuar-mas"
+      hidden
+      data-mas
+      class="mt-4 mx-auto block neu-sm neu-press rounded-xl px-4 py-2 text-sm font-medium text-acento-500"
+    >{dic.verMas}</button>
   </section>
 
   <div class="mb-10"><SyncExplanationBanner /></div>
@@ -178,11 +192,21 @@ const jsonLd = {
     <section id="nuevos" class="mb-10">
       <h2 class="font-semibold text-base-800 dark:text-base-100 mb-1">Nuevos lanzamientos</h2>
       <p class="text-sm text-base-500 mb-4">Novelas con su manhwa (y viceversa), recién añadidas.</p>
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      {/* Se muestran 6; el resto se despliega con "Ver más". El colapso es CSS
+          (nth-child) para que no dependa de JS y funcione sin él. */}
+      <div data-colapsable="6" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {nuevos.map(({ novela, formatos }) => (
           <NovelaCard novela={novela} formatos={formatos} />
         ))}
       </div>
+      {nuevos.length > 6 && (
+        <button
+          data-mas
+          class="mt-4 mx-auto block neu-sm neu-press rounded-xl px-4 py-2 text-sm font-medium text-acento-500"
+        >
+          {dic.verMas}
+        </button>
+      )}
     </section>
   )}
 
@@ -292,6 +316,17 @@ const jsonLd = {
     const seccion = document.getElementById('continuar') as HTMLElement;
     seccion.hidden = enCurso.length === 0;
 
+    // Botón "Ver más": solo si hay más de 4 en progreso. Se reinicia colapsado
+    // cada vez que se repinta (p.ej. tras sincronizar).
+    const lista = document.getElementById('continuar-lista') as HTMLElement;
+    const btnMas = document.getElementById('continuar-mas') as HTMLElement;
+    const sobran = enCurso.length > 4;
+    btnMas.hidden = !sobran;
+    if (sobran) {
+      delete lista.dataset.expandido;
+      btnMas.textContent = dic.verMas;
+    }
+
     document.getElementById('continuar-lista')!.innerHTML = enCurso
       .map((p) => {
         const it = porSlug.get(p.novelaSlug);
@@ -316,6 +351,16 @@ const jsonLd = {
   }
   pintarProgreso();
   window.addEventListener('progress:synced', pintarProgreso);
+
+  // "Ver más / Ver menos": expande la lista colapsada de su misma sección.
+  document.querySelectorAll<HTMLButtonElement>('[data-mas]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const lista = btn.closest('section')?.querySelector<HTMLElement>('[data-colapsable]');
+      if (!lista) return;
+      const abierto = lista.toggleAttribute('data-expandido');
+      btn.textContent = abierto ? dic.verMenos : dic.verMas;
+    });
+  });
 
   // Buscador: sin texto, el catálogo muestra solo doble formato; al escribir se
   // abre a todo (desde el índice) y se ocultan las demás secciones.
