@@ -31,51 +31,79 @@ interface Fila {
   brecha: Brecha;
 }
 
+// Cada fila ya trae su número y su detalle en texto: así las cuatro listas —tres
+// de brecha y una de popularidad— comparten el mismo render sin ramas.
+interface FilaRender {
+  novela: Novela;
+  valor: string;
+  detalle: string;
+}
+
 const novelas = await getNovelas(idioma);
 const filas: Fila[] = [];
+// Popularidad: nº de capítulos indexados de TODA la obra (manhwa + novela). Es
+// el mejor proxy disponible sin datos de vistas —cuantas más fuentes y
+// capítulos tiene una obra, más scanlation recibe, o sea más gente la sigue—.
+const populares: { novela: Novela; caps: number }[] = [];
 for (const novela of novelas) {
-  const brecha = brechaDe(await getCapitulosExternos(novela.slug));
+  const externos = await getCapitulosExternos(novela.slug);
+  if (externos.length) populares.push({ novela, caps: externos.length });
+  const brecha = brechaDe(externos);
   if (brecha) filas.push({ novela, brecha });
 }
 
 const TOPE = 50;
+const mil = (n: number) => n.toLocaleString('es');
+
+// Las más populares: por volumen de scanlation. Va primera porque es la lista
+// que la gente busca ("los más vistos") y la que engancha en frío.
+const masPopulares: FilaRender[] = [...populares]
+  .sort((a, b) => b.caps - a.caps)
+  .slice(0, TOPE)
+  .map((p) => ({ novela: p.novela, valor: mil(p.caps), detalle: 'capítulos indexados' }));
 
 // El gancho del sitio, ordenado: dónde hay más historia esperando.
-const masAdelantadas = [...filas].sort((a, b) => b.brecha.faltan - a.brecha.faltan).slice(0, TOPE);
+const masAdelantadas: FilaRender[] = [...filas]
+  .sort((a, b) => b.brecha.faltan - a.brecha.faltan)
+  .slice(0, TOPE)
+  .map((f) => ({ novela: f.novela, valor: `+${f.brecha.faltan}`, detalle: `manhwa ${f.brecha.manhwa} · novela ${f.brecha.novela}` }));
 // Lo contrario, que también se busca: el manhwa ya alcanzó (o casi) a la novela.
-const alDia = filas
+const alDia: FilaRender[] = filas
   .filter((f) => f.brecha.faltan <= 5)
   .sort((a, b) => a.brecha.faltan - b.brecha.faltan || b.brecha.manhwa - a.brecha.manhwa)
-  .slice(0, TOPE);
+  .slice(0, TOPE)
+  .map((f) => ({ novela: f.novela, valor: f.brecha.faltan === 0 ? 'al día' : `+${f.brecha.faltan}`, detalle: `manhwa ${f.brecha.manhwa} · novela ${f.brecha.novela}` }));
 // Las novelas más largas indexadas: "novelas con más capítulos" es una consulta
 // con volumen propio y esta es la respuesta real, no una lista a ojo.
-const masLargas = [...filas].sort((a, b) => b.brecha.novela - a.brecha.novela).slice(0, TOPE);
+const masLargas: FilaRender[] = [...filas]
+  .sort((a, b) => b.brecha.novela - a.brecha.novela)
+  .slice(0, TOPE)
+  .map((f) => ({ novela: f.novela, valor: `${f.brecha.novela}`, detalle: 'capítulos de novela' }));
 
 const listas = [
+  {
+    id: 'mas-populares',
+    titulo: 'Las más populares',
+    sub: 'Por volumen de scanlation: cuantas más fuentes y capítulos tiene una obra, más gente la sigue.',
+    filas: masPopulares,
+  },
   {
     id: 'mas-adelantadas',
     titulo: 'La novela va más adelantada que el manhwa',
     sub: 'Terminaste el manhwa y la historia sigue. Aquí es donde más sigue.',
     filas: masAdelantadas,
-    // Qué número pintar a la derecha de cada fila, y cómo leerlo.
-    valor: (b: Brecha) => `+${b.faltan}`,
-    detalle: (b: Brecha) => `manhwa ${b.manhwa} · novela ${b.novela}`,
   },
   {
     id: 'al-dia',
     titulo: 'El manhwa ya alcanzó a la novela',
     sub: 'Aquí no te estás perdiendo nada: van a la par.',
     filas: alDia,
-    valor: (b: Brecha) => (b.faltan === 0 ? 'al día' : `+${b.faltan}`),
-    detalle: (b: Brecha) => `manhwa ${b.manhwa} · novela ${b.novela}`,
   },
   {
     id: 'mas-largas',
     titulo: 'Las novelas más largas',
     sub: 'Por capítulos indexados. Para leer durante meses.',
     filas: masLargas,
-    valor: (b: Brecha) => `${b.novela}`,
-    detalle: (b: Brecha) => `capítulos de novela`,
   },
 ];
 
@@ -111,22 +139,22 @@ const ruta_migas = migas(Astro.site, [
   </nav>
 
   <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-base-800 dark:text-base-50">
-    Rankings manhwa ↔ novela
+    Rankings
   </h1>
   <p class="mt-2 text-base-500 max-w-2xl">
-    Cruzando los capítulos del manhwa con los de su novela salen listas que no
-    existen en ningún otro sitio. {filas.length} obras tienen los dos formatos indexados.
+    Las obras más populares, y —cruzando los capítulos del manhwa con los de su
+    novela— listas que no existen en ningún otro sitio. {filas.length} obras tienen
+    los dos formatos indexados.
   </p>
 
-  {filas.length === 0 && (
+  {masPopulares.length === 0 && (
     <p class="mt-8 neu-inset rounded-2xl p-5 text-base-500">
-      Todavía no hay obras con manhwa y novela indexados a la vez. Aparecerán solas
-      conforme el indexador cruce las fuentes.
+      Todavía no hay obras indexadas. Aparecerán solas conforme corra el indexador.
     </p>
   )}
 
-  {/* Índice de la propia página: en móvil, tres listas de 50 son mucho scroll. */}
-  {filas.length > 0 && (
+  {/* Índice de la propia página: en móvil, varias listas de 50 son mucho scroll. */}
+  {masPopulares.length > 0 && (
     <nav class="mt-5 flex flex-wrap gap-2" aria-label="Secciones">
       {listas.map((l) => (
         <a href={`#${l.id}`} class="text-sm neu-inset neu-press rounded-lg px-3 py-1.5 hover:text-acento-500">
@@ -164,10 +192,10 @@ const ruta_migas = migas(Astro.site, [
                 <span class="block text-sm font-medium text-base-700 dark:text-base-200 line-clamp-1">
                   {f.novela.titulo}
                 </span>
-                <span class="block text-[11px] text-base-400 tabular-nums">{l.detalle(f.brecha)}</span>
+                <span class="block text-[11px] text-base-400 tabular-nums">{f.detalle}</span>
               </span>
               <span class="shrink-0 text-sm font-semibold tabular-nums text-acento-500">
-                {l.valor(f.brecha)}
+                {f.valor}
               </span>
             </a>
           </li>
