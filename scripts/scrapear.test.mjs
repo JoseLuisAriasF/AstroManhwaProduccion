@@ -35,6 +35,12 @@ const paginas = {
         <span class="chapter-release-date">21 agosto, 2026</span></li>
       <li class="wp-manga-chapter"><a href="/manga/obra-uno/capitulo-1/">Capítulo 1</a></li>
     </ul>`,
+  // Tema HIJO de Madara (madara-child-mk): la tarjeta ES el <a> y el titulo
+  // vive en su atributo `title`. Sin `.page-item-detail` a la vista.
+  'https://x.test/manga/page/2/': `<div class="agrid">
+      <a class="acard" href="/manga/obra-hija/" title="Obra Hija">
+        <img class="ac-cover" src="https://x.test/hija.webp" alt="Obra Hija"></a>
+    </div>`,
   'https://x.test/lista/': `<div class="listupd"><div class="bs"><div class="bsx">
       <a href="https://x.test/manga/dos/" title="Obra Dos"><img data-lazy-src="https://x.test/2.webp"></a>
     </div></div></div>`,
@@ -55,6 +61,16 @@ assert.deepEqual(madara[0], {
   titulo: 'Obra Uno',
   url: 'https://x.test/manga/obra-uno/',
   portadaUrl: 'https://x.test/portada.webp', // no el placeholder en data:
+});
+
+// El tema hijo: mismo adaptador, la rejilla nueva solo se mira si la clasica
+// no dio nada. Es lo que destraba imperiomanhua.com y cualquier otro fork.
+const hija = await PLATAFORMAS.madara.series('https://x.test/manga/page/2/');
+assert.equal(hija.length, 1, 'la rejilla `a.acard` de los temas hijos');
+assert.deepEqual(hija[0], {
+  titulo: 'Obra Hija',
+  url: 'https://x.test/manga/obra-hija/',
+  portadaUrl: 'https://x.test/hija.webp',
 });
 
 const caps = await PLATAFORMAS.madara.capitulos('https://x.test/manga/obra-uno/');

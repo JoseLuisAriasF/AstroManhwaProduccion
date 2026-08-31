@@ -136,12 +136,27 @@ const abs = (href, base) => {
 const madara = {
   async series(url) {
     const $ = await traer(url);
-    return $('.page-item-detail')
+    const clasicas = $('.page-item-detail')
       .map((_, el) => {
         const a = $(el).find('.post-title h3 a, .post-title h5 a').first();
         return { titulo: a.text().trim(), url: abs(a.attr('href'), url), portadaUrl: imagen($, el) };
       })
       .get();
+    if (clasicas.length) return clasicas;
+    // Los temas HIJOS de Madara (madara-child-mk y sus variantes) reescriben la
+    // rejilla: la tarjeta ya no envuelve un `.post-title`, la tarjeta ES el <a>
+    // y el título vive en su atributo `title`. Por dentro siguen siendo Madara
+    // —los capítulos salen del mismo POST a ajax/chapters/—, así que arreglarlo
+    // aquí y no con selectores por sitio cubre de golpe a todos los que corran
+    // un fork del tema. Visto en imperiomanhua.com.
+    return $('a.acard')
+      .map((_, el) => ({
+        titulo: ($(el).attr('title') || $(el).find('img').attr('alt') || '').trim(),
+        url: abs($(el).attr('href'), url),
+        portadaUrl: imagen($, el),
+      }))
+      .get()
+      .filter((s) => s.titulo && s.url);
   },
   async capitulos(url) {
     // Madara sirve los capítulos por AJAX: la página de la serie trae solo los

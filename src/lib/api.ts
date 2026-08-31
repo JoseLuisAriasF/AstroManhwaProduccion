@@ -105,6 +105,20 @@ function cargarFuentes(): Promise<FilaFuente[]> {
 }
 
 /**
+ * Hosts de portada que se prueban los ÚLTIMOS, aunque sean la `portada_url` de
+ * la obra. No se borran: si una obra no tiene otra candidata, peor es nada.
+ *
+ * - `mangadex`: bloquea el hotlinking. Su URL carga 200 pero es un cartel
+ *   "You can read this at MangaDex", no la portada; `onerror` no lo atrapa.
+ * - `imageshack`: el host está muerto. Medido sobre el catálogo publicado, 14
+ *   de 15 URLs muestreadas dan 404 — son ~2.520 obras, el 38 %. Como
+ *   `obras.portada_url` va primero en la lista y `descubrir.mjs` NUNCA la
+ *   reescribe (su upsert usa `ignoreDuplicates`), esa URL muerta ganaba
+ *   siempre y tapaba la portada buena que sí trae `fuentes.portada_vista`.
+ */
+const AL_FINAL = /mangadex|imageshack/i;
+
+/**
  * La portada que vio cada fuente, agrupada por obra. Sirve de respaldo: muchas
  * `portada_url` de scans terminan en link roto, y así el cliente cae a otra
  * fuente en vez de a un ícono roto.
@@ -170,7 +184,7 @@ function catalogo(): Promise<Novela[]> {
         // (no falla), así que va al final: solo se usa si no hay otra fuente.
         const candidatos = [o.portada_url, ...(portadasFuente.get(o.slug) ?? [])]
           .filter((u, i, a) => u && /^https?:\/\//.test(u) && a.indexOf(u) === i)
-          .sort((a, b) => Number(/mangadex/i.test(a)) - Number(/mangadex/i.test(b)));
+          .sort((a, b) => Number(AL_FINAL.test(a)) - Number(AL_FINAL.test(b)));
         return {
           id: o.slug,
           slug: o.slug,
