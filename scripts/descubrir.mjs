@@ -54,13 +54,17 @@ const pagina = (plantilla, p) => plantilla.replace('{page}', String(p));
  * La repetición importa: muchos temas devuelven la página 1 cuando te pasas
  * del final en vez de un 404, y sin este corte el loop indexa lo mismo N veces.
  */
-export async function seriesDe(sitio, { limite = Infinity } = {}) {
+export async function seriesDe(sitio, { limite = Infinity, topePaginas = Infinity } = {}) {
   const adaptador = PLATAFORMAS[sitio.plataforma];
   if (!adaptador) throw new Error(`plataforma desconocida: ${sitio.plataforma}`);
 
   const todas = [];
   const vistas = new Set();
-  for (let p = 1; p <= sitio.paginas && todas.length < limite; p++) {
+  // El daily recorre solo las primeras páginas (--paginas=N): los catálogos van
+  // ordenados por "más reciente", así que un título nuevo cae ahí. El barrido
+  // completo (sin tope) se reserva al domingo.
+  const tope = Math.min(sitio.paginas, topePaginas);
+  for (let p = 1; p <= tope && todas.length < limite; p++) {
     const url = pagina(sitio.url_series, p);
     let items;
     try {
@@ -103,7 +107,10 @@ const aFuente = (sitio, serie, slug) => ({
 const nombresDe = (s) => [s.titulo, s.slugBase, ...(s.titulosAlt ?? [])].filter(Boolean);
 
 async function descubrirSitio(db, sitio, indice, seco) {
-  const series = await seriesDe(sitio, { limite: Number(args.limite) || Infinity });
+  const series = await seriesDe(sitio, {
+    limite: Number(args.limite) || Infinity,
+    topePaginas: Number(args.paginas) || Infinity,
+  });
   if (!series.length) return 0;
 
   const obras = [];

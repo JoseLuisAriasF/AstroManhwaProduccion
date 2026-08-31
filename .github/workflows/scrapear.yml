@@ -32,11 +32,14 @@ jobs:
           cache: npm
       - run: npm ci
 
-      # Obras nuevas de cada sitio. Los domingos (y a mano) porque un catálogo
-      # no cambia a diario, y recorrerlo son cientos de peticiones a sitios ajenos.
+      # Obras nuevas de cada sitio. A DIARIO pero solo las primeras 3 páginas de
+      # cada catálogo (--paginas=3): van ordenados por "más reciente", así que un
+      # título nuevo cae ahí, y así el barrido diario es ~20× más barato en
+      # peticiones a sitios ajenos. El domingo (y a mano) sí se recorre entero,
+      # por si algún título nuevo entró más adentro del listado.
       - name: Descubrir obras
-        if: github.event.schedule == '0 5 * * 0' || github.event.inputs.descubrir == 'true'
-        run: node scripts/descubrir.mjs
+        if: github.event_name == 'schedule' || github.event.inputs.descubrir == 'true'
+        run: node scripts/descubrir.mjs ${{ github.event.schedule == '0 6 * * 1-6' && '--paginas=3' || '' }}
         env:
           PUBLIC_SUPABASE_URL: ${{ secrets.PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
