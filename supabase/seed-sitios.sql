@@ -19,6 +19,13 @@ values
    'https://leemiau.com/manga/?page={page}&order=update',        40, true),
   ('Legion Scans', 'mangareader', 'manhwa', 'es',
    'https://legionscans.com/wp/manga/?page={page}&order=update', 40, true),
+  -- Verificado el 31-08-2026 con --probar. Corre un tema HIJO de Madara
+  -- (madara-child-mk): la rejilla usa `a.acard` en vez de `.page-item-detail`,
+  -- que es lo que el adaptador aprendio a leer. Los capitulos salen del mismo
+  -- POST a ajax/chapters/ de siempre. 541 series segun su wp-sitemap, 12 por
+  -- pagina: 46 paginas bastan, se dejan 48 de margen.
+  ('Imperiomanhua', 'madara',     'manhwa', 'es',
+   'https://imperiomanhua.com/manga/page/{page}/?m_orderby=latest', 48, true),
 
   -- MangaDex: API pública, una fila POR IDIOMA. Es de donde sale el catálogo
   -- de verdad y la comparación entre idiomas (Eleceed: 8 caps en es, 103 en

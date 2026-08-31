@@ -65,7 +65,7 @@ y esa noche entra solo.
 | `plataforma` | Cuándo | Qué hace falta |
 |---|---|---|
 | `mangadex` | **La fuente principal.** API pública, catálogo enorme, feed por idioma. | Solo la URL del endpoint. |
-| `madara` | El tema de WordPress más común en scans. Capítulos por AJAX. | Solo la URL del listado. |
+| `madara` | El tema de WordPress más común en scans. Capítulos por AJAX. Cubre también sus temas **hijos**, que reescriben la rejilla a `a.acard` (imperiomanhua). | Solo la URL del listado. |
 | `mangareader` | El otro tema grande (leemiau, legionscans…). | Solo la URL del listado. |
 | `asura` | Asura Scans. La web es React, pero su backend `api.asurascans.com` es JSON público con índice de capítulos y metadata. | Solo la URL del endpoint. |
 | `css` | Sitios sueltos con HTML propio. | Los selectores, en la fila de `sitios`. |
