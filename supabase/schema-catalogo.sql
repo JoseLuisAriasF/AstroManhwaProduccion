@@ -56,7 +56,7 @@ create table if not exists public.obras (
 create table if not exists public.sitios (
   id uuid primary key default gen_random_uuid(),
   nombre text not null,
-  plataforma text not null default 'css' check (plataforma in ('madara','mangareader','css','mangadex','sheet','wetriedtls','olympus','blogger','manhwaweb','asura','wtr')),
+  plataforma text not null default 'css' check (plataforma in ('madara','mangareader','css','mangadex','sheet','wetriedtls','olympus','blogger','manhwaweb','asura','wtr','webtoon')),
   tipo text not null default 'manhwa' check (tipo in ('manhwa','novela')),
   idioma text not null default 'es',
   -- Listado de series con {page} como marcador de paginación.
@@ -203,7 +203,7 @@ do $$
 begin
   alter table public.sitios drop constraint if exists sitios_plataforma_check;
   alter table public.sitios add constraint sitios_plataforma_check
-    check (plataforma in ('madara','mangareader','css','mangadex','sheet','wetriedtls','olympus','blogger','manhwaweb','asura','wtr'));
+    check (plataforma in ('madara','mangareader','css','mangadex','sheet','wetriedtls','olympus','blogger','manhwaweb','asura','wtr','webtoon'));
 end $$;
 
 -- solo_match en una tabla ya creada (el CREATE con `if not exists` no la añade).

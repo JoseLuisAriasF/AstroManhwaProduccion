@@ -771,7 +771,68 @@ const wtr = {
   },
 };
 
-export const PLATAFORMAS = { madara, mangareader, css, mangadex, sheet, wetriedtls, olympus, blogger, manhwaweb, asura, wtr };
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * WEBTOON (LINE / webtoons.com) — sitio OFICIAL, no scan
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Link-out con conteo real, como olympus y wtr: NO se bajan los episodios uno a
+ * uno (1.700+ series × N son cientos de miles de páginas paginadas). De cada
+ * serie basta su total y el enlace a webtoons.com — es una tarjeta que lleva al
+ * lector al webtoon oficial.
+ *
+ * El catálogo no vive en una página única: cada /en/genres/{g} es una lista
+ * distinta y parcial (fantasy 970, romance 857, action 599…), así que `series`
+ * recorre los 17 géneros y une por URL. `url_series` de la fila se ignora (no
+ * hay {page} que sustituir).
+ *
+ * robots.txt permite /en/genres/* y /list?title_no=X; solo veta la 1.ª página
+ * del listado de episodios (&page=1), que aquí no se toca.
+ */
+const WT = 'https://www.webtoons.com';
+const GENEROS_WT = 'drama fantasy comedy action slice_of_life romance super_hero sf thriller supernatural mystery sports historical heartwarming horror graphic_novel tiptoon'.split(' ');
+
+const webtoon = {
+  async series() {
+    const vistas = new Set();
+    const out = [];
+    for (const g of GENEROS_WT) {
+      let $;
+      try {
+        $ = await traer(`${WT}/en/genres/${g}`);
+      } catch (e) {
+        console.log(`    género ${g}: ${e.message} — se salta`);
+        continue;
+      }
+      $('a._genre_title_a').each((_, a) => {
+        const A = $(a);
+        const url = abs(A.attr('href'), WT);
+        if (!url || vistas.has(url)) return;
+        vistas.add(url);
+        out.push({
+          titulo: (A.find('.info_text .subj').text() || A.find('.info_text strong').first().text()).trim(),
+          url,
+          portadaUrl: imagen($, a),
+        });
+      });
+      await espera(1500); // cortesía entre géneros
+    }
+    return out;
+  },
+  async capitulos(url) {
+    const $ = await traer(url);
+    // Los episodios van numerados 1..N y el listado por defecto muestra los más
+    // nuevos primero: el mayor episode_no de la página = total de episodios.
+    const nums = $('a[href*="episode_no="]')
+      .map((_, a) => Number(($(a).attr('href') || '').match(/episode_no=(\d+)/)?.[1]) || 0)
+      .get()
+      .filter(Boolean);
+    const n = nums.length ? Math.max(...nums) : 0;
+    if (!n) return [{ numero: null, titulo: 'Leer en WEBTOON', url, fecha_texto: null }];
+    return [{ numero: n, titulo: `Webtoon oficial · ${n} episodios`, url, fecha_texto: null }];
+  },
+};
+
+export const PLATAFORMAS = { madara, mangareader, css, mangadex, sheet, wetriedtls, olympus, blogger, manhwaweb, asura, wtr, webtoon };
 
 /**
  * Plataformas "link-out": su capitulos() no hace ni una petición HTTP, solo lee

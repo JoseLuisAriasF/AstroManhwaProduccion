@@ -95,6 +95,15 @@ values
   ('WTR-Lab', 'wtr', 'novela', 'en', 'https://wtr-lab.com/novels/index.xml', 1, true, true)
 on conflict (url_series) do nothing;
 
+-- WEBTOON (LINE, oficial). Manhwa en inglés, link-out con conteo real. El
+-- adaptador recorre los 17 géneros por dentro, así que url_series es solo la
+-- clave (no lleva {page}) y paginas=1. solo_match=false: da de alta todas sus
+-- series como obras, no solo las que ya casan con una novela.
+insert into public.sitios (nombre, plataforma, tipo, idioma, url_series, paginas, activo, solo_match)
+values
+  ('WEBTOON', 'webtoon', 'manhwa', 'en', 'https://www.webtoons.com/en/genres', 1, true, false)
+on conflict (url_series) do nothing;
+
 -- Quién puede editar el catálogo desde /admin. Este correo es lo ÚNICO que
 -- distingue a un admin de cualquier visitante: RLS compara contra el correo de
 -- la sesión de Google, así que no basta con saberlo, hay que ser esa cuenta.
