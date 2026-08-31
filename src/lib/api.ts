@@ -46,9 +46,13 @@ async function todasLasFilas<T>(tabla: string, columnas: string, filtrar: (q: an
   const TAMAÑO = 1000;
   const todas: T[] = [];
   for (let desde = 0; ; desde += TAMAÑO) {
-    const { data, error } = await filtrar(supabase!.from(tabla).select(columnas)).range(
-      desde,
-      desde + TAMAÑO - 1,
+    // Leer 245.000 filas son ~245 páginas seguidas; un hipo de red en una sola
+    // dejaba el mapa entero vacío y publicaba el sitio en blanco. Reintentar la
+    // página tapa el corte transitorio; si persiste, se propaga y ABORTA el
+    // build —Cloudflare conserva el último deploy bueno en vez de servir vacío—.
+    const { data, error } = await conReintentos(
+      () => filtrar(supabase!.from(tabla).select(columnas)).range(desde, desde + TAMAÑO - 1),
+      `${tabla}[${desde}]`,
     );
     if (error) throw new Error(error.message);
     if (!data?.length) break;
@@ -56,6 +60,29 @@ async function todasLasFilas<T>(tabla: string, columnas: string, filtrar: (q: an
     if (data.length < TAMAÑO) break;
   }
   return todas;
+}
+
+/**
+ * Reintenta una lectura de Supabase ante fallo transitorio (error de red o
+ * `error` en la respuesta). Tras agotar los intentos, lanza: quien lo llama
+ * debe dejar que reviente el build, no tragarse el vacío.
+ */
+async function conReintentos(
+  leer: () => PromiseLike<{ data: any; error: any }>,
+  etiqueta: string,
+  intentos = 3,
+): Promise<{ data: any; error: any }> {
+  for (let i = 1; ; i++) {
+    try {
+      const r = await leer();
+      if (!r.error) return r;
+      if (i >= intentos) return r; // devuelve el error para el mensaje del caller
+    } catch (e) {
+      if (i >= intentos) throw e;
+    }
+    console.warn(`[reintento ${i}/${intentos}] ${etiqueta}`);
+    await new Promise((s) => setTimeout(s, 500 * i));
+  }
 }
 
 /**
@@ -380,7 +407,10 @@ function cargarExternos(): Promise<Map<string, CapituloExterno[]>> {
       }
       console.log(`[externos] ${filas.length} capítulos en ${mapa.size} obras`);
     } catch (e) {
-      console.warn(`[externos] ${(e as Error).message}`);
+      // NO devolver un mapa vacío: sin capítulos externos, TODAS las obras
+      // pierden el formato y el grid "manhwa y novela" sale en 0. Abortar el
+      // build es lo correcto —Cloudflare mantiene el último deploy bueno—.
+      throw new Error(`[externos] lectura falló, se aborta el build para no publicar vacío: ${(e as Error).message}`);
     }
     return mapa;
   })();
