@@ -24,3 +24,24 @@
 
 /portadas/*
   Cache-Control: public, max-age=604800
+
+# Endpoints estáticos. En `output: 'static'` Astro escribe el ARCHIVO pero tira
+# las cabeceras del `new Response(...)`: el Cache-Control que llevan dentro
+# buscar.json y rss.xml nunca llegaba al navegador. Aquí sí.
+/buscar.json
+  Cache-Control: public, max-age=0, must-revalidate
+  CDN-Cache-Control: public, s-maxage=86400, stale-while-revalidate=604800
+
+/rss.xml
+  Content-Type: application/rss+xml; charset=utf-8
+  Cache-Control: public, max-age=1800
+  CDN-Cache-Control: public, s-maxage=3600, stale-while-revalidate=86400
+
+/sitemap-*.xml
+  CDN-Cache-Control: public, s-maxage=3600, stale-while-revalidate=86400
+
+# El mapa que consulta el proxy de portadas. Lo pide la función, no el navegador:
+# cuanto más tiempo viva en el edge, menos veces se baja.
+/portadas.json
+  Cache-Control: public, max-age=0, must-revalidate
+  CDN-Cache-Control: public, s-maxage=86400, stale-while-revalidate=604800

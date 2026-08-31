@@ -48,7 +48,19 @@ const idiomasAlternos = alternativas(Astro.url.pathname, idiomas);
 const ogPropia = imagen === '/og-default.png';
 const SITIO = 'ManhwaToNovel';
 // Se lee en el build (variable de entorno de Cloudflare Pages), no en cliente.
-const TOKEN_ANALYTICS = import.meta.env.PUBLIC_CF_ANALYTICS_TOKEN ?? '';
+// El token del dominio real es el valor por defecto: el beacon estaba DOS veces
+// (uno aquí y otro fijo en el <body>), así que cada visita se contaba doble y se
+// pedía el script dos veces. Ahora hay uno solo, y sin variable sigue midiendo.
+// Solo en el build: con el token por defecto, `npm run dev` mandaría cada
+// recarga local a la analítica del dominio real (y llenaría la consola de CORS).
+const TOKEN_ANALYTICS = import.meta.env.PROD
+  ? (import.meta.env.PUBLIC_CF_ANALYTICS_TOKEN ?? 'a0297c97343840d6b85ccebfd8d885ff')
+  : '';
+// Verificación de Google Search Console por meta (la alternativa al TXT de DNS).
+// GSC es lo único que dice QUÉ se buscó para llegar aquí: con eso se sabe cuál
+// de los ~8 títulos alternativos de cada obra recibe impresiones de verdad, que
+// es el que debe ir en el <title>. Cloudflare Analytics no da consultas.
+const GSC = import.meta.env.PUBLIC_GSC_VERIFICATION ?? '';
 ---
 
 <!doctype html>
@@ -58,9 +70,18 @@ const TOKEN_ANALYTICS = import.meta.env.PUBLIC_CF_ANALYTICS_TOKEN ?? '';
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{titulo}</title>
     <meta name="description" content={descripcion} />
+    {GSC && <meta name="google-site-verification" content={GSC} />}
     {noindex && <meta name="robots" content="noindex, follow" />}
     <link rel="canonical" href={canonical} />
     <link rel="sitemap" href="/sitemap-index.xml" />
+    {/* Descubrimiento del feed: sin esta línea el RSS existe pero ningún lector,
+        agregador ni bot de Discord/Telegram lo encuentra solo desde la página. */}
+    <link
+      rel="alternate"
+      type="application/rss+xml"
+      title="ManhwaToNovel — Capítulos nuevos"
+      href={new URL('/rss.xml', Astro.site).toString()}
+    />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     {/* Instalable en móvil ("añadir a pantalla de inicio"). En un sitio de
         lectura el valor no es la moda PWA: es el acceso directo que convierte
@@ -108,10 +129,23 @@ const TOKEN_ANALYTICS = import.meta.env.PUBLIC_CF_ANALYTICS_TOKEN ?? '';
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    {/* Las fuentes NO bloquean el primer pintado: `media="print"` hace que el
+        navegador las baje sin esperar a aplicarlas, y el onload las activa. Antes
+        cada página esperaba un viaje de ida y vuelta a un tercer dominio antes de
+        pintar una letra. Se ve la fuente de sistema unos ms (font-display: swap
+        ya hacía eso mismo con el texto). El <noscript> cubre a quien no tiene JS. */}
     <link
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Literata:opsz,wght@7..72,400;7..72,500&display=swap"
+      media="print"
+      onload="this.media='all'"
     />
+    <noscript>
+      <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Literata:opsz,wght@7..72,400;7..72,500&display=swap"
+      />
+    </noscript>
 
     {jsonLd && <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />}
 
@@ -234,15 +268,5 @@ const TOKEN_ANALYTICS = import.meta.env.PUBLIC_CF_ANALYTICS_TOKEN ?? '';
       init();
     </script>
 
-    {/* Cloudflare Web Analytics: mide el tráfico en el dominio real (sin cookies,
-        privacy-friendly). Antes solo medía el .pages.dev porque el beacon vivía
-        ahí; en el dominio propio estaba en modo "snippet manual" y no se había
-        puesto. El .pages.dev ya redirige aquí (301), así que no se duplica. */}
-    <script
-      is:inline
-      type="module"
-      src="https://static.cloudflareinsights.com/beacon.min.js"
-      data-cf-beacon='{"token": "a0297c97343840d6b85ccebfd8d885ff"}'
-    ></script>
   </body>
 </html>

@@ -178,7 +178,18 @@ function catalogo(): Promise<Novela[]> {
           titulo: o.titulo,
           titulosAlternativos: o.titulos_alternativos ?? [],
           sinopsis: o.sinopsis ?? '',
-          portadaUrl: candidatos[0] || '/portadas/sin-portada.svg',
+          // La portada se sirve por NUESTRO dominio (ver functions/portada/):
+          // así la indexa Google Imágenes a nuestro nombre y no al de la scan,
+          // y el og:image deja de ser de un tercero. Se cambia AQUÍ, que es por
+          // donde pasan las ~12 plantillas que pintan una portada.
+          // En `dev` no hay funciones de Cloudflare, así que ahí va el origen.
+          portadaUrl: candidatos.length
+            ? import.meta.env.PROD
+              ? `/portada/${o.slug}.jpg`
+              : candidatos[0]
+            : '/portadas/sin-portada.svg',
+          // Las de origen siguen aquí: son el respaldo por JS de `data-fb` y la
+          // lista que consume /portadas.json para decirle al proxy qué probar.
           portadas: candidatos,
           estado: o.estado,
           categorias: o.categorias ?? [],

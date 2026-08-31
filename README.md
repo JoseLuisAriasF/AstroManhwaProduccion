@@ -34,6 +34,8 @@ npm run build    # dist/ listo para Cloudflare Pages
 | `scripts/indexnow.mjs` | Avisa a Bing/Yandex/Naver/Seznam de lo que cambió. Gratis y sin cuenta. |
 | `scripts/palabras.mjs` | Qué escribe la gente de verdad, del autocompletado de Google. Herramienta de escritorio. |
 | `public/_headers` | `CDN-Cache-Control: s-maxage=86400, stale-while-revalidate` en el edge. |
+| `functions/portada/[slug].ts` | **Las portadas, servidas desde nuestro dominio.** Proxy en el edge, sin guardar nada. |
+| `src/pages/portadas.json.ts` | El mapa slug → URLs de origen que consulta ese proxy. |
 
 ## El agregador: de un sitio a un catálogo
 
@@ -222,6 +224,62 @@ de verdad, por idioma y país, no volumen estimado. Sirve para saber cuál de lo
 títulos alternativos se busca y con qué cola («… novela», «… 153»), que es lo
 que debe ir en el `<title>` y el `h1`.
 
+### Las portadas, en nuestro dominio
+
+Cada `<img>` apuntaba al sitio de origen. Eso regalaba tres cosas:
+
+- **Google Imágenes** indexaba la portada bajo el dominio de la scan. En este
+  nicho se busca por portada, y ese tráfico se lo llevaba entero otro sitio.
+- El `og:image` era de un tercero: varias redes descartan la vista previa.
+- Cuando la scan borra la imagen, la ficha enseña un ícono roto. El respaldo por
+  JS (`data-fb`) lo tapa para la persona, pero **un rastreador no ejecuta JS**:
+  para Google la portada seguía rota.
+
+```
+<img src="/portada/<slug>.jpg">
+        |
+   functions/portada/[slug].ts --lee--> /portadas.json (slug -> URLs de origen)
+        |                                     generado en el build
+   fetch al origen --> caché de Cloudflare --> las siguientes visitas
+                                               ni ejecutan la función
+```
+
+**No se copia ninguna imagen, y es a propósito.** Todo almacenamiento gratis
+tiene tope (Supabase Storage: 1 GB; R2: 10 GB) y 8.600 portadas lo van comiendo
+sin parar hasta que un día hay que pagar. La caché del edge, en cambio, es gratis
+y sin límite: la primera petición trae la imagen del origen y las demás salen del
+edge. El coste se queda en cero para siempre.
+
+La lista de destinos es **cerrada**: solo se proxea lo que está en
+`/portadas.json`. Llevar la URL en la ruta habría convertido el dominio en un
+proxy abierto que cualquiera podría usar para pedir lo que quisiera.
+
+El proxy además **prueba las fuentes en orden** y descarta lo que llega con 200
+pero no es una imagen (el cartel de «no hotlinking» de algunas scans). Si ninguna
+sirve, devuelve el placeholder: nunca un ícono roto, tampoco para Googlebot.
+
+```bash
+npm run test:portada    # los 4 casos del proxy, sin red
+```
+
+> En `npm run dev` no hay funciones de Cloudflare, así que ahí `portadaUrl` sigue
+> siendo la URL de origen. El cambio vive en `src/lib/api.ts`, que es por donde
+> pasan las ~12 plantillas que pintan una portada.
+
+### Qué se buscó para llegar aquí
+
+`PUBLIC_GSC_VERIFICATION` emite el `<meta name="google-site-verification">` de
+Search Console (la alternativa al TXT de DNS). Sin la variable no se emite nada.
+
+GSC es lo único que dice **qué consulta** trajo cada visita: con eso se sabe cuál
+de los ~8 títulos alternativos de una obra recibe impresiones de verdad, y ese es
+el que debe ir en el `<title>` y el `h1`. Cloudflare Web Analytics mide visitas,
+no consultas; `npm run palabras` dice qué se busca en general, no qué te
+encuentra a ti. Es la realimentación que le faltaba al ciclo.
+
+Bing Webmaster Tools se verifica solo importando desde GSC y acepta 10.000 URLs
+al día por su API — encima de lo que ya manda IndexNow.
+
 ### Analítica sin banner
 
 `PUBLIC_CF_ANALYTICS_TOKEN` activa Cloudflare Web Analytics: gratis, sin límite
@@ -304,7 +362,8 @@ Sin variables de Supabase el sitio compila y funciona igual, en modo invitado. S
 1. Sube el repo a GitHub → Cloudflare Pages → *Connect to Git*.
 2. Build command `npm run build`, output `dist`.
 3. Variables de entorno: `SITE_URL`, `PUBLIC_SUPABASE_URL`, `PUBLIC_SUPABASE_ANON_KEY`
-   y, si quieres analítica, `PUBLIC_CF_ANALYTICS_TOKEN`.
+   y, opcionales, `PUBLIC_CF_ANALYTICS_TOKEN` (analítica) y
+   `PUBLIC_GSC_VERIFICATION` (Search Console).
    En los *secrets* de GitHub hace falta además `SITE_URL` (lo usa IndexNow).
 4. Apunta el dominio y actualiza el `Sitemap:` de `public/robots.txt`.
 
@@ -337,6 +396,7 @@ no hay credenciales. Por eso `npm run dev` funciona en un repo recién clonado.
 
 ```bash
 npm run test:scrapear                              # adaptadores, sin red
+npm run test:portada                               # proxy de portadas, sin red
 node --experimental-strip-types src/lib/api.test.ts
 ```
 
