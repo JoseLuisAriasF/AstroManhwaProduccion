@@ -35,6 +35,18 @@ const CACHE = {
   'CDN-Cache-Control': 'public, s-maxage=2592000, stale-while-revalidate=2592000',
 };
 
+/**
+ * CDNs con protección de hotlinking: solo sirven la imagen si el `Referer` es el
+ * sitio dueño del CDN. Medido sobre 40 obras del catálogo: sin esto, `img*mw.xyz`
+ * devuelve 403 siempre —también al navegador, que manda NUESTRO dominio—, así que
+ * estas portadas no se veían ni antes del proxy. Aquí sí se recuperan.
+ *
+ * Al resto NO se le manda `Referer`: comprobado en 12 hosts (lezhin, mangadex,
+ * leemiau, olympus, reaperscans, wp.com…), da exactamente el mismo resultado con
+ * y sin él. Mandar uno inventado solo puede hacer daño.
+ */
+const REFERER: Array<[RegExp, string]> = [[/(^|\.)img\d*mw\.xyz$/i, 'https://manhwaweb.com/']];
+
 /** El mapa vive en el isolate: se descarga una vez por PoP, no por petición. */
 let mapa: Promise<Record<string, string[]>> | null = null;
 
@@ -61,12 +73,11 @@ export const onRequest = async (context: {
 
   for (const destino of candidatas) {
     try {
-      // `Referer` del propio origen: varias scans sirven un cartel de "no
-      // hotlinking" cuando no lo ven, y ese cartel llega con 200 y tipo imagen,
-      // así que no se distingue de una portada buena — mejor no provocarlo.
+      const host = new URL(destino).hostname;
+      const referer = REFERER.find(([re]) => re.test(host))?.[1];
       const r = await fetch(destino, {
         headers: {
-          Referer: new URL(destino).origin + '/',
+          ...(referer ? { Referer: referer } : {}),
           'User-Agent': context.request.headers.get('user-agent') ?? 'Mozilla/5.0',
           Accept: 'image/avif,image/webp,image/*,*/*;q=0.8',
         },
