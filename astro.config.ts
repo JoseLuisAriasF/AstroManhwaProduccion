@@ -54,6 +54,19 @@ export default defineConfig({
             ...(meta?.lastmod ? { lastmod: new Date(meta.lastmod).toISOString() } : {}),
             priority: meta?.ambos ? 0.9 : 0.6,
             changefreq: 'weekly',
+            // Sitemap de imagen. Desde que la portada se sirve por NUESTRO
+            // dominio (functions/portada/), Google Imágenes puede indexarla a
+            // nuestro nombre — pero primero tiene que encontrarla, y las
+            // portadas se pintan dentro de tarjetas y listas, no como imagen
+            // principal de la página. Declararlas aquí es lo que las mete al
+            // índice sin depender de que el rastreador las descubra solo.
+            // `img` no está en el tipo de @astrojs/sitemap (recorta a url,
+            // lastmod, changefreq, priority y links) pero el objeto pasa entero
+            // al paquete `sitemap`, que sí lo entiende; el namespace de imagen
+            // ya viene activado por defecto. De ahí el cast, igual que arriba.
+            ...(meta?.portada
+              ? { img: [{ url: new URL(`/portada/${slug}.jpg`, item.url).toString() }] }
+              : {}),
           } as typeof item;
         }
         // Páginas propias de alto valor (series, rankings, novedades…).

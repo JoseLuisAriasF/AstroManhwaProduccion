@@ -61,6 +61,16 @@ const TOKEN_ANALYTICS = import.meta.env.PROD
 // de los ~8 títulos alternativos de cada obra recibe impresiones de verdad, que
 // es el que debe ir en el <title>. Cloudflare Analytics no da consultas.
 const GSC = import.meta.env.PUBLIC_GSC_VERIFICATION ?? '';
+// Reclamar el dominio en Pinterest. Sin esto los pines que salen del sitio no
+// llevan atribución, no se puede ver su analítica y no se activan los Rich Pins
+// (que rellenan título y descripción del pin desde el Open Graph de abajo, ya
+// presente). Es la única red donde un pin sigue trayendo visitas meses después
+// de publicarlo, así que el tráfico no depende solo de que Google despierte.
+// El código del dominio real es el valor por defecto —igual que el token de
+// analítica— para que la verificación no dependa de acordarse de poner una
+// variable en Cloudflare. La variable sigue mandando si se define.
+const PINTEREST =
+  import.meta.env.PUBLIC_PINTEREST_VERIFICATION ?? 'c2ec8c9819941e9aaada489a94d75062';
 ---
 
 <!doctype html>
@@ -71,6 +81,7 @@ const GSC = import.meta.env.PUBLIC_GSC_VERIFICATION ?? '';
     <title>{titulo}</title>
     <meta name="description" content={descripcion} />
     {GSC && <meta name="google-site-verification" content={GSC} />}
+    {PINTEREST && <meta name="p:domain_verify" content={PINTEREST} />}
     {noindex && <meta name="robots" content="noindex, follow" />}
     <link rel="canonical" href={canonical} />
     <link rel="sitemap" href="/sitemap-index.xml" />

@@ -22,6 +22,9 @@ export interface MetaObra {
   lastmod?: string;
   /** true si tiene manhwa Y novela: es el contenido que solo este sitio arma. */
   ambos: boolean;
+  /** true si alguna fuente vio portada: entonces `/portada/<slug>.jpg` devuelve
+   *  una imagen de verdad y vale la pena declararla en el sitemap de imagen. */
+  portada: boolean;
 }
 
 export async function metaSitemap(): Promise<Map<string, MetaObra>> {
@@ -37,20 +40,43 @@ export async function metaSitemap(): Promise<Map<string, MetaObra>> {
     for (let desde = 0; ; desde += TAM) {
       const { data, error } = await db
         .from('fuentes')
-        .select('obra_slug, tipo, ultimo_cambio, ultimo_scrape')
+        .select('obra_slug, tipo, ultimo_cambio, ultimo_scrape, portada_vista')
+        // Orden total, o `range()` se salta filas: ver el aviso en api.ts.
+        .order('id')
         .range(desde, desde + TAM - 1);
       if (error) throw new Error(error.message);
       if (!data?.length) break;
       for (const f of data as any[]) {
-        const cur = mapa.get(f.obra_slug) ?? { ambos: false };
+        const cur = mapa.get(f.obra_slug) ?? { ambos: false, portada: false };
         const fecha = f.ultimo_cambio || f.ultimo_scrape;
         if (fecha && (!cur.lastmod || fecha > cur.lastmod)) cur.lastmod = fecha;
+        if (f.portada_vista) cur.portada = true;
         mapa.set(f.obra_slug, cur);
         (tipos.get(f.obra_slug) ?? tipos.set(f.obra_slug, new Set()).get(f.obra_slug)!).add(f.tipo);
       }
       if (data.length < TAM) break;
     }
     for (const [slug, set] of tipos) mapa.get(slug)!.ambos = set.size >= 2;
+
+    // La portada del admin vive en `obras.portada_url` y puede no estar en
+    // ninguna fuente: medido, 477 obras del catálogo tienen imagen SOLO ahí y
+    // se quedaban fuera del sitemap de imagen aunque `/portada/<slug>.jpg` las
+    // sirva perfectamente.
+    for (let desde = 0; ; desde += TAM) {
+      const { data, error } = await db
+        .from('obras')
+        .select('slug, portada_url')
+        .order('slug')
+        .range(desde, desde + TAM - 1);
+      if (error) throw new Error(error.message);
+      if (!data?.length) break;
+      for (const o of data as any[]) {
+        if (!/^https?:\/\//.test(o.portada_url ?? '')) continue;
+        const cur = mapa.get(o.slug);
+        if (cur) cur.portada = true;
+      }
+      if (data.length < TAM) break;
+    }
   } catch (e) {
     console.warn(`[sitemapMeta] ${(e as Error).message} — sitemap con valores por defecto`);
   }
