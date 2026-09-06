@@ -1,6 +1,6 @@
 ---
 import Base from '@/layouts/Base.astro';
-import { getActividad, getNovelas } from '@/lib/api';
+import { fuentesDe, getActividad, getCapitulosExternos, getNovelas } from '@/lib/api';
 import { IDIOMA_BASE, ruta, t, type Idioma } from '@/lib/i18n';
 import { migas } from '@/lib/seo';
 
@@ -33,6 +33,18 @@ const porSlug = new Map(novelas.map((n) => [n.slug, n]));
 
 // Solo obras que de verdad se publican (getNovelas ya filtra las vacías).
 const recientes = actividad.filter((a) => porSlug.has(a.slug)).slice(0, TOPE);
+
+// El último capítulo de cada obra, para enlazar su página. Esta es la página
+// más fresca del sitio y la que más se rastrea: un enlace desde aquí mete al
+// capítulo nuevo en el índice días antes que el sitemap. Y para quien lee es
+// el atajo obvio —viene a por el capítulo nuevo, no a por la ficha—.
+// Las fuentes link-out quedan fuera: su `ultimo` es un total, no un capítulo.
+const ultimoCap = new Map<string, number>();
+for (const a of recientes) {
+  const conLista = fuentesDe(await getCapitulosExternos(a.slug)).filter((f) => !f.soloEnlace);
+  const ultimo = Math.max(0, ...conLista.map((f) => f.ultimo));
+  if (ultimo > 0) ultimoCap.set(a.slug, ultimo);
+}
 
 /** Agrupadas por día, que es como la gente lee una lista de novedades. */
 const dias = new Map<string, typeof recientes>();
@@ -133,6 +145,14 @@ const SOLO_BASE: Idioma[] = [IDIOMA_BASE];
                   <span class="block text-[11px] text-base-400 truncate">{a.fuentes.join(' · ')}</span>
                 </span>
               </a>
+              {ultimoCap.has(a.slug) && (
+                <a
+                  href={ruta(IDIOMA_BASE, `/novela/${n.slug}/capitulo-${ultimoCap.get(a.slug)}`)}
+                  class="mt-1 block text-[11px] text-acento-500 hover:underline"
+                >
+                  Capítulo {ultimoCap.get(a.slug)} →
+                </a>
+              )}
             </li>
           );
         })}

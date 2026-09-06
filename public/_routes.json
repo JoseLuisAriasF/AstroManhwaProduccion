@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "include": ["/*"],
+  "exclude": [
+    "/_astro/*",
+    "/portadas/*",
+    "/favicon.svg",
+    "/icono-192.png",
+    "/icono-512.png",
+    "/og-default.png",
+    "/og-default.svg",
+    "/manifest.webmanifest",
+    "/robots.txt",
+    "/rss.xml",
+    "/buscar.json",
+    "/portadas.json",
+    "/fuentes-enlace.json",
+    "/sitemap-index.xml",
+    "/sitemap-0.xml",
+    "/sitemap-1.xml",
+    "/sitemap-2.xml",
+    "/sitemap-capitulos-1.xml",
+    "/sitemap-capitulos-2.xml",
+    "/sitemap-capitulos-3.xml",
+    "/sitemap-capitulos-4.xml",
+    "/sitemap-capitulos-5.xml",
+    "/sitemap-capitulos-6.xml"
+  ]
+}

@@ -1,4 +1,8 @@
-import type { EquivalenciaManhwa } from '@/types/novela';
+// Ruta relativa y no el alias `@/`: este módulo lo importa también la función
+// del edge (functions/novela/…), que la bundlea Wrangler y no conoce los alias
+// de Astro. Es lo único que hace falta para compartir la fórmula en vez de
+// tener dos que se separan con el tiempo.
+import type { EquivalenciaManhwa } from '../types/novela';
 
 /**
  * Manhwa -> novela. Interpola linealmente entre anclas y extrapola con el

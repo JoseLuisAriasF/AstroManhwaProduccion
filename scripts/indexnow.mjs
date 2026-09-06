@@ -67,12 +67,53 @@ const { data, error } = await db
 if (error) throw new Error(error.message);
 
 const slugs = [...new Set((data ?? []).map((f) => f.obra_slug).filter(Boolean))];
-// La portada y el catálogo cambian con cada tanda nueva, así que van siempre.
-const urlList = [`${sitio}/`, `${sitio}/novelas`, ...slugs.map((s) => `${sitio}/novela/${s}`)];
 
-console.log(`${slugs.length} obras con capítulo nuevo en ${horas} h → ${urlList.length} URLs`);
+// Los CAPÍTULOS nuevos, uno a uno. Cada uno tiene su propia página —la arma
+// functions/novela/[slug]/[capitulo].ts— y es la URL con más intención de
+// búsqueda que produce el sitio: alguien escribe «<obra> cap 1200» el mismo día
+// que sale. Avisar solo de la ficha dejaba esa página esperando al rastreo.
+//
+// `visto_en` es cuándo se indexó la fila, así que la ventana es la misma que
+// arriba. Las fuentes link-out quedan fuera (n_caps <= 1): su fila guarda el
+// TOTAL en `numero` y enlaza a la serie, no al capítulo, y esa página da 404.
+const capitulos = [];
+if (slugs.length) {
+  const { data: fuentesLinkOut } = await db.from('fuentes').select('id').lte('n_caps', 1);
+  const excluir = new Set((fuentesLinkOut ?? []).map((f) => f.id));
+  const LOTE_SLUGS = 200; // el filtro `in.()` va en la URL: no cabe el catálogo entero
+  for (let i = 0; i < slugs.length; i += LOTE_SLUGS) {
+    const { data: nuevos, error: errCaps } = await db
+      .from('capitulos_externos')
+      .select('obra_slug, numero, fuente_id')
+      .in('obra_slug', slugs.slice(i, i + LOTE_SLUGS))
+      .gte('visto_en', desde)
+      .eq('aprobado', true)
+      .not('numero', 'is', null)
+      .limit(10000);
+    if (errCaps) throw new Error(errCaps.message);
+    for (const c of nuevos ?? []) {
+      if (!excluir.has(c.fuente_id)) capitulos.push(`${sitio}/novela/${c.obra_slug}/capitulo-${c.numero}`);
+    }
+  }
+}
+
+// La portada y el catálogo cambian con cada tanda nueva, así que van siempre.
+const urlList = [
+  `${sitio}/`,
+  `${sitio}/novelas`,
+  ...slugs.map((s) => `${sitio}/novela/${s}`),
+  ...new Set(capitulos),
+];
+
+console.log(
+  `${slugs.length} obras y ${new Set(capitulos).size} capítulos nuevos en ${horas} h → ${urlList.length} URLs`,
+);
 if (args.seco === 'true') {
-  for (const u of urlList.slice(0, 10)) console.log(`  ${u}`);
+  // Las dos puntas: las fichas van primero y los capítulos al final, y lo que
+  // hay que mirar en una prueba es justo que los segundos existan.
+  for (const u of urlList.slice(0, 5)) console.log(`  ${u}`);
+  if (urlList.length > 10) console.log(`  … ${urlList.length - 10} más`);
+  for (const u of urlList.slice(-5)) console.log(`  ${u}`);
   process.exit(0);
 }
 
