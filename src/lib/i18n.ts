@@ -156,6 +156,10 @@ const es = {
   finalizado: 'Finalizado',
   capitulosCorto: 'caps.',
   nCapitulos: (n: number) => `${n} capítulos`,
+  // Etiqueta de UNA fila de capítulo. Va como texto visible, no como aria-label:
+  // "Capítulo 1200" es la consulta con la que se busca un capítulo suelto, y solo
+  // cuenta si está escrita en la página. El número a secas no la responde.
+  capNumero: (n: number) => `Capítulo ${n}`,
   tambienConocida: 'También conocida como:',
   empezarALeer: 'Empezar a leer',
   continuarEnCap: (n: number) => `Continuar en el cap. ${n}`,
@@ -283,6 +287,10 @@ const en: Diccionario = {
   finalizado: 'Completed',
   capitulosCorto: 'ch.',
   nCapitulos: (n: number) => `${n} chapters`,
+  // Etiqueta de UNA fila de capítulo. Va como texto visible, no como aria-label:
+  // "Capítulo 1200" es la consulta con la que se busca un capítulo suelto, y solo
+  // cuenta si está escrita en la página. El número a secas no la responde.
+  capNumero: (n: number) => `Chapter ${n}`,
   tambienConocida: 'Also known as:',
   empezarALeer: 'Start reading',
   continuarEnCap: (n: number) => `Continue at ch. ${n}`,
@@ -402,6 +410,10 @@ const pt: Diccionario = {
   finalizado: 'Finalizada',
   capitulosCorto: 'caps.',
   nCapitulos: (n: number) => `${n} capítulos`,
+  // Etiqueta de UNA fila de capítulo. Va como texto visible, no como aria-label:
+  // "Capítulo 1200" es la consulta con la que se busca un capítulo suelto, y solo
+  // cuenta si está escrita en la página. El número a secas no la responde.
+  capNumero: (n: number) => `Capítulo ${n}`,
   tambienConocida: 'Também conhecida como:',
   empezarALeer: 'Começar a ler',
   continuarEnCap: (n: number) => `Continuar no cap. ${n}`,
@@ -521,6 +533,10 @@ const id: Diccionario = {
   finalizado: 'Tamat',
   capitulosCorto: 'bab',
   nCapitulos: (n: number) => `${n} bab`,
+  // Etiqueta de UNA fila de capítulo. Va como texto visible, no como aria-label:
+  // "Capítulo 1200" es la consulta con la que se busca un capítulo suelto, y solo
+  // cuenta si está escrita en la página. El número a secas no la responde.
+  capNumero: (n: number) => `Bab ${n}`,
   tambienConocida: 'Dikenal juga sebagai:',
   empezarALeer: 'Mulai membaca',
   continuarEnCap: (n: number) => `Lanjut ke bab ${n}`,
@@ -642,6 +658,10 @@ const fr: Diccionario = {
   finalizado: 'Terminé',
   capitulosCorto: 'ch.',
   nCapitulos: (n: number) => `${n} chapitres`,
+  // Etiqueta de UNA fila de capítulo. Va como texto visible, no como aria-label:
+  // "Capítulo 1200" es la consulta con la que se busca un capítulo suelto, y solo
+  // cuenta si está escrita en la página. El número a secas no la responde.
+  capNumero: (n: number) => `Chapitre ${n}`,
   tambienConocida: 'Aussi connu sous le nom de :',
   empezarALeer: 'Commencer la lecture',
   continuarEnCap: (n: number) => `Reprendre au ch. ${n}`,
@@ -765,6 +785,10 @@ const de: Diccionario = {
   finalizado: 'Abgeschlossen',
   capitulosCorto: 'Kap.',
   nCapitulos: (n: number) => `${n} Kapitel`,
+  // Etiqueta de UNA fila de capítulo. Va como texto visible, no como aria-label:
+  // "Capítulo 1200" es la consulta con la que se busca un capítulo suelto, y solo
+  // cuenta si está escrita en la página. El número a secas no la responde.
+  capNumero: (n: number) => `Kapitel ${n}`,
   tambienConocida: 'Auch bekannt als:',
   empezarALeer: 'Lesen beginnen',
   continuarEnCap: (n: number) => `Weiter bei Kap. ${n}`,
@@ -887,6 +911,10 @@ const vi: Diccionario = {
   finalizado: 'Hoàn thành',
   capitulosCorto: 'ch.',
   nCapitulos: (n: number) => `${n} chương`,
+  // Etiqueta de UNA fila de capítulo. Va como texto visible, no como aria-label:
+  // "Capítulo 1200" es la consulta con la que se busca un capítulo suelto, y solo
+  // cuenta si está escrita en la página. El número a secas no la responde.
+  capNumero: (n: number) => `Chương ${n}`,
   tambienConocida: 'Còn được gọi là:',
   empezarALeer: 'Bắt đầu đọc',
   continuarEnCap: (n: number) => `Đọc tiếp ch. ${n}`,

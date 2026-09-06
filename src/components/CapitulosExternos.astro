@@ -1,6 +1,7 @@
 ---
 import type { CapituloExterno } from '@/types/novela';
 import { IDIOMAS, esIdioma, idiomaDeRuta, t } from '@/lib/i18n';
+import { restoDelTitulo } from '@/lib/capitulos';
 
 interface Fuente {
   fuenteId: string;
@@ -98,7 +99,12 @@ const etiquetaTipo = (tipo: 'manhwa' | 'novela') => (tipo === 'manhwa' ? 'Manhwa
           </p>
 
           <ol class="grid gap-2">
-            {f.capitulos.map((c) => (
+            {f.capitulos.map((c) => {
+              // Una sola pasada del regex por fila: en una obra de 2.000
+              // capítulos, llamarlo en la condición y otra vez en el valor son
+              // 4.000 ejecuciones por página, y hay 8.600 páginas.
+              const resto = restoDelTitulo(c.titulo, c.numero);
+              return (
               <li
                 data-cap={c.numero ?? ''}
                 data-leido="false"
@@ -110,10 +116,18 @@ const etiquetaTipo = (tipo: 'manhwa' | 'novela') => (tipo === 'manhwa' ? 'Manhwa
                   rel="noopener nofollow"
                   class="min-w-0 flex-1 flex items-baseline gap-2 py-0.5"
                 >
+                  {/* "Capítulo 1200", no "1200": es la frase con la que se busca
+                      un capítulo suelto, y solo cuenta si está escrita aquí. La
+                      escribe el sitio (en su idioma) y no la scan, que la trae
+                      como le da la gana o no la trae. */}
                   {c.numero !== null && (
-                    <span class="font-medium tabular-nums text-base-700 dark:text-base-200">{c.numero}</span>
+                    <span class="font-medium tabular-nums whitespace-nowrap text-base-700 dark:text-base-200">
+                      {dic.capNumero(c.numero)}
+                    </span>
                   )}
-                  <span class="truncate text-sm text-base-500">{c.titulo}</span>
+                  {/* Del título de la scan solo lo que AÑADE: casi siempre es el
+                      número otra vez, y se leía "Capítulo 1200 · Capítulo 1200". */}
+                  {resto && <span class="truncate text-sm text-base-500">{resto}</span>}
                   <svg
                     viewBox="0 0 24 24"
                     fill="none"
@@ -132,7 +146,8 @@ const etiquetaTipo = (tipo: 'manhwa' | 'novela') => (tipo === 'manhwa' ? 'Manhwa
                   <span class="shrink-0 text-[11px] text-base-400 hidden sm:block">{c.fecha_texto}</span>
                 )}
               </li>
-            ))}
+              );
+            })}
           </ol>
         </div>
       ))}

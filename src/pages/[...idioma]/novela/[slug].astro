@@ -60,6 +60,48 @@ const alternos = novela.titulosAlternativos.join(', ');
 // la consulta "¿por qué capítulo sigo?".
 const brecha = brechaDe(externos);
 
+// ── El <title>, con los números que se buscan ────────────────────────────────
+// Un capítulo suelto se busca por su número —"<obra> cap 1200", "<obra> manhwa
+// 1200", "<obra> novel 1200"— y el grueso de esas búsquedas es por el ÚLTIMO
+// publicado. El <title> es la señal más fuerte de la página, así que lleva el
+// último de cada formato: se actualiza solo cada noche con el scrapeo, y de paso
+// mete las palabras "manhwa" y "novela" y el nombre en inglés, que es como se
+// busca la misma obra fuera de Latinoamérica.
+const ultimoDe = (tipo: 'manhwa' | 'novela') =>
+  Math.max(0, ...fuentes.filter((f) => f.tipo === tipo).map((f) => f.ultimo));
+const ultimoManhwa = ultimoDe('manhwa');
+const ultimoNovela = ultimoDe('novela');
+const capsTitulo = [
+  ultimoManhwa && `manhwa cap. ${ultimoManhwa}`,
+  ultimoNovela && `novela cap. ${ultimoNovela}`,
+]
+  .filter(Boolean)
+  .join(' · ');
+const nombres = [novela.titulo, tituloIngles].filter((n, i, a) => n && a.indexOf(n) === i).join(' / ');
+
+// Los últimos capítulos con página propia (la arma la función del edge, ver
+// functions/novela/[slug]/[capitulo].ts). Son la ENTRADA a esa cadena: cada una
+// enlaza a la anterior y a la siguiente, así que con estos pocos enlaces el
+// rastreador puede recorrer los ~200.000 capítulos sin que la ficha se llene de
+// enlaces. Sin ellos las páginas colgarían solo del sitemap, y una URL que no
+// enlaza nadie se rastrea tarde y mal.
+// Las fuentes link-out (Olympus) NO cuentan: guardan una fila con el total en
+// `numero` y la URL de la serie. Ese número no es un capítulo que exista.
+const ultimosNumeros = [
+  ...new Set(
+    fuentes
+      .filter((f) => !f.soloEnlace)
+      .flatMap((f) => f.capitulos.map((c) => c.numero))
+      .filter((n): n is number => typeof n === 'number' && n > 0),
+  ),
+]
+  .sort((a, b) => b - a)
+  .slice(0, 6);
+const tituloSeo =
+  idioma === IDIOMA_BASE && capsTitulo
+    ? `${nombres} — ${capsTitulo}`
+    : dic.seoNovelaTitulo(novela.titulo, tituloIngles ?? novela.titulo);
+
 // La descripción es lo que decide el clic en el resultado de Google, y un
 // número concreto gana a cualquier adjetivo. Solo en español: es el idioma en
 // que está escrita esta frase, y meterla en /en/ sería texto suelto en otro
@@ -167,7 +209,7 @@ const jsonLdFaq = preguntas.length >= 2 && idioma === IDIOMA_BASE ? [faq(pregunt
 ---
 
 <Base
-  titulo={dic.seoNovelaTitulo(novela.titulo, tituloIngles)}
+  titulo={tituloSeo}
   descripcion={descripcionSeo}
   imagen={novela.portadaUrl}
   tipo="book"
@@ -378,6 +420,28 @@ const jsonLdFaq = preguntas.length >= 2 && idioma === IDIOMA_BASE ? [faq(pregunt
         <ListaCapitulos capitulos={capitulos} slug={novela.slug} />
       </>
     )}
+    {/* «<obra> cap 1200» tiene su propia página; esto es por dónde se entra. */}
+    {ultimosNumeros.length > 0 && idioma === IDIOMA_BASE && (
+      <section class="mb-6" aria-labelledby="caps-sueltos">
+        <h2 id="caps-sueltos" class="font-semibold text-base-800 dark:text-base-100 mb-2">
+          ¿Buscas un capítulo suelto?
+        </h2>
+        <p class="text-sm text-base-500 mb-3">
+          Cada capítulo de {novela.titulo} tiene su página con todas las fuentes que lo tienen.
+        </p>
+        <div class="flex flex-wrap gap-2">
+          {ultimosNumeros.map((n) => (
+            <a
+              href={`${base}/capitulo-${n}`}
+              class="text-sm neu-sm neu-press rounded-xl px-3 py-1.5 text-base-600 dark:text-base-300 hover:text-acento-500"
+            >
+              Capítulo {n}
+            </a>
+          ))}
+        </div>
+      </section>
+    )}
+
     <CapitulosExternos fuentes={fuentes} slug={novela.slug} />
 
     {/* Preguntas frecuentes: contenido propio, útil y con FAQPage en el <head>
