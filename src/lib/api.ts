@@ -42,6 +42,24 @@ function localizarCapitulo(c: Capitulo, idioma: Idioma): Capitulo {
  * Trae todas las filas de una tabla saltando el corte de 1000 por request que
  * impone Supabase Cloud. Sin esto, el catálogo se queda mudo en la obra 1001.
  */
+/**
+ * ⚠ TODA lectura paginada necesita un orden TOTAL, no solo "un orden".
+ *
+ * `range()` es OFFSET/LIMIT: Postgres solo garantiza qué filas caen en cada
+ * página si el ORDER BY las desempata a todas. `order('numero')` no lo hace
+ * —miles de obras comparten el capítulo 1— y las filas empatadas salen en un
+ * orden distinto en cada página: unas se repiten y otras no se leen NUNCA.
+ *
+ * Medido sobre `capitulos_externos` (264.832 filas):
+ *
+ *   sin ORDER BY            → 168.659 distintas: 96.173 filas perdidas (36 %)
+ *   order(numero desc)      → 264.812 distintas: 20 filas perdidas
+ *   order(numero desc, id)  → 264.832 distintas: ninguna
+ *
+ * Por eso cada `filtrar` de aquí abajo termina en `.order('id')` (o en la clave
+ * primaria que tenga la tabla). El fallo es silencioso: el build no avisa, solo
+ * publica el sitio con capítulos de menos.
+ */
 async function todasLasFilas<T>(tabla: string, columnas: string, filtrar: (q: any) => any): Promise<T[]> {
   const TAMAÑO = 1000;
   const todas: T[] = [];
@@ -121,7 +139,7 @@ function cargarFuentes(): Promise<FilaFuente[]> {
       return await todasLasFilas<FilaFuente>(
         'fuentes',
         'id, obra_slug, nombre, portada_vista, ultimo_cambio, tipo, idioma',
-        (q) => q,
+        (q) => q.order('id'),
       );
     } catch (e) {
       console.warn(`[fuentes] ${(e as Error).message}`);
@@ -198,7 +216,7 @@ function catalogo(): Promise<Novela[]> {
     try {
       const [filas, portadasFuente] = await Promise.all([
         todasLasFilas<any>('obras', '*', (q) =>
-          q.eq('publicada', true).order('destacada', { ascending: false }).order('titulo'),
+          q.eq('publicada', true).order('destacada', { ascending: false }).order('titulo').order('slug'),
         ),
         portadasPorObra(),
       ]);
@@ -301,7 +319,7 @@ function cargarEquivalencias(): Promise<Map<string, EquivalenciaManhwa[]>> {
     }
     try {
       const filas = await todasLasFilas<any>('equivalencias', 'novela_slug, capitulo_manhwa, capitulo_novela', (q) =>
-        q.order('capitulo_manhwa'),
+        q.order('novela_slug').order('capitulo_manhwa'),
       );
       for (const e of filas) {
         const lista = mapa.get(e.novela_slug) ?? mapa.set(e.novela_slug, []).get(e.novela_slug)!;
@@ -333,7 +351,7 @@ function cargarSugeridas(): Promise<Map<string, EquivalenciaManhwa[]>> {
       const filas = await todasLasFilas<any>(
         'equivalencias_sugeridas',
         'obra_slug, capitulo_manhwa, capitulo_novela',
-        (q) => q,
+        (q) => q.order('id'),
       );
       const votos = new Map<string, Map<number, Map<number, number>>>();
       for (const f of filas) {
@@ -399,7 +417,7 @@ function cargarExternos(): Promise<Map<string, CapituloExterno[]>> {
       const filas = await todasLasFilas<any>(
         'capitulos_externos',
         'obra_slug, numero, titulo, url, fecha_texto, idioma, tipo, fuente_id',
-        (q) => q.eq('aprobado', true).order('numero', { ascending: false, nullsFirst: false }),
+        (q) => q.eq('aprobado', true).order('numero', { ascending: false, nullsFirst: false }).order('id'),
       );
       for (const f of filas) {
         const lista = mapa.get(f.obra_slug) ?? mapa.set(f.obra_slug, []).get(f.obra_slug)!;
