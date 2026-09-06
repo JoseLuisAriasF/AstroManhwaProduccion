@@ -30,10 +30,16 @@ npm run build    # dist/ listo para Cloudflare Pages
 | `supabase/schema.sql` | Tabla `progreso` + RLS. Pegar en el SQL Editor. |
 | `supabase/schema-catalogo.sql` | `obras`, `sitios`, `admins` y las políticas de escritura. Idempotente. |
 | `src/lib/brecha.ts` | Cuánto le lleva la novela al manhwa. El número por el que llega la gente; se calcula UNA vez y lo usan la ficha, /equivalencia y /rankings. |
+| `src/lib/capitulos.ts` | Qué aporta el título que trajo la scan por encima de «Capítulo N». |
+| `functions/novela/[slug]/[capitulo].ts` | **Una página por capítulo, armada en el edge.** Sin generar archivos. |
+| `src/lib/sitemapCapitulos.ts` | Las ~200.000 URLs de capítulo, troceadas en sitemaps de 45.000. |
+| `src/lib/soloEnlace.ts` | Qué fuentes no listan capítulos. Lo leen el sitemap y el edge, del mismo archivo. |
 | `src/lib/seo.ts` | BreadcrumbList y FAQPage. Los datos estructurados que se repiten en varias páginas. |
-| `scripts/indexnow.mjs` | Avisa a Bing/Yandex/Naver/Seznam de lo que cambió. Gratis y sin cuenta. |
+| `scripts/indexnow.mjs` | Avisa a Bing/Yandex/Naver/Seznam de lo que cambió: fichas **y capítulos nuevos**. |
 | `scripts/palabras.mjs` | Qué escribe la gente de verdad, del autocompletado de Google. Herramienta de escritorio. |
+| `scripts/pinterest.mjs` | El catálogo → CSV para la creación masiva de Pinterest. Herramienta de escritorio. |
 | `public/_headers` | `CDN-Cache-Control: s-maxage=86400, stale-while-revalidate` en el edge. |
+| `public/_routes.json` | Qué rutas invocan una función. Sin él, cada CSS gastaba una invocación. |
 | `functions/portada/[slug].ts` | **Las portadas, servidas desde nuestro dominio.** Proxy en el edge, sin guardar nada. |
 | `src/pages/portadas.json.ts` | El mapa slug → URLs de origen que consulta ese proxy. |
 
@@ -168,6 +174,30 @@ una copia propia es justo para lo que está el campo.
 > otro sitio y auto-traducida a 7 idiomas es exactamente el contenido duplicado
 > que hunde un sitio multiidioma. Se escribe a mano y entonces sí se traduce.
 
+### ⚠ Paginar sin orden total pierde filas
+
+Todas las lecturas grandes van en páginas de 1.000 con `range()`, que es
+`OFFSET/LIMIT`. Postgres solo garantiza **qué filas caen en cada página** si el
+`ORDER BY` desempata a todas. `order('numero')` no lo hace —miles de obras
+comparten el capítulo 1— y las filas empatadas salen en distinto orden en cada
+página: unas se repiten y otras **no se leen nunca**.
+
+Medido sobre `capitulos_externos`, 264.832 filas:
+
+| Orden de la consulta | Filas distintas leídas | Perdidas |
+|---|---|---|
+| sin `ORDER BY` | 168.659 | **96.173 (36 %)** |
+| `order(numero desc)` ← lo que había | 264.812 | 20 |
+| `order(numero desc, id)` | 264.832 | ninguna |
+
+El fallo es **silencioso**: el build no avisa, solo publica el sitio con menos
+capítulos. Y crece con la tabla. Por eso cada lectura paginada termina en
+`.order('id')` (o en la clave primaria que tenga): `api.ts`, `sitemapMeta.ts` y
+`scripts/pinterest.mjs`.
+
+> Se vio al cuadrar el sitemap de capítulos: dos conteos de lo mismo daban
+> 152.845 y 199.850. El que estaba mal era el que paginaba sin orden.
+
 ## SEO: qué se hace y por qué
 
 El sitio ya nacía con sitemap, hreflang, canonical y JSON-LD de `Book`/`Chapter`.
@@ -184,6 +214,140 @@ Lo que se añadió encima es lo que un agregador puede hacer y una scan no.
 
 Las cuatro se enlazan desde la portada y el pie **a propósito**: una página nueva
 que solo cuelga del sitemap tarda meses en despegar.
+
+### Buscar un capítulo suelto
+
+«regreso de la secta del monte hua cap 1200», «… manhwa 1200», «… novel 1200».
+Es la consulta más repetida del nicho y la página no la respondía, por dos
+motivos tontos:
+
+- **La lista pintaba el número a secas.** Un `1200` suelto no es la frase
+  «capítulo 1200»: la etiqueta la ponía la scan, cuando la ponía, y en su
+  idioma. Ahora la escribe el sitio (`dic.capNumero`, un idioma por
+  diccionario) y del título que trajo la scan se queda solo lo que **añade**
+  (`src/lib/capitulos.ts`). Medido sobre 1.000 capítulos reales: el 82 % de esos
+  títulos era el número otra vez, así que además se acabó el «1200 · Capítulo
+  1200» que se leía antes.
+- **El `<title>` no mencionaba ningún capítulo.** Ahora lleva el último de cada
+  formato: `Sistema devorador definitivo / Ultimate Devouring System — manhwa
+  cap. 45 · novela cap. 5072`. En una frase van el nombre en español, el nombre
+  en inglés, las palabras «manhwa» y «novela» y los dos números, y se actualiza
+  solo con el scrapeo de cada noche.
+
+Un `<title>` cubre el capítulo **último**, que es donde está el grueso de la
+búsqueda; los demás números viven en la lista de la ficha, ya como «Capítulo N».
+
+> Antes esto no existía y el `<title>` era todo lo que había. Se hizo cuando
+> quedó claro que el capítulo suelto es la consulta con más volumen del nicho.
+
+### Una página por capítulo, sin generar 200.000 archivos
+
+Quien busca «monte hua cap 1200» quiere una página que se llame como su
+búsqueda, no la ficha de la obra. Son ~200.000 URLs y **no se pueden generar**:
+Cloudflare Pages admite 20.000 archivos por despliegue y el sitio ya usa la
+mitad. Así que no se generan.
+
+```
+/novela/<slug>/capitulo-1200
+        │
+   functions/novela/[slug]/[capitulo].ts   ← arma el HTML en la primera visita
+        │
+   4 consultas a PostgREST ──▶ caché del edge (1 día) ──▶ las siguientes
+                                                          ni ejecutan la función
+```
+
+Es el mismo truco que las portadas: **cero archivos, cero almacenamiento**, y el
+coste se queda en cero porque la segunda petición sale de la caché.
+
+**Los capítulos son los que hay, no los que cuadran.** Una página existe solo si
+alguna fuente tiene ESA fila. Y las fuentes **link-out** quedan fuera: Olympus y
+su clase guardan una sola fila con el total en `numero` y la URL de la serie —
+`{ numero: 18, titulo: 'Serie completa · 18 capítulos', url: '/series/…' }`—, así
+que ese 18 no es un capítulo al que enlazar. Se excluyen de todas las consultas:
+también de anterior/siguiente, porque colarlo ahí dejaría un «Capítulo 18 →»
+apuntando a un 404. Son 4.136 fuentes, no es un caso raro.
+
+Quién es link-out se decide **en un solo sitio**: `src/lib/soloEnlace.ts` lo
+calcula en el build con el mismo código que la ficha (`fuentesDe().soloEnlace`)
+y lo publica en `/fuentes-enlace.json`; el sitemap y la función del edge leen esa
+lista. No pueden discrepar por construcción.
+
+> El primer intento sí discrepaba. La función usaba `fuentes.n_caps` porque
+> parecía la misma señal, y no lo es: `n_caps` es lo que encontró el ÚLTIMO
+> scrapeo, no lo que hay guardado. Medido: 3.710 fuentes lo tienen a `<= 1` y sí
+> listan capítulos, y con esa regla **14.638 URLs del sitemap devolvían 404**.
+> Es el patrón de `/portadas.json`: si dos sitios tienen que estar de acuerdo,
+> que lean el mismo archivo.
+
+**No son páginas calcadas**, que es lo que Google castiga. Cada una lleva lo que
+solo se sabe de ESE capítulo:
+
+- qué fuentes lo tienen —no todas llegan al 1200— con su tipo, idioma y enlace;
+- por qué capítulo de la novela va la historia en ese punto, interpolando las
+  anclas con la **misma** fórmula que el resto del sitio (`src/lib/equivalencia.ts`
+  se importa, no se copia: por eso su `import type` es relativo y no `@/`);
+- el anterior y el siguiente, que además es el camino por donde se rastrea.
+
+Un capítulo que no existe devuelve **404**, no un 200 vacío. A esta escala los
+soft-404 son la forma más rápida de que el dominio entero pierda confianza.
+
+```bash
+npm run test:capitulo   # /equivalencia sigue de largo, el 404, prev/next, la equivalencia y el caso link-out
+```
+
+**No se guarda nada nuevo.** Cero tablas, cero columnas, cero filas añadidas:
+todo sale de lo que `scrapear.mjs` ya escribe. `capitulos_externos` pesa hoy
+~63 MB de datos (267.558 filas × ~248 B) sobre los 500 MB del plan gratis de
+Supabase, y esas filas no son un coste de este SEO —son las que guardan el
+enlace a cada capítulo, que es el producto—. Las 9.336 fuentes link-out ya
+guardan solo el total, que es exactamente lo que pesa poco.
+
+**Cómo las encuentra Google.** Dos caminos, porque uno solo no basta:
+
+| | |
+|---|---|
+| `sitemap-capitulos-N.xml` | Un sitemap sí cabe: es texto, no archivos. ~200.000 URLs en cinco XML de 45.000 (el tope del formato son 50.000). Van anunciados en `robots.txt` con su propia línea `Sitemap:`, **aparte** del índice principal: así en Search Console se ve por separado cuánto de esto se indexa, que es el número que decide si el experimento sigue o se recorta. |
+| «¿Buscas un capítulo suelto?» | Seis enlaces en cada ficha, a los seis capítulos más recientes. Son la ENTRADA a la cadena: desde ahí, prev/next recorre la obra entera. Una URL que solo cuelga del sitemap se rastrea tarde y mal. |
+| `/novedades` | Cada obra con capítulo nuevo enseña «Capítulo N →» apuntando a su página. Es la página más fresca del sitio y la que más se rastrea, así que el capítulo de hoy entra al índice días antes que por el sitemap. Y para quien lee es el atajo obvio: viene a por el capítulo nuevo, no a por la ficha. |
+| IndexNow | Los capítulos nuevos, uno a uno, la misma noche. Google no participa, pero Bing, Yandex, Naver y Seznam sí. |
+
+### `_routes.json`: que los assets no gasten invocaciones
+
+El plan gratis de Cloudflare da **100.000 invocaciones de función al día**, y
+tener un `_middleware.ts` en la raíz hacía que pasara por ahí *todo*: cada CSS,
+cada JS, cada icono. Una visita a una ficha son ~6 peticiones y 6 invocaciones,
+de las cuales una sola necesitaba una función. Con Googlebot recorriendo
+200.000 URLs de capítulo eso es lo primero que se agota.
+
+`public/_routes.json` deja fuera lo que es un archivo y nada más: `/_astro/*`,
+los iconos, el `robots.txt`, los sitemaps, el RSS. Lo que **sí** sigue dentro es
+`/portada/*` —que es una función, no una carpeta; ojo con `/portadas/*`, que sí
+es carpeta— y todo lo demás.
+
+> Las reglas de `_routes.json` solo admiten comodín **al final**, así que
+> `/sitemap-*.xml` no vale y los sitemaps van uno por uno. Si algún día hacen
+> falta más de los que están listados, el de más no se rompe: solo pasa por la
+> función y gasta una invocación.
+
+> ⚠ **Lo que hay que vigilar igual.** Si Googlebot se pone a recorrer las
+> 200.000 URLs de golpe, la cuenta se mira en el panel de Cloudflare. Si
+> aprieta: recortar el sitemap a los últimos N capítulos de cada obra (una línea
+> en `src/lib/sitemapCapitulos.ts`).
+
+### Buscar por el otro nombre
+
+La misma obra se busca como «Regreso de la Secta del Monte Hua», «Return of the
+Mount Hua Sect» y «화산귀환». El andamiaje ya está y son tres cosas distintas:
+
+| Dónde | Qué aporta |
+|---|---|
+| `<title>` y `<h1>` de la ficha | El nombre en inglés, que es la consulta más común fuera de Latinoamérica. |
+| Texto visible «también conocida como» | Los ~8 nombres, **siempre** en el HTML (el recorte a 2 líneas es solo visual). |
+| `alternateName` del JSON-LD `Book` | Le dice a Google que los nombres son de la misma entidad. |
+| `/titulos/<letra>` | Cada nombre como **enlace interno** con el nombre de texto: «화산귀환» apuntando a la ficha le dice al buscador, en coreano, de qué va. |
+
+Lo que falta ahí no es marcado, es que Google llegue: por eso IndexNow, el
+sitemap de imagen y Pinterest.
 
 ### La brecha
 
@@ -207,6 +371,12 @@ Un POST a IndexNow y Bing, Yandex, Naver y Seznam saben qué URLs tocar. Gratis,
 sin cuenta y sin cuota real; la prueba de dominio es que se sirva
 `public/<clave>.txt` (si se cambia la clave hay que cambiar las dos cosas). Los
 dos workflows lo corren después del deploy.
+
+Van las fichas que cambiaron **y cada capítulo nuevo, uno a uno**: cada uno
+tiene su página (ver más abajo) y es la URL con más intención de búsqueda que
+produce el sitio —alguien escribe «\<obra\> cap 1200» el mismo día que sale—.
+Medido en una ventana de 48 h: 539 obras y **2.954 capítulos**. Las fuentes
+link-out quedan fuera, que su fila no es un capítulo.
 
 **Google no participa en IndexNow** y su Indexing API es solo para ofertas de
 empleo y directos. Ahí no hay atajo: sitemap y enlaces internos, que es lo que
@@ -265,6 +435,68 @@ npm run test:portada    # los 4 casos del proxy, sin red
 > En `npm run dev` no hay funciones de Cloudflare, así que ahí `portadaUrl` sigue
 > siendo la URL de origen. El cambio vive en `src/lib/api.ts`, que es por donde
 > pasan las ~12 plantillas que pintan una portada.
+
+### Que Google Imágenes las encuentre
+
+Servir la portada desde nuestro dominio no basta: en la ficha vive dentro de una
+tarjeta y en las listas es una miniatura entre veinte. Un rastreador no ejecuta
+JS, y en un dominio nuevo el presupuesto de rastreo no llega a todas. Por eso el
+sitemap **declara la imagen de cada ficha**:
+
+```xml
+<url>
+  <loc>https://…/novela/regreso-de-la-secta-del-monte-hua</loc>
+  <image:image><image:loc>https://…/portada/regreso-….jpg</image:loc></image:image>
+</url>
+```
+
+Sale de `serialize` en `astro.config.ts`, y solo para las obras cuya portada
+existe de verdad (el `portada_vista` de alguna fuente, que `sitemapMeta.ts` ya
+trae en la misma consulta que el `lastmod`). Declarar 8.600 imágenes cuando
+2.000 son el placeholder es pedirle a Google que rastree el mismo SVG dos mil
+veces.
+
+> `img` no está en el tipo de `@astrojs/sitemap` (recorta a url, lastmod,
+> changefreq, priority y links), pero el objeto pasa entero al paquete `sitemap`,
+> que sí lo entiende, y el namespace de imagen ya viene activado. De ahí el cast.
+
+### Pinterest: el catálogo convertido en pines
+
+Es el único canal donde una publicación sigue trayendo visitas meses después, y
+este nicho se busca **por portada**. Las dos piezas que hacen falta ya existían:
+la portada en 2:3 servida desde nuestro dominio —justo el formato que Pinterest
+quiere— y la brecha, que es un titular y no un adjetivo.
+
+```bash
+npm run pinterest -- --seco            # qué saldría, sin escribir nada
+npm run pinterest                      # 1 archivo, 200 pines
+npm run pinterest -- --lotes=3 --por-dia=10
+```
+
+Escribe en `pinterest/` los CSV que traga la **creación masiva** de Pinterest
+Business (hasta 200 pines por archivo, programados en el futuro): gratis, sin su
+API —que pide aprobación de app— y sin un programador de pago tipo Tailwind.
+
+Tres decisiones que son el script entero:
+
+- **Las obras con más brecha primero**, y su pin apunta a `/equivalencia`, no a
+  la ficha: el titular promete un número y esa es la página que lo responde.
+  Sin brecha el pin va a la ficha y el titular no promete nada que no esté ahí.
+- **La brecha se calcula con la misma regla que el sitio** (máximo `numero` por
+  tipo). Un pin que promete 1.775 capítulos y una ficha que enseña otra cifra
+  quema la visita que costó traer.
+- **`--por-dia` reparte las fechas.** Publicar 200 pines el mismo día es la forma
+  más rápida de que una cuenta nueva se marque como spam; 10 al día, entre las
+  09:00 y las 21:00 UTC, es el ritmo que aguanta.
+
+`pinterest/enviados.txt` es el estado entero: la corrida siguiente empieza donde
+acabó la anterior. Borrarlo vuelve a empezar desde el principio.
+
+Falta un paso a mano, una sola vez: **reclamar el dominio**. Pinterest da un
+`<meta name="p:domain_verify">`; se pone en `PUBLIC_PINTEREST_VERIFICATION` y
+`Base.astro` lo emite. Sin eso los pines no llevan atribución, no hay analítica y
+no se activan los **Rich Pins**, que rellenan título y descripción del pin desde
+el Open Graph que la página ya tiene.
 
 ### Qué se buscó para llegar aquí
 
@@ -363,7 +595,8 @@ Sin variables de Supabase el sitio compila y funciona igual, en modo invitado. S
 2. Build command `npm run build`, output `dist`.
 3. Variables de entorno: `SITE_URL`, `PUBLIC_SUPABASE_URL`, `PUBLIC_SUPABASE_ANON_KEY`
    y, opcionales, `PUBLIC_CF_ANALYTICS_TOKEN` (analítica) y
-   `PUBLIC_GSC_VERIFICATION` (Search Console).
+   `PUBLIC_GSC_VERIFICATION` (Search Console) y
+   `PUBLIC_PINTEREST_VERIFICATION` (reclamar el dominio en Pinterest).
    En los *secrets* de GitHub hace falta además `SITE_URL` (lo usa IndexNow).
 4. Apunta el dominio y actualiza el `Sitemap:` de `public/robots.txt`.
 
@@ -397,7 +630,9 @@ no hay credenciales. Por eso `npm run dev` funciona en un repo recién clonado.
 ```bash
 npm run test:scrapear                              # adaptadores, sin red
 npm run test:portada                               # proxy de portadas, sin red
+npm run test:capitulo                              # pagina de capitulo del edge, sin red
 node --experimental-strip-types src/lib/api.test.ts
+node --experimental-strip-types src/lib/capitulos.test.ts
 ```
 
 `test:scrapear` sustituye `fetch` por HTML fijo: comprueba los dos adaptadores,
