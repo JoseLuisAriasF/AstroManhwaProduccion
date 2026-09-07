@@ -30,7 +30,8 @@ npm run build    # dist/ listo para Cloudflare Pages
 | `supabase/schema.sql` | Tabla `progreso` + RLS. Pegar en el SQL Editor. |
 | `supabase/schema-catalogo.sql` | `obras`, `sitios`, `admins` y las políticas de escritura. Idempotente. |
 | `src/lib/brecha.ts` | Cuánto le lleva la novela al manhwa. El número por el que llega la gente; se calcula UNA vez y lo usan la ficha, /equivalencia y /rankings. |
-| `src/lib/embebibles.ts` | Qué fuentes se dejan abrir dentro del sitio. La lista la mide `npm run embebibles`. |
+| `src/lib/fuentes.ts` | Qué dominios puede pedir el visor. La puerta que evita un proxy abierto. |
+| `functions/leer.ts` | **El capítulo, servido dentro del sitio.** Sin guardar nada. |
 | `src/lib/capitulos.ts` | Qué aporta el título que trajo la scan por encima de «Capítulo N». |
 | `functions/novela/[slug]/[capitulo].ts` | **Una página por capítulo, armada en el edge.** Sin generar archivos. |
 | `src/lib/sitemapCapitulos.ts` | Las ~200.000 URLs de capítulo, troceadas en sitemaps de 45.000. |
@@ -175,29 +176,49 @@ una copia propia es justo para lo que está el campo.
 > otro sitio y auto-traducida a 7 idiomas es exactamente el contenido duplicado
 > que hunde un sitio multiidioma. Se escribe a mano y entonces sí se traduce.
 
-### ⚠ Paginar sin orden total pierde filas
+### ⚠ Cómo se lee una tabla grande, y por qué así
 
-Todas las lecturas grandes van en páginas de 1.000 con `range()`, que es
-`OFFSET/LIMIT`. Postgres solo garantiza **qué filas caen en cada página** si el
-`ORDER BY` desempata a todas. `order('numero')` no lo hace —miles de obras
-comparten el capítulo 1— y las filas empatadas salen en distinto orden en cada
-página: unas se repiten y otras **no se leen nunca**.
+Dos trampas, las dos silenciosas, medidas sobre `capitulos_externos`
+(264.832 filas):
 
-Medido sobre `capitulos_externos`, 264.832 filas:
+**1. Sin un orden TOTAL se pierden filas.** `range()` es `OFFSET/LIMIT`, y
+Postgres solo garantiza qué filas caen en cada página si el `ORDER BY` las
+desempata a todas. `order('numero')` no lo hace —miles de obras comparten el
+capítulo 1— y las empatadas salen en distinto orden en cada página: unas se
+repiten y otras no se leen nunca.
 
 | Orden de la consulta | Filas distintas leídas | Perdidas |
 |---|---|---|
 | sin `ORDER BY` | 168.659 | **96.173 (36 %)** |
 | `order(numero desc)` ← lo que había | 264.812 | 20 |
-| `order(numero desc, id)` | 264.832 | ninguna |
+| `order(id)` | 264.832 | ninguna |
 
-El fallo es **silencioso**: el build no avisa, solo publica el sitio con menos
-capítulos. Y crece con la tabla. Por eso cada lectura paginada termina en
-`.order('id')` (o en la clave primaria que tenga): `api.ts`, `sitemapMeta.ts` y
-`scripts/pinterest.mjs`.
+**2. El `OFFSET` profundo es cuadrático.** La página 265 obliga a recorrer y
+tirar 264.000 filas antes de devolver 1.000. Con `numero desc` encima —que no
+tiene índice propio, así que hay que ordenar la tabla entera cada vez— la capa
+gratis de Supabase corta con `statement timeout`. Medido en el mismo momento y
+sobre el mismo offset 0:
 
-> Se vio al cuadrar el sitemap de capítulos: dos conteos de lo mismo daban
-> 152.845 y 199.850. El que estaba mal era el que paginaba sin orden.
+```
+order(numero desc, id)  →  canceling statement due to statement timeout
+order(id)               →  1.000 filas
+```
+
+Así que `todasLasFilas` pagina **por la clave**: `where clave > última order by
+clave limit 1000`. Recorre el índice primario y cada página cuesta lo mismo, sea
+la primera o la 265. El orden que necesite la vista se pone en memoria —ordenar
+264.000 filas una vez en JS son milisegundos— y por eso `catalogo()` ordena sus
+destacadas y `cargarExternos()` sus capítulos después de leer, no antes.
+
+> `equivalencias` es la excepción y va por `OFFSET`: su clave es compuesta
+> (`novela_slug`, `capitulo_manhwa`) y avanzar con `> novela_slug` se saltaría
+> el resto de anclas de esa obra en cuanto una cruzara el corte de página. Es
+> una tabla pequeña, y con el orden total de su clave primaria el `OFFSET` sí
+> es correcto.
+
+El fallo de las dos es **mudo**: el build no avisa, solo publica el sitio con
+capítulos de menos. Se vio al cuadrar el sitemap de capítulos, porque dos
+conteos de lo mismo daban 152.845 y 199.850.
 
 ## SEO: qué se hace y por qué
 
@@ -522,58 +543,75 @@ script, y `npm run dev` sigue limpio.
 
 ### Leer sin salir del sitio
 
-Al pinchar un capítulo se abre en una ventana sobre la ficha en vez de mandar al
-lector a otra pestaña. El capítulo lo sigue sirviendo la fuente —aquí no se copia
-ni se proxea nada, que es lo que separa a un índice de una copia— pero la sesión
-se queda en el sitio.
+Al pinchar un capítulo se abre a pantalla completa encima de la ficha, con una
+✕ grande para cerrar. La sesión se queda aquí.
 
-**No funciona con todas las fuentes, y eso manda sobre el diseño.** La mayoría
-manda `X-Frame-Options` o `frame-ancestors`, y entonces el marco sale **en blanco
-sin avisar**: el navegador no deja detectarlo desde JavaScript. Así que la lista
-se mide, no se adivina:
-
-```bash
-npm run embebibles          # los 20 dominios con más capítulos
-npm run embebibles -- --todos
+```
+/leer?u=<url del capítulo>
+        │
+   functions/leer.ts  ──fetch──▶  la fuente
+        │
+   HTMLRewriter inyecta <base href="…"> y NO copia el X-Frame-Options
+        │
+   el <iframe> del visor lo muestra; las imágenes van del lector a la scan
 ```
 
-Prueba una URL real de cada dominio del catálogo —cabecera, CSP, `<meta>` y
-frame-busting por JS— y escribe la lista de `src/lib/embebibles.ts`. Última
-medición sobre 264.832 capítulos: **42,8 % se dejan abrir dentro**.
+**No se guarda nada.** Llega la petición, se pide el HTML a la fuente, se
+devuelve, y cuando termina no queda un byte. No es un caché ni una copia: es el
+mismo enlace de siempre, servido a través.
 
-| | % de los capítulos | |
-|---|---|---|
-| imperiomanhua.com | 34,1 % | `X-Frame-Options: SAMEORIGIN` |
-| anslid.com | 10,4 % | `X-Frame-Options: SAMEORIGIN` |
-| mangadex.org | 7,1 % | `X-Frame-Options: DENY` |
-| wetriedtls, webtoons, daotranslate… | 5,7 % | idem |
-| **leemiau.com** | 21,9 % | se deja |
-| **animeshoy12.blogspot.com** | 8,0 % | se deja |
-| samurai, asura, legionscans, manhwaweb, maehwasup, olympus, wtr-lab | 12,9 % | se dejan |
+**Y sale gratis.** Solo pasa por aquí el *documento*. El `<base>` que se inyecta
+hace que el navegador resuelva las imágenes, el CSS y el JS contra el origen, así
+que los 20-50 archivos pesados de un capítulo no nos cuestan nada: es **una
+invocación por capítulo abierto**, sobre las 100.000 diarias del plan gratis, y
+en Cloudflare el ancho de banda no se mide.
 
-Lo que no está en la lista se abre en pestaña, exactamente como antes: la
-ventana es una mejora encima, no un requisito. Cuatro detalles que son el resto
-del componente:
+**Por qué un proxy y no un iframe a secas.** La primera versión iba directa y
+solo el **42,8 %** de los capítulos se dejaba: el resto manda `X-Frame-Options`
+o `frame-ancestors`, el marco sale en blanco y el navegador no deja detectarlo
+desde JavaScript. Esa cabecera la aplica el navegador sobre la respuesta que le
+llega, así que no hay técnica de cliente que la salte — la respuesta tiene que
+venir de aquí. Comprobado: las cinco fuentes que bloqueaban el iframe
+(imperiomanhua 34,1 %, anslid 10,4 %, mangadex, wetriedtls, webtoons) responden
+200 a una petición desde el servidor.
 
-- El `sandbox` **no** lleva `allow-top-navigation`. Es lo único que impide que
-  una scan con frame-busting se lleve al lector fuera del sitio de un salto. Lo
-  demás va permitido porque sin scripts ni cookies casi ninguna carga sus
-  imágenes.
-- **Ctrl/Cmd/Shift y el botón central siguen abriendo pestaña.** Es lo que espera
-  quien quiere tres capítulos a la vez, y secuestrarlo es la forma más rápida de
-  que el lector odie el visor.
-- El `href` real y el `target="_blank"` se quedan en el HTML. Sin JS el enlace
-  funciona igual, y el aviso «¿No carga? Ábrelo en …» está siempre a la vista,
-  porque un marco bloqueado no se puede detectar para enseñar otra cosa.
-- Al cerrar se **vacía el `src`**, en las tres salidas y no solo en el evento
-  `close`: hay navegadores donde ese evento no llega —medido— y el marco se
-  quedaba corriendo detrás, pidiendo imágenes y sonando.
+**HTMLRewriter** y no una plantilla: es el parser en streaming del runtime, así
+que la respuesta empieza a salir mientras todavía entra y un capítulo de 2 MB de
+HTML no se guarda entero en memoria.
 
-> Lo que NO se hace, a propósito: bajar el capítulo y volver a servirlo desde
-> este dominio. Eso daría el 100 % en vez del 42,8 %, pero es exactamente la
-> línea que define al sitio («no aloja capítulos, indexa dónde están»), y además
-> un capítulo son 20-50 imágenes de ~200 KB: es el único punto del proyecto
-> donde el coste dejaría de ser cero.
+Cinco decisiones que son el resto del archivo:
+
+- **La lista de dominios es cerrada** (`src/lib/fuentes.ts`, la genera
+  `npm run dominios`). Sin ella `/leer?u=` sería un proxy abierto y cualquiera
+  pediría lo que quisiera desde nuestra IP. Es el criterio de `/portadas.json`.
+- **El `<base>` es la URL FINAL**, la de después de los redirects, y antes se
+  quita el `<base>` que traiga la página: uno con `href="/"` rompe sus rutas.
+- **No se copian** `X-Frame-Options`, `Content-Security-Policy` ni `Set-Cookie`
+  —una cookie de la scan en nuestro dominio sería una fuga entre sitios— ni
+  `Content-Encoding`/`Content-Length`, que describen el cuerpo original y sobre
+  uno reescrito dan una respuesta corrupta.
+- **`X-Robots-Tag: noindex`**: la página que Google debe indexar es
+  `/novela/<slug>/capitulo-N`, no esta.
+- **El `sandbox` no lleva `allow-top-navigation`**, que es lo único que impide
+  que una scan con frame-busting se lleve al lector fuera del sitio de un salto.
+
+> ⚠ Lo que esto no garantiza: que una fuente hecha en React pinte igual. Su HTML
+> llega siempre, pero dibuja el capítulo con JS que llama a SU API, y esa llamada
+> sale ahora desde nuestro dominio: si su CORS no lo permite, el capítulo no
+> aparece. Por eso el enlace «Abrir en …» está siempre en la barra del visor, y
+> por eso una fuente caída devuelve una página que lo explica en vez de un marco
+> en blanco.
+
+Ctrl/Cmd/Shift y el botón central siguen abriendo pestaña —es lo que espera
+quien quiere tres capítulos a la vez—, el `href` real se queda en el HTML (sin
+JS el enlace funciona igual) y al cerrar se vacía el `src` en las tres salidas,
+no solo en el evento `close`: hay navegadores donde ese evento no llega y el
+marco se quedaba corriendo detrás.
+
+```bash
+npm run test:leer     # la puerta, las cabeceras, el <base> y la fuente caída
+npm run dominios      # regenera la lista al añadir un sitio
+```
 
 ## Idiomas
 
@@ -687,7 +725,8 @@ no hay credenciales. Por eso `npm run dev` funciona en un repo recién clonado.
 npm run test:scrapear                              # adaptadores, sin red
 npm run test:portada                               # proxy de portadas, sin red
 npm run test:capitulo                              # pagina de capitulo del edge, sin red
-node --experimental-strip-types src/lib/embebibles.test.ts
+npm run test:leer                                  # el visor de capitulos, sin red
+node --experimental-strip-types src/lib/fuentes.test.ts
 node --experimental-strip-types src/lib/api.test.ts
 node --experimental-strip-types src/lib/capitulos.test.ts
 ```
