@@ -62,6 +62,34 @@
       scroll-behavior: auto !important;
     }
   }
+
+  /* ───────────────────────────────────────────────────────────────────────────
+   * Un `grid` sin columnas declaradas desborda en móvil
+   * ───────────────────────────────────────────────────────────────────────────
+   * `class="grid gap-2"` solo pone `display: grid`. Su única columna es
+   * implícita y mide `auto`, y `auto` NO se limita al ancho del contenedor: se
+   * estira hasta el `min-content` del hijo más ancho. Un capítulo con número de
+   * cuatro cifras, o una fila que no puede partirse, y la columna se va a
+   * 420 px dentro de una pantalla de 375: barra de scroll horizontal en toda la
+   * página. Medido en la ficha de Monte Hua a 375 px: scrollWidth 464.
+   *
+   * Son 22 grids en esa sola página, así que arreglarlo aquí —una vez, y
+   * también para los que se escriban mañana— gana a poner `grid-cols-1` a mano
+   * en veinte sitios y olvidarlo en el veintiuno.
+   *
+   * DOS cosas la hacen segura, y las dos hacen falta:
+   *
+   *  - `:where()` la deja en especificidad CERO;
+   *  - va dentro de `@layer base`, que pierde contra `utilities`.
+   *
+   * Lo segundo no es un detalle de estilo: una regla FUERA de toda capa gana a
+   * cualquier utilidad de Tailwind por muchas clases que tenga, así que puesta
+   * ahí aplastaba los `sm:grid-cols-2` y `lg:grid-cols-3`. Comprobado: la
+   * rejilla de fuentes pasaba de tres columnas a una.
+   */
+  :where(.grid) {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 @layer components {
@@ -122,4 +150,3 @@
 [data-leido='true'] .check-trazo {
   animation: trazo-check 320ms cubic-bezier(0.65, 0, 0.35, 1) forwards;
 }
-
