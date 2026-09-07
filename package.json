@@ -13,6 +13,7 @@
     "avisar": "node --env-file-if-exists=.env scripts/indexnow.mjs",
     "palabras": "node scripts/palabras.mjs",
     "pinterest": "node --env-file-if-exists=.env scripts/pinterest.mjs",
+    "embebibles": "node --env-file-if-exists=.env scripts/embebibles.mjs",
     "fusionar": "node --env-file-if-exists=.env scripts/fusionar.mjs",
     "test:scrapear": "node scripts/scrapear.test.mjs && node scripts/emparejar.test.mjs",
     "verificar": "node --env-file-if-exists=.env scripts/verificar-supabase.mjs",

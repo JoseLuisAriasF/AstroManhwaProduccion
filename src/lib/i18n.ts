@@ -167,6 +167,11 @@ const es = {
   guardada: 'Guardada',
   capitulos: 'Capítulos',
   filtroCapitulo: 'Nº de capítulo',
+  cerrar: 'Cerrar',
+  // El marco bloqueado sale en blanco y el navegador no deja detectarlo:
+  // la salida tiene que estar escrita, no adivinarse.
+  visorAviso:
+    '¿No carga? Algunas fuentes no permiten abrirse aquí dentro: usa el enlace de arriba para leerla en su sitio.',
   filtrarCapitulos: 'Filtrar capítulos',
   marcarLeidoAria: (n: number) => `Marcar capítulo ${n} como leído`,
   manhwaCorto: 'manhwa',
@@ -298,6 +303,11 @@ const en: Diccionario = {
   guardada: 'Saved',
   capitulos: 'Chapters',
   filtroCapitulo: 'Chapter no.',
+  cerrar: 'Close',
+  // El marco bloqueado sale en blanco y el navegador no deja detectarlo:
+  // la salida tiene que estar escrita, no adivinarse.
+  visorAviso:
+    'Not loading? Some sources do not allow being opened here: use the link above to read it on their site.',
   filtrarCapitulos: 'Filter chapters',
   marcarLeidoAria: (n: number) => `Mark chapter ${n} as read`,
   manhwaCorto: 'manhwa',
@@ -421,6 +431,11 @@ const pt: Diccionario = {
   guardada: 'Salva',
   capitulos: 'Capítulos',
   filtroCapitulo: 'Nº do capítulo',
+  cerrar: 'Fechar',
+  // El marco bloqueado sale en blanco y el navegador no deja detectarlo:
+  // la salida tiene que estar escrita, no adivinarse.
+  visorAviso:
+    'Não carrega? Algumas fontes não permitem abrir aqui dentro: use o link acima para ler no site delas.',
   filtrarCapitulos: 'Filtrar capítulos',
   marcarLeidoAria: (n: number) => `Marcar capítulo ${n} como lido`,
   manhwaCorto: 'manhwa',
@@ -544,6 +559,11 @@ const id: Diccionario = {
   guardada: 'Tersimpan',
   capitulos: 'Bab',
   filtroCapitulo: 'No. bab',
+  cerrar: 'Tutup',
+  // El marco bloqueado sale en blanco y el navegador no deja detectarlo:
+  // la salida tiene que estar escrita, no adivinarse.
+  visorAviso:
+    'Tidak memuat? Beberapa sumber tidak mengizinkan dibuka di sini: pakai tautan di atas untuk membacanya di situs mereka.',
   filtrarCapitulos: 'Saring bab',
   marcarLeidoAria: (n: number) => `Tandai bab ${n} sudah dibaca`,
   manhwaCorto: 'manhwa',
@@ -669,6 +689,11 @@ const fr: Diccionario = {
   guardada: 'Enregistré',
   capitulos: 'Chapitres',
   filtroCapitulo: 'N° de chapitre',
+  cerrar: 'Fermer',
+  // El marco bloqueado sale en blanco y el navegador no deja detectarlo:
+  // la salida tiene que estar escrita, no adivinarse.
+  visorAviso:
+    'Ne charge pas ? Certaines sources refusent de s’ouvrir ici : utilisez le lien ci-dessus pour la lire sur leur site.',
   filtrarCapitulos: 'Filtrer les chapitres',
   marcarLeidoAria: (n: number) => `Marquer le chapitre ${n} comme lu`,
   manhwaCorto: 'manhwa',
@@ -796,6 +821,11 @@ const de: Diccionario = {
   guardada: 'Gespeichert',
   capitulos: 'Kapitel',
   filtroCapitulo: 'Kapitelnr.',
+  cerrar: 'Schließen',
+  // El marco bloqueado sale en blanco y el navegador no deja detectarlo:
+  // la salida tiene que estar escrita, no adivinarse.
+  visorAviso:
+    'Lädt nicht? Manche Quellen erlauben das Öffnen hier nicht: Nutze den Link oben, um dort zu lesen.',
   filtrarCapitulos: 'Kapitel filtern',
   marcarLeidoAria: (n: number) => `Kapitel ${n} als gelesen markieren`,
   manhwaCorto: 'Manhwa',
@@ -922,6 +952,11 @@ const vi: Diccionario = {
   guardada: 'Đã lưu',
   capitulos: 'Chương',
   filtroCapitulo: 'Số chương',
+  cerrar: 'Đóng',
+  // El marco bloqueado sale en blanco y el navegador no deja detectarlo:
+  // la salida tiene que estar escrita, no adivinarse.
+  visorAviso:
+    'Không tải được? Một số nguồn không cho mở ở đây: dùng liên kết phía trên để đọc trên trang của họ.',
   filtrarCapitulos: 'Lọc chương',
   marcarLeidoAria: (n: number) => `Đánh dấu chương ${n} đã đọc`,
   manhwaCorto: 'manhwa',

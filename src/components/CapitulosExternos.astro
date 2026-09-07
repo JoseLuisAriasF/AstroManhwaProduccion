@@ -2,6 +2,7 @@
 import type { CapituloExterno } from '@/types/novela';
 import { IDIOMAS, esIdioma, idiomaDeRuta, t } from '@/lib/i18n';
 import { restoDelTitulo } from '@/lib/capitulos';
+import { esEmbebible } from '@/lib/embebibles';
 
 interface Fuente {
   fuenteId: string;
@@ -110,10 +111,17 @@ const etiquetaTipo = (tipo: 'manhwa' | 'novela') => (tipo === 'manhwa' ? 'Manhwa
                 data-leido="false"
                 class="neu-sm rounded-xl flex items-center gap-3 px-3 py-2 transition-opacity duration-200"
               >
+                {/* `target="_blank"` y el `href` de verdad se quedan: si el JS
+                    no corre, o la fuente no se deja abrir dentro, el enlace
+                    funciona como siempre. La ventana es una mejora encima, no
+                    un requisito. */}
                 <a
                   href={c.url}
                   target="_blank"
                   rel="noopener nofollow"
+                  data-embebible={esEmbebible(c.url) ? '' : undefined}
+                  data-etiqueta={c.numero !== null ? dic.capNumero(c.numero) : c.titulo}
+                  data-donde={f.dominio}
                   class="min-w-0 flex-1 flex items-baseline gap-2 py-0.5"
                 >
                   {/* "Capítulo 1200", no "1200": es la frase con la que se busca
@@ -151,6 +159,51 @@ const etiquetaTipo = (tipo: 'manhwa' | 'novela') => (tipo === 'manhwa' ? 'Manhwa
           </ol>
         </div>
       ))}
+
+      {/* ── La ventana de lectura ──────────────────────────────────────────
+          Abre el capítulo encima de la ficha en vez de mandar al lector a otra
+          pestaña. Una sola para toda la lista: el `src` se pone al abrirla y se
+          borra al cerrarla, así no hay 2.000 iframes en el HTML ni se queda un
+          reproductor sonando de fondo.
+
+          `<dialog>` nativo: el Esc, el foco y el fondo los pone el navegador.
+
+          El `sandbox` NO lleva `allow-top-navigation` a propósito: es lo único
+          que impide que una scan con frame-busting se lleve al lector fuera del
+          sitio de un salto. Lo demás va permitido porque sin scripts ni cookies
+          casi ninguna carga sus imágenes. */}
+      <dialog
+        data-visor
+        class="w-[min(1100px,96vw)] h-[92vh] max-w-none max-h-none p-0 rounded-2xl neu bg-base-50 dark:bg-base-900 backdrop:bg-black/60 backdrop:backdrop-blur-sm"
+      >
+        <div class="flex h-full flex-col">
+          <header class="flex items-center gap-3 px-4 py-2.5 border-b border-base-200/60 dark:border-base-700/60">
+            <span data-visor-titulo class="font-medium text-sm truncate text-base-800 dark:text-base-100"></span>
+            <a
+              data-visor-abrir
+              href="#"
+              target="_blank"
+              rel="noopener nofollow"
+              class="ml-auto shrink-0 text-xs text-acento-500 hover:underline"></a>
+            <button
+              data-visor-cerrar
+              aria-label={dic.cerrar}
+              class="shrink-0 neu-sm neu-press rounded-lg px-2.5 py-1 text-sm text-base-500"
+            >✕</button>
+          </header>
+          <iframe
+            data-visor-marco
+            title="Capítulo"
+            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+            referrerpolicy="no-referrer-when-downgrade"
+            class="flex-1 w-full border-0 bg-white"></iframe>
+          {/* Un marco bloqueado sale en blanco y no avisa: el navegador no deja
+              detectarlo desde fuera. Así que la salida está siempre a la vista. */}
+          <p class="px-4 py-2 text-[11px] text-base-400 border-t border-base-200/60 dark:border-base-700/60">
+            {dic.visorAviso}
+          </p>
+        </div>
+      </dialog>
     </section>
   )
 }
@@ -184,6 +237,50 @@ const etiquetaTipo = (tipo: 'manhwa' | 'novela') => (tipo === 'manhwa' ? 'Manhwa
         marcarLeido(slug, +f.dataset.cap!);
       });
     });
+
+    // ── La ventana de lectura ────────────────────────────────────────────────
+    // Solo para las fuentes que se dejan (ver src/lib/embebibles.ts). Las demás
+    // se llevan el click a su pestaña como siempre: aquí no se toca nada.
+    //
+    // Un click con ctrl/cmd/shift, o con el botón central, sigue abriendo una
+    // pestaña. Es lo que espera cualquiera que quiera varios capítulos a la vez,
+    // y secuestrarlo es la forma más rápida de que el lector odie el visor.
+    const visor = lista.querySelector<HTMLDialogElement>('[data-visor]');
+    const marco = visor?.querySelector<HTMLIFrameElement>('[data-visor-marco]');
+    const rotulo = visor?.querySelector<HTMLElement>('[data-visor-titulo]');
+    const abrir = visor?.querySelector<HTMLAnchorElement>('[data-visor-abrir]');
+
+    if (visor && marco && rotulo && abrir) {
+      lista.querySelectorAll<HTMLAnchorElement>('a[data-embebible]').forEach((a) => {
+        a.addEventListener('click', (e) => {
+          if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+          e.preventDefault();
+          rotulo.textContent = `${a.dataset.etiqueta ?? ''} · ${a.dataset.donde ?? ''}`.trim();
+          abrir.href = a.href;
+          abrir.textContent = `Abrir en ${a.dataset.donde ?? 'la fuente'} ↗`;
+          marco.src = a.href;
+          visor.showModal();
+        });
+      });
+
+      // Vaciar el marco al cerrar no es cosmético: si no, la página de la scan
+      // sigue viva detrás —sonando, pidiendo imágenes— hasta recargar la ficha.
+      //
+      // Se hace en las tres salidas y NO solo en el evento `close`. Medido: hay
+      // navegadores donde ese evento no llega, y entonces el marco se quedaba
+      // corriendo. `cancel` cubre el Esc, que es la salida que no pasa por
+      // ningún click nuestro.
+      const cerrar = () => {
+        marco.removeAttribute('src');
+        visor.close();
+      };
+      visor.querySelector('[data-visor-cerrar]')?.addEventListener('click', cerrar);
+      visor.addEventListener('click', (e) => {
+        if (e.target === visor) cerrar(); // el fondo ES el propio <dialog>
+      });
+      visor.addEventListener('cancel', () => marco.removeAttribute('src')); // Esc
+      visor.addEventListener('close', () => marco.removeAttribute('src'));
+    }
 
     window.addEventListener('progress:change', pintar);
     window.addEventListener('progress:synced', pintar);

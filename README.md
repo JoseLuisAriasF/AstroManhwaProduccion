@@ -30,6 +30,7 @@ npm run build    # dist/ listo para Cloudflare Pages
 | `supabase/schema.sql` | Tabla `progreso` + RLS. Pegar en el SQL Editor. |
 | `supabase/schema-catalogo.sql` | `obras`, `sitios`, `admins` y las políticas de escritura. Idempotente. |
 | `src/lib/brecha.ts` | Cuánto le lleva la novela al manhwa. El número por el que llega la gente; se calcula UNA vez y lo usan la ficha, /equivalencia y /rankings. |
+| `src/lib/embebibles.ts` | Qué fuentes se dejan abrir dentro del sitio. La lista la mide `npm run embebibles`. |
 | `src/lib/capitulos.ts` | Qué aporta el título que trajo la scan por encima de «Capítulo N». |
 | `functions/novela/[slug]/[capitulo].ts` | **Una página por capítulo, armada en el edge.** Sin generar archivos. |
 | `src/lib/sitemapCapitulos.ts` | Las ~200.000 URLs de capítulo, troceadas en sitemaps de 45.000. |
@@ -519,6 +520,61 @@ y **sin cookies**, así que el sitio no necesita banner de consentimiento — qu
 es fricción justo antes del primer scroll. Sin el token no se emite ningún
 script, y `npm run dev` sigue limpio.
 
+### Leer sin salir del sitio
+
+Al pinchar un capítulo se abre en una ventana sobre la ficha en vez de mandar al
+lector a otra pestaña. El capítulo lo sigue sirviendo la fuente —aquí no se copia
+ni se proxea nada, que es lo que separa a un índice de una copia— pero la sesión
+se queda en el sitio.
+
+**No funciona con todas las fuentes, y eso manda sobre el diseño.** La mayoría
+manda `X-Frame-Options` o `frame-ancestors`, y entonces el marco sale **en blanco
+sin avisar**: el navegador no deja detectarlo desde JavaScript. Así que la lista
+se mide, no se adivina:
+
+```bash
+npm run embebibles          # los 20 dominios con más capítulos
+npm run embebibles -- --todos
+```
+
+Prueba una URL real de cada dominio del catálogo —cabecera, CSP, `<meta>` y
+frame-busting por JS— y escribe la lista de `src/lib/embebibles.ts`. Última
+medición sobre 264.832 capítulos: **42,8 % se dejan abrir dentro**.
+
+| | % de los capítulos | |
+|---|---|---|
+| imperiomanhua.com | 34,1 % | `X-Frame-Options: SAMEORIGIN` |
+| anslid.com | 10,4 % | `X-Frame-Options: SAMEORIGIN` |
+| mangadex.org | 7,1 % | `X-Frame-Options: DENY` |
+| wetriedtls, webtoons, daotranslate… | 5,7 % | idem |
+| **leemiau.com** | 21,9 % | se deja |
+| **animeshoy12.blogspot.com** | 8,0 % | se deja |
+| samurai, asura, legionscans, manhwaweb, maehwasup, olympus, wtr-lab | 12,9 % | se dejan |
+
+Lo que no está en la lista se abre en pestaña, exactamente como antes: la
+ventana es una mejora encima, no un requisito. Cuatro detalles que son el resto
+del componente:
+
+- El `sandbox` **no** lleva `allow-top-navigation`. Es lo único que impide que
+  una scan con frame-busting se lleve al lector fuera del sitio de un salto. Lo
+  demás va permitido porque sin scripts ni cookies casi ninguna carga sus
+  imágenes.
+- **Ctrl/Cmd/Shift y el botón central siguen abriendo pestaña.** Es lo que espera
+  quien quiere tres capítulos a la vez, y secuestrarlo es la forma más rápida de
+  que el lector odie el visor.
+- El `href` real y el `target="_blank"` se quedan en el HTML. Sin JS el enlace
+  funciona igual, y el aviso «¿No carga? Ábrelo en …» está siempre a la vista,
+  porque un marco bloqueado no se puede detectar para enseñar otra cosa.
+- Al cerrar se **vacía el `src`**, en las tres salidas y no solo en el evento
+  `close`: hay navegadores donde ese evento no llega —medido— y el marco se
+  quedaba corriendo detrás, pidiendo imágenes y sonando.
+
+> Lo que NO se hace, a propósito: bajar el capítulo y volver a servirlo desde
+> este dominio. Eso daría el 100 % en vez del 42,8 %, pero es exactamente la
+> línea que define al sitio («no aloja capítulos, indexa dónde están»), y además
+> un capítulo son 20-50 imágenes de ~200 KB: es el único punto del proyecto
+> donde el coste dejaría de ser cero.
+
 ## Idiomas
 
 **La base de datos guarda un solo idioma.** Las demás versiones se traducen en el *build*, no en la BD ni en el navegador:
@@ -631,6 +687,7 @@ no hay credenciales. Por eso `npm run dev` funciona en un repo recién clonado.
 npm run test:scrapear                              # adaptadores, sin red
 npm run test:portada                               # proxy de portadas, sin red
 npm run test:capitulo                              # pagina de capitulo del edge, sin red
+node --experimental-strip-types src/lib/embebibles.test.ts
 node --experimental-strip-types src/lib/api.test.ts
 node --experimental-strip-types src/lib/capitulos.test.ts
 ```
