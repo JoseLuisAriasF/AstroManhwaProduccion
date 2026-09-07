@@ -43,39 +43,60 @@ function localizarCapitulo(c: Capitulo, idioma: Idioma): Capitulo {
  * impone Supabase Cloud. Sin esto, el catálogo se queda mudo en la obra 1001.
  */
 /**
- * ⚠ TODA lectura paginada necesita un orden TOTAL, no solo "un orden".
+ * ⚠ CÓMO SE LEE UNA TABLA GRANDE, Y POR QUÉ ASÍ
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Dos trampas, las dos silenciosas, las dos medidas sobre `capitulos_externos`
+ * (264.832 filas):
  *
- * `range()` es OFFSET/LIMIT: Postgres solo garantiza qué filas caen en cada
- * página si el ORDER BY las desempata a todas. `order('numero')` no lo hace
- * —miles de obras comparten el capítulo 1— y las filas empatadas salen en un
- * orden distinto en cada página: unas se repiten y otras no se leen NUNCA.
+ * 1. **Sin un orden TOTAL se pierden filas.** `range()` es OFFSET/LIMIT, y
+ *    Postgres solo garantiza qué filas caen en cada página si el ORDER BY las
+ *    desempata a todas. `order('numero')` no lo hace —miles de obras comparten
+ *    el capítulo 1— y las empatadas salen en distinto orden en cada página:
  *
- * Medido sobre `capitulos_externos` (264.832 filas):
+ *      sin ORDER BY            → 168.659 distintas: 96.173 perdidas (36 %)
+ *      order(numero desc)      → 264.812 distintas: 20 perdidas
+ *      order(id)               → 264.832 distintas: ninguna
  *
- *   sin ORDER BY            → 168.659 distintas: 96.173 filas perdidas (36 %)
- *   order(numero desc)      → 264.812 distintas: 20 filas perdidas
- *   order(numero desc, id)  → 264.832 distintas: ninguna
+ * 2. **El OFFSET profundo es cuadrático.** La página 265 obliga a recorrer y
+ *    tirar 264.000 filas antes de devolver 1.000. Con `numero desc` encima
+ *    —que no tiene índice propio, así que hay que ordenar la tabla entera cada
+ *    vez— la capa gratis de Supabase corta con `statement timeout`. Medido:
  *
- * Por eso cada `filtrar` de aquí abajo termina en `.order('id')` (o en la clave
- * primaria que tenga la tabla). El fallo es silencioso: el build no avisa, solo
- * publica el sitio con capítulos de menos.
+ *      order(numero desc, id), offset 0  → statement timeout
+ *      order(id),             offset 0  → 1.000 filas
+ *
+ * Así que se pagina por la CLAVE: `... where clave > última order by clave
+ * limit 1000`. Recorre el índice primario y cada página cuesta lo mismo, sea
+ * la primera o la 265. El orden que necesite la vista se pone en memoria, que
+ * ordenar 264.000 filas una vez en JS son milisegundos.
  */
-async function todasLasFilas<T>(tabla: string, columnas: string, filtrar: (q: any) => any): Promise<T[]> {
+async function todasLasFilas<T>(
+  tabla: string,
+  columnas: string,
+  filtrar: (q: any) => any,
+  /** Columna única y ordenable por la que avanzar. La clave primaria. */
+  clave = 'id',
+): Promise<T[]> {
   const TAMAÑO = 1000;
   const todas: T[] = [];
-  for (let desde = 0; ; desde += TAMAÑO) {
-    // Leer 245.000 filas son ~245 páginas seguidas; un hipo de red en una sola
-    // dejaba el mapa entero vacío y publicaba el sitio en blanco. Reintentar la
-    // página tapa el corte transitorio; si persiste, se propaga y ABORTA el
-    // build —Cloudflare conserva el último deploy bueno en vez de servir vacío—.
-    const { data, error } = await conReintentos(
-      () => filtrar(supabase!.from(tabla).select(columnas)).range(desde, desde + TAMAÑO - 1),
-      `${tabla}[${desde}]`,
-    );
+  let ultima: unknown = null;
+  for (;;) {
+    // Un hipo de red en una sola página dejaba el mapa vacío y publicaba el
+    // sitio en blanco. Reintentar tapa el corte transitorio; si persiste, se
+    // propaga y ABORTA el build —Cloudflare conserva el último deploy bueno—.
+    const { data, error } = await conReintentos(() => {
+      let q = filtrar(supabase!.from(tabla).select(columnas)).order(clave).limit(TAMAÑO);
+      if (ultima !== null) q = q.gt(clave, ultima);
+      return q;
+    }, `${tabla}[tras ${String(ultima ?? 'inicio')}]`);
     if (error) throw new Error(error.message);
     if (!data?.length) break;
     todas.push(...(data as T[]));
     if (data.length < TAMAÑO) break;
+    ultima = (data[data.length - 1] as any)[clave];
+    // Si la columna clave no viene en el `select`, no hay por dónde avanzar y
+    // el bucle sería infinito. Mejor fallar aquí, y en el build, que colgarse.
+    if (ultima === undefined) throw new Error(`${tabla}: falta '${clave}' en el select`);
   }
   return todas;
 }
@@ -139,7 +160,7 @@ function cargarFuentes(): Promise<FilaFuente[]> {
       return await todasLasFilas<FilaFuente>(
         'fuentes',
         'id, obra_slug, nombre, portada_vista, ultimo_cambio, tipo, idioma',
-        (q) => q.order('id'),
+        (q) => q,
       );
     } catch (e) {
       console.warn(`[fuentes] ${(e as Error).message}`);
@@ -215,12 +236,18 @@ function catalogo(): Promise<Novela[]> {
     if (!supabase) return novelas;
     try {
       const [filas, portadasFuente] = await Promise.all([
-        todasLasFilas<any>('obras', '*', (q) =>
-          q.eq('publicada', true).order('destacada', { ascending: false }).order('titulo').order('slug'),
-        ),
+        // `slug` es la clave primaria de `obras`. El orden de presentación
+        // (destacadas primero, luego por título) se pone abajo, en memoria.
+        todasLasFilas<any>('obras', '*', (q) => q.eq('publicada', true), 'slug'),
         portadasPorObra(),
       ]);
       if (!filas.length) return novelas;
+      // Destacadas primero y luego por título: el orden que espera la portada.
+      // Antes lo pedía la base; ahora la base solo pagina por clave primaria.
+      filas.sort(
+        (a, b) =>
+          Number(b.destacada) - Number(a.destacada) || String(a.titulo).localeCompare(String(b.titulo), 'es'),
+      );
       return filas.map((o) => {
         // Candidatos: la principal + las que vio cada fuente. Solo URLs http
         // (los placeholders internos ya son el último recurso), sin repetir.
@@ -318,9 +345,28 @@ function cargarEquivalencias(): Promise<Map<string, EquivalenciaManhwa[]>> {
       return mapa;
     }
     try {
-      const filas = await todasLasFilas<any>('equivalencias', 'novela_slug, capitulo_manhwa, capitulo_novela', (q) =>
-        q.order('novela_slug').order('capitulo_manhwa'),
-      );
+      // `equivalencias` NO puede usar `todasLasFilas`: su clave es compuesta
+      // (novela_slug, capitulo_manhwa) y avanzar con `> novela_slug` se saltaría
+      // el resto de anclas de esa misma obra en cuanto una cruce el corte de
+      // página. Es una tabla pequeña —anclas puestas a mano—, así que va por
+      // OFFSET, que con el orden TOTAL de su clave primaria sí es correcto.
+      const filas: any[] = [];
+      for (let desde = 0; ; desde += 1000) {
+        const { data, error } = await conReintentos(
+          () =>
+            supabase!
+              .from('equivalencias')
+              .select('novela_slug, capitulo_manhwa, capitulo_novela')
+              .order('novela_slug')
+              .order('capitulo_manhwa')
+              .range(desde, desde + 999),
+          `equivalencias[${desde}]`,
+        );
+        if (error) throw new Error(error.message);
+        if (!data?.length) break;
+        filas.push(...data);
+        if (data.length < 1000) break;
+      }
       for (const e of filas) {
         const lista = mapa.get(e.novela_slug) ?? mapa.set(e.novela_slug, []).get(e.novela_slug)!;
         lista.push({ capituloManhwa: e.capitulo_manhwa, capituloNovela: e.capitulo_novela });
@@ -350,8 +396,8 @@ function cargarSugeridas(): Promise<Map<string, EquivalenciaManhwa[]>> {
     try {
       const filas = await todasLasFilas<any>(
         'equivalencias_sugeridas',
-        'obra_slug, capitulo_manhwa, capitulo_novela',
-        (q) => q.order('id'),
+        'id, obra_slug, capitulo_manhwa, capitulo_novela',
+        (q) => q,
       );
       const votos = new Map<string, Map<number, Map<number, number>>>();
       for (const f of filas) {
@@ -416,12 +462,27 @@ function cargarExternos(): Promise<Map<string, CapituloExterno[]>> {
       const nombres = await cargarNombresFuente();
       const filas = await todasLasFilas<any>(
         'capitulos_externos',
-        'obra_slug, numero, titulo, url, fecha_texto, idioma, tipo, fuente_id',
-        (q) => q.eq('aprobado', true).order('numero', { ascending: false, nullsFirst: false }).order('id'),
+        // `id` va en el select porque es la clave por la que se pagina: sin
+        // ella no hay por dónde avanzar. Lo grita `todasLasFilas`, no se cuelga.
+        'id, obra_slug, numero, titulo, url, fecha_texto, idioma, tipo, fuente_id',
+        // Se pagina por la CLAVE PRIMARIA y nada más. Ordenar por `numero desc`
+        // obliga a Postgres a ordenar las 264.000 filas enteras en cada una de
+        // las 265 páginas —no hay índice por `numero` solo— y en la capa gratis
+        // eso acaba en `statement timeout`. Por `id` recorre el índice y ya.
+        //
+        // El orden que la ficha necesita (capítulo más nuevo primero) se pone
+        // abajo, en memoria: ordenar 264.000 filas una vez en JS son
+        // milisegundos; hacérselo pedir 265 veces a la base es lo que se caía.
+        (q) => q.eq('aprobado', true).order('id'),
       );
       for (const f of filas) {
         const lista = mapa.get(f.obra_slug) ?? mapa.set(f.obra_slug, []).get(f.obra_slug)!;
         lista.push({ ...f, fuenteId: f.fuente_id, fuenteNombre: nombres.get(f.fuente_id) ?? '' });
+      }
+      // Del más nuevo al más viejo, que es como se listan y como `fuentesDe`
+      // recorta a TOPE_RENDER. Los que no traen número van al final.
+      for (const lista of mapa.values()) {
+        lista.sort((a, b) => (b.numero ?? -1) - (a.numero ?? -1));
       }
       console.log(`[externos] ${filas.length} capítulos en ${mapa.size} obras`);
     } catch (e) {
