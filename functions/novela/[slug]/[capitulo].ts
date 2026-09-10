@@ -32,6 +32,9 @@
 // empaqueta esto para Cloudflare) y Node a secas, que es como lo prueba
 // `npm run test:capitulo` sin levantar nada.
 import { manhwaANovela } from '../../../src/lib/equivalencia.ts';
+// El mismo visor que la ficha: la lista de dominios que se pueden proxear vive
+// en un solo sitio (`src/lib/fuentes.ts`), no copiada aquí.
+import { esFuenteDelCatalogo, urlDeLectura } from '../../../src/lib/fuentes.ts';
 
 /** Un día en el edge, una hora en el navegador: aparece un capítulo nuevo o una
  *  fuente nueva y la página se rehace sola al día siguiente. */
@@ -201,12 +204,19 @@ export const onRequest = async (context: {
     numero,
   );
 
+  // El `href` a la fuente y el `target="_blank"` se quedan siempre: si el JS no
+  // corre, el enlace hace lo de siempre. El visor es una mejora encima.
   const filas = caps
     .map((c: any) => {
       const etiqueta = c.tipo === 'manhwa' ? 'Manhwa' : 'Novela';
       const idioma = NOMBRE_IDIOMA[c.idioma] ?? String(c.idioma).toUpperCase();
       const donde = nombreFuente.get(c.fuente_id) || dominio(c.url) || 'la fuente';
-      return `<li><a href="${esc(c.url)}" rel="noopener nofollow" target="_blank"><strong>${esc(donde)}</strong>
+      const visor = esFuenteDelCatalogo(c.url)
+        ? ` data-visor="${esc(urlDeLectura(c.url))}" data-donde="${esc(donde)}" data-titulo="${esc(
+            `${obra.titulo} · Capítulo ${numero}`,
+          )}"`
+        : '';
+      return `<li><a href="${esc(c.url)}" rel="noopener nofollow" target="_blank"${visor}><strong>${esc(donde)}</strong>
         <span>${esc(etiqueta)} en ${esc(idioma)}</span></a></li>`;
     })
     .join('\n');
@@ -234,8 +244,8 @@ export const onRequest = async (context: {
         : ''
     }
     <p class="respuesta">El capítulo ${numero} de ${esc(obra.titulo)} está indexado en ${caps.length}
-      ${caps.length === 1 ? 'fuente' : 'fuentes'} (${esc(comoTexto)}). Cada enlace lleva al sitio original,
-      donde se lee gratis.</p>
+      ${caps.length === 1 ? 'fuente' : 'fuentes'} (${esc(comoTexto)}). Se abre aquí mismo, en una ventana
+      y sin publicidad, sin salir de la página.</p>
     ${
       enNovela
         ? `<p class="respuesta">Si vas por el <strong>capítulo ${numero} del manhwa</strong>, la novela va por el
@@ -253,7 +263,67 @@ export const onRequest = async (context: {
       alternos.length
         ? `<p class="alt">También buscada como ${alternos.map((a) => esc(a)).join(' · ')}.</p>`
         : ''
-    }`;
+    }
+
+    <!-- Saltar a cualquier capítulo. Con 2.000 capítulos, «anterior/siguiente»
+         no sirve para llegar al 1200: se escribe el número y ya. Es un <form>
+         de verdad, así que el Intro del teclado móvil también vale. -->
+    <h2>Ir a otro capítulo</h2>
+    <form class="ir" data-ficha="${esc(ficha)}">
+      <label for="ir-n">Número de capítulo</label>
+      <input id="ir-n" name="n" type="number" inputmode="numeric" min="1" max="99999" placeholder="${numero}" required>
+      <button>Ir</button>
+    </form>
+
+    <!-- El visor: el capítulo encima de esta página, en vez de mandar al lector
+         a otra pestaña. Es el mismo de la ficha —/leer trae el capítulo desde el
+         sitio y le quita la publicidad con su CSP— y con el mismo sandbox: sin
+         allow-popups (popunders), sin allow-same-origin (nuestro localStorage)
+         y sin allow-top-navigation (frame-busting). -->
+    <dialog class="visor">
+      <header>
+        <span data-t></span>
+        <a data-a target="_blank" rel="noopener nofollow"></a>
+        <button data-x aria-label="Cerrar" title="Cerrar (Esc)">✕</button>
+      </header>
+      <iframe data-f title="Capítulo" sandbox="allow-scripts allow-forms"></iframe>
+    </dialog>
+
+    <script>
+    (function(){
+      var d=document.querySelector('.visor');
+      // Un click con ctrl/cmd/shift o con el botón central sigue abriendo
+      // pestaña: secuestrar eso es la forma más rápida de que el visor estorbe.
+      if(d&&d.showModal){
+        var f=d.querySelector('[data-f]'),t=d.querySelector('[data-t]'),a=d.querySelector('[data-a]');
+        var cerrar=function(){f.removeAttribute('src');d.close();};
+        Array.prototype.forEach.call(document.querySelectorAll('a[data-visor]'),function(el){
+          el.addEventListener('click',function(e){
+            if(e.metaKey||e.ctrlKey||e.shiftKey||e.altKey||e.button)return;
+            e.preventDefault();
+            t.textContent=el.getAttribute('data-titulo');
+            a.href=el.href;a.textContent='Abrir en '+el.getAttribute('data-donde')+' \\u2197';
+            // Abrir ANTES de pedir el capítulo: mientras el dialog está cerrado
+            // es display:none, y hay navegadores que no cargan el iframe de un
+            // elemento sin pintar.
+            d.showModal();
+            f.src=el.getAttribute('data-visor');
+          });
+        });
+        d.querySelector('[data-x]').addEventListener('click',cerrar);
+        d.addEventListener('click',function(e){if(e.target===d)cerrar();});
+        // Vaciar el marco en las tres salidas: si no, la scan sigue viva detrás.
+        d.addEventListener('cancel',function(){f.removeAttribute('src');});
+        d.addEventListener('close',function(){f.removeAttribute('src');});
+      }
+      var ir=document.querySelector('.ir');
+      if(ir)ir.addEventListener('submit',function(e){
+        e.preventDefault();
+        var n=parseInt(ir.n.value,10);
+        if(n>0)location.href=ir.getAttribute('data-ficha')+'/capitulo-'+n;
+      });
+    })();
+    </script>`;
 
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -337,6 +407,19 @@ h2{font-size:1.1rem;margin:2rem 0 .75rem}
   background:var(--card);border-radius:.75rem;padding:.75rem 1rem;color:var(--tx)}
 .fuentes span{color:var(--sub);font-size:.85rem;white-space:nowrap}
 .paso{display:flex;justify-content:space-between;gap:1rem;margin-top:2rem;font-size:.95rem}
+.ir{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+.ir label{color:var(--sub);font-size:.9rem}
+.ir input{width:7rem;padding:.6rem .75rem;border:0;border-radius:.75rem;background:var(--card);color:var(--tx);font:inherit}
+.ir button{padding:.6rem 1.25rem;border:0;border-radius:.75rem;background:var(--ac);color:#fff;font:inherit;cursor:pointer}
+dialog.visor{width:100vw;max-width:none;height:100dvh;max-height:none;margin:0;padding:0;border:0;background:#171b24}
+dialog.visor::backdrop{background:rgba(0,0,0,.8)}
+dialog.visor header{display:flex;align-items:center;gap:.75rem;height:2.75rem;padding:0 .75rem;color:#e7eaf0;font-size:.9rem}
+dialog.visor header span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+dialog.visor header a{margin-left:auto;flex:none;font-size:.8rem;color:#8b9aff}
+/* 2,75rem = 44 px: el mínimo que se acierta con el pulgar sin mirar. Cerrar
+   rápido es la mitad del valor de leer aquí dentro. */
+dialog.visor header button{flex:none;width:2.75rem;height:2.75rem;margin-right:-.5rem;border:0;background:none;color:#9aa2b1;font-size:1.25rem;line-height:1;cursor:pointer}
+dialog.visor iframe{display:block;width:100%;height:calc(100dvh - 2.75rem);border:0;background:#fff}
 </style>
 ${o.jsonLd ? `<script type="application/ld+json">${JSON.stringify(o.jsonLd)}</script>` : ''}
 </head>

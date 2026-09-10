@@ -13,7 +13,8 @@ import { onRequest } from './novela/[slug]/[capitulo].ts';
 const FILAS: Record<string, unknown[]> = {
   // El capítulo 20 existe en dos fuentes; el 19 y el 21 también, para prev/next.
   'capitulos_externos?obra_slug=eq.monte-hua&numero=eq.20': [
-    { titulo: 'Capítulo 20', url: 'https://scan-a.test/c20', tipo: 'manhwa', idioma: 'es', fuente_id: 'f1' },
+    // Un dominio del catálogo (se lee en el visor) y otro de fuera (pestaña).
+    { titulo: 'Capítulo 20', url: 'https://maehwasup.com/c20', tipo: 'manhwa', idioma: 'es', fuente_id: 'f1' },
     { titulo: 'Chapter 20', url: 'https://scan-b.test/c20', tipo: 'novela', idioma: 'en', fuente_id: 'f2' },
   ],
   'capitulos_externos?obra_slug=eq.monte-hua&numero=eq.999': [],
@@ -94,6 +95,17 @@ assert.match(html, /capitulo-21">Capítulo 21 →/, 'siguiente');
 assert.match(html, /<strong>capítulo 28<\/strong>/, 'la novela va por el 28 cuando el manhwa va por el 20');
 assert.ok(html.includes('화산귀환'), 'los otros nombres, para que se encuentre por ellos');
 assert.ok(!html.includes('noindex'), 'un capítulo que existe SÍ se indexa');
+
+// El capítulo se abre encima de esta página, como en la ficha, cuando la fuente
+// está en la lista que /leer puede traer. La que no lo está sigue abriéndose en
+// pestaña: eso es lo que había, no una regresión.
+assert.match(html, /data-visor="\/leer\?u=https%3A%2F%2Fmaehwasup\.com%2Fc20"/, 'ScanA se lee aquí dentro');
+assert.ok(!/scan-b\.test\/c20"[^>]*data-visor/.test(html), 'una fuente de fuera del catálogo, no');
+assert.match(html, /<dialog class="visor">/, 'la ventana de lectura existe');
+assert.match(html, /sandbox="allow-scripts allow-forms"/, 'sin popups ni same-origin: ahí viven los anuncios');
+
+// Con 2.000 capítulos, «anterior/siguiente» no lleva al 1200: se escribe.
+assert.match(html, /<form class="ir" data-ficha="https:\/\/mtn\.test\/novela\/monte-hua">/, 'buscador de capítulo');
 
 // Un capítulo que no existe: 404 de verdad. Un 200 vacío a esta escala hunde
 // la confianza del dominio entero.

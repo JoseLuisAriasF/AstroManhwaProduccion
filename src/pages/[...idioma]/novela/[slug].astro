@@ -429,6 +429,28 @@ const jsonLdFaq = preguntas.length >= 2 && idioma === IDIOMA_BASE ? [faq(pregunt
         <p class="text-sm text-base-500 mb-3">
           Cada capítulo de {novela.titulo} tiene su página con todas las fuentes que lo tienen.
         </p>
+        {/* Con 2.000 capítulos, seis atajos no alcanzan: el que busca el 1200 lo
+            escribe. Es un <form> de verdad, así que el Intro del teclado móvil
+            también vale, y sin JS el campo no estorba. */}
+        <form data-ir-cap data-base={base} class="flex items-center gap-2 mb-3">
+          <label class="neu-inset rounded-xl px-3 py-1.5 flex items-center gap-2">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" class="size-4 text-base-400">
+              <circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" stroke-linecap="round" />
+            </svg>
+            <input
+              name="n"
+              type="number"
+              inputmode="numeric"
+              min="1"
+              max="99999"
+              required
+              placeholder="Nº de capítulo"
+              aria-label="Ir a un capítulo por su número"
+              class="w-32 bg-transparent outline-none text-sm"
+            />
+          </label>
+          <button class="neu-sm neu-press rounded-xl px-4 py-1.5 text-sm font-medium text-acento-500">Ir</button>
+        </form>
         <div class="flex flex-wrap gap-2">
           {ultimosNumeros.map((n) => (
             <a
@@ -529,6 +551,15 @@ const jsonLdFaq = preguntas.length >= 2 && idioma === IDIOMA_BASE ? [faq(pregunt
       empezar.textContent = dic.continuarEnCap(n + 1);
     }
   }
+
+  // Ir a la página de un capítulo por su número. La sección solo existe en el
+  // idioma base y cuando hay capítulos indexados, de ahí el `?`.
+  const irCap = document.querySelector<HTMLFormElement>('[data-ir-cap]');
+  irCap?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const n = parseInt((irCap.elements.namedItem('n') as HTMLInputElement).value, 10);
+    if (n > 0) location.href = `${irCap.dataset.base}/capitulo-${n}`;
+  });
 
   boton.addEventListener('click', () => {
     toggleFavorito(slug);

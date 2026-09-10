@@ -55,11 +55,148 @@ const FUERA = new Set([
   'x-frame-options',
   'content-security-policy',
   'content-security-policy-report-only',
+  'referrer-policy',
   'set-cookie',
   'content-encoding',
   'content-length',
   'transfer-encoding',
 ]);
+
+/** CDNs que usan las propias scans para jQuery y el visor de imágenes. No son
+ *  redes de anuncios, y sin ellas se cae el lector de unas cuantas: son la
+ *  excepción a «solo scripts de la fuente». */
+const CDNS =
+  'https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://code.jquery.com https://ajax.googleapis.com https://unpkg.com';
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * La publicidad, fuera: una CSP y no una lista de bloqueo
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Un filtro por dominios (lo que hace uBlock) hay que mantenerlo, y una red de
+ * anuncios se cambia de dominio en una tarde. Aquí no hace falta: el capítulo lo
+ * sirve esta función, así que al documento se le pone una `Content-Security-
+ * Policy` NUESTRA —la de la fuente ya se cae en FUERA— que dice de dónde puede
+ * ejecutarse JavaScript: **de la fuente y de nadie más**.
+ *
+ * Eso saca de un golpe a AdSense, a los popunders y a los rastreadores, también
+ * a los que inyecta en caliente el JS de la scan, que es lo que ninguna limpieza
+ * del HTML puede pillar: cuando el HTML pasa por aquí todavía no están escritos.
+ *
+ * `img-src *` y `connect-src *` van abiertos a propósito: el capítulo son
+ * imágenes y muchas viven en un CDN que no es el de la fuente. Se cierra lo que
+ * ejecuta código y lo que enmarca: los marcos, solo de la fuente, porque un
+ * <iframe> ajeno en una página de capítulo es un anuncio y no el capítulo.
+ */
+function politica(base: string): string {
+  let propio = '';
+  try {
+    const u = new URL(base);
+    const raiz = u.hostname.replace(/^www\./, '');
+    // Set: con www. el origen y la raíz son lo mismo, y la cabecera salía con
+    // el dominio repetido.
+    propio = [...new Set([u.origin, `https://${raiz}`, `https://*.${raiz}`])].join(' ');
+  } catch {}
+  return [
+    `default-src 'self' data: blob: ${propio}`,
+    'img-src * data: blob:',
+    'media-src * data: blob:',
+    "style-src * 'unsafe-inline'",
+    'font-src * data:',
+    'connect-src *',
+    // 'unsafe-inline'/'unsafe-eval': el JS propio de las scans es casi todo
+    // inline. Sin ellos no se cae la publicidad, se cae el capítulo.
+    `script-src ${propio} 'unsafe-inline' 'unsafe-eval' ${CDNS}`,
+    // Solo los marcos de la propia fuente, que son los que el HTML conserva
+    // (ver `ajeno`). Un <iframe> de otro sitio en una página de capítulo es un
+    // anuncio, no el capítulo. Sin `propio` la lista queda vacía, que en CSP
+    // significa 'none': falla cerrado.
+    `frame-src ${propio}`,
+    "object-src 'none'",
+  ].join('; ');
+}
+
+/**
+ * La otra mitad de 2026: apagar la publicidad que YA NO necesita un script.
+ *
+ * Con el tercer party cookie muerto, la industria se mudó a APIs que trae el
+ * propio navegador —Topics, Protected Audience (antes FLEDGE), Attribution
+ * Reporting, Shared Storage—: son subastas y perfilado que ocurren DENTRO de
+ * Chrome, así que una CSP no las ve pasar. `Permissions-Policy` es lo que las
+ * apaga, y con `()` —lista vacía— se apagan para el documento y para todo lo que
+ * cuelgue de él. De paso caen cámara, micrófono y geolocalización, que en una
+ * página de capítulo no pintan nada.
+ *
+ * Un navegador que no conozca una directiva la ignora sin romper nada, así que
+ * la lista puede llevar las de hoy y las de pasado mañana.
+ */
+const PERMISOS = [
+  'browsing-topics=()',
+  'interest-cohort=()',
+  'join-ad-interest-group=()',
+  'run-ad-auction=()',
+  'attribution-reporting=()',
+  'shared-storage=()',
+  'shared-storage-select-url=()',
+  'private-aggregation=()',
+  'camera=()',
+  'microphone=()',
+  'geolocation=()',
+  'display-capture=()',
+  'midi=()',
+  'payment=()',
+  'usb=()',
+  'serial=()',
+  'idle-detection=()',
+].join(', ');
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * El almacenamiento de mentira
+ * ─────────────────────────────────────────────────────────────────────────────
+ * El iframe va sin `allow-same-origin` a propósito: el documento lo sirve NUESTRO
+ * dominio, así que con ese permiso el JS de la scan leería nuestro localStorage
+ * —progreso y sesión incluidos—. Sin él, el navegador le da un origen opaco.
+ *
+ * Y en un origen opaco, `localStorage` no devuelve vacío: **lanza**. El tema de
+ * WordPress que usan casi todas (Madara) lo lee al arrancar para recuperar el
+ * modo de lectura; si eso revienta, el script muere antes de mostrar el
+ * capítulo y quedan 36 imágenes en el HTML detrás de una pantalla en blanco.
+ *
+ * Esto le pone delante un almacenamiento en memoria, que es lo que la página de
+ * verdad necesita: guardar el modo de lectura mientras dura la visita. Se define
+ * ANTES que cualquier script suyo, y solo si el de verdad no funciona: cuando el
+ * navegador lo permite, no se toca nada. Es prevención, no una avería vista: no
+ * hemos podido reproducir un origen opaco en un navegador de verdad.
+ */
+const REMIENDO = `<script>(function(){
+function mem(){var m={};return{getItem:function(k){return Object.prototype.hasOwnProperty.call(m,k)?m[k]:null},
+setItem:function(k,v){m[k]=String(v)},removeItem:function(k){delete m[k]},clear:function(){m={}},
+key:function(i){return Object.keys(m)[i]||null},get length(){return Object.keys(m).length}}}
+function poner(o,n){try{Object.defineProperty(o,n,{value:mem(),configurable:true})}catch(e){}}
+try{window.localStorage.getItem('_')}catch(e){poner(window,'localStorage')}
+try{window.sessionStorage.getItem('_')}catch(e){poner(window,'sessionStorage')}
+try{document.cookie}catch(e){var c='';try{Object.defineProperty(document,'cookie',
+{get:function(){return c},set:function(v){c=String(v).split(';')[0]},configurable:true})}catch(_){}}
+})();<\/script>`;
+
+/** Lo que la CSP no puede quitar: el HUECO. El anuncio no carga, pero su caja
+ *  sigue midiendo 250 px y empujando el capítulo. Lista corta y literal a
+ *  propósito: un selector amplio (`[class*="ad"]`) se lleva por delante medio
+ *  tema de WordPress. */
+const COSMETICA =
+  '<style>ins.adsbygoogle,.adsbygoogle,[id^="google_ads"],[id^="div-gpt-ad"],[aria-label="Advertisement" i]{display:none!important}</style>';
+
+/** ¿El <iframe> es de otro sitio? Los ajenos —y los que vienen sin `src`, que
+ *  son el hueco que después rellena un script de anuncios— sobran. */
+function ajeno(src: string | null, base: string): boolean {
+  if (!src) return true;
+  try {
+    const host = (u: string, b?: string) => new URL(u, b).hostname.replace(/^www\./, '');
+    return host(src, base) !== host(base);
+  } catch {
+    return true;
+  }
+}
 
 export const onRequest = async (context: { request: Request }): Promise<Response> => {
   const destino = new URL(context.request.url).searchParams.get('u') ?? '';
@@ -85,6 +222,11 @@ export const onRequest = async (context: { request: Request }): Promise<Response
   }
   if (!origen.ok) return aviso(destino, `La fuente respondió ${origen.status}.`);
 
+  // `redirect: 'follow'` puede acabar en otra URL: el <base> —y la CSP— tienen
+  // que mirar a la FINAL, o las rutas relativas se resuelven contra la de
+  // partida y no cargan.
+  const base = origen.url || destino;
+
   const cabeceras = new Headers();
   origen.headers.forEach((v, k) => {
     if (!FUERA.has(k.toLowerCase())) cabeceras.set(k, v);
@@ -93,15 +235,27 @@ export const onRequest = async (context: { request: Request }): Promise<Response
   // Que nadie más lo enmarque a su vez, y que no se indexe: la página buena
   // para Google es /novela/<slug>/capitulo-N, no esta.
   cabeceras.set('X-Robots-Tag', 'noindex, nofollow');
+  // La nuestra, ahora que la de la fuente se ha caído: es lo que deja el
+  // capítulo sin anuncios (ver `politica`).
+  cabeceras.set('Content-Security-Policy', politica(base));
+  // Y las subastas de anuncios que el navegador corre por su cuenta, sin script
+  // que bloquear (ver `PERMISOS`).
+  cabeceras.set('Permissions-Policy', PERMISOS);
+  // ── Sin Referer, o el capítulo sale en blanco ──────────────────────────────
+  // Casi todas las scans tienen protección anti-hotlink: la imagen se sirve si
+  // la pide su propia página y da 403 si el Referer es de otro sitio. Medido en
+  // imperiomanhua: sin Referer 200 y 436 KB, con el nuestro 403 y 17 bytes. El
+  // HTML llegaba perfecto y el lector veía 36 imágenes rotas.
+  //
+  // `no-referrer` es lo único que lo arregla desde aquí: el navegador pide las
+  // imágenes sin decir de dónde viene y la protección las deja pasar. Nunca es
+  // peor que mandar el nuestro, que es justo el caso que bloquean.
+  cabeceras.set('Referrer-Policy', 'no-referrer');
 
   // Lo que no es HTML se devuelve tal cual (una imagen suelta, un PDF…).
   if (!(origen.headers.get('content-type') ?? '').includes('text/html')) {
     return new Response(origen.body, { status: origen.status, headers: cabeceras });
   }
-
-  // `redirect: 'follow'` puede acabar en otra URL: el <base> tiene que ser la
-  // FINAL, o las rutas relativas se resuelven contra la de partida y no cargan.
-  const base = origen.url || destino;
 
   // `transform()` YA devuelve una Response. Envolverla en otra `new Response()`
   // la trata como cuerpo y tira el status y las cabeceras —incluido el trabajo
@@ -111,7 +265,21 @@ export const onRequest = async (context: { request: Request }): Promise<Response
     // el suyo. Sin esto, una scan con <base href="/"> rompe todas sus rutas.
     .on('base', { element: (e: any) => e.remove() })
     .on('head', {
-      element: (e: any) => e.prepend(`<base href="${base}">`, { html: true }),
+      element: (e: any) => {
+        // El remiendo va lo PRIMERO de todo: si un script suyo corre antes, ya
+        // ha reventado. `prepend` mete al principio del <head>.
+        e.prepend(`<base href="${base}">${REMIENDO}`, { html: true });
+        e.append(COSMETICA, { html: true });
+      },
+    })
+    // La CSP impide que el anuncio CARGUE, pero su hueco sigue ahí empujando el
+    // capítulo hacia abajo. Estos dos son casi todos los huecos: el bloque de
+    // AdSense y el marco de la red de turno.
+    .on('ins.adsbygoogle', { element: (e: any) => e.remove() })
+    .on('iframe', {
+      element: (e: any) => {
+        if (ajeno(e.getAttribute('src'), base)) e.remove();
+      },
     })
     .transform(new Response(origen.body, { status: origen.status, headers: cabeceras }));
 };
@@ -130,9 +298,14 @@ function aviso(destino: string, motivo: string): Response {
 <meta name="viewport" content="width=device-width, initial-scale=1"><title>No se pudo abrir</title>
 <style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#171b24;color:#e7eaf0;
 font:16px/1.6 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;text-align:center;padding:2rem}
-a{color:#8b9aff}</style></head><body><div>
+a{color:#8b9aff}small{color:#9aa2b1}</style></head><body><div>
 <p>${esc(motivo)}</p>
-<p><a href="${esc(destino)}" target="_blank" rel="noopener nofollow">Abrir en ${esc(donde)} ↗</a></p>
+<!-- Sin target: esta página se pinta DENTRO de la ventana, y su sandbox no
+     abre pestañas. Además el navegador del lector lleva sus cookies y su IP, así
+     que a veces carga lo que a nuestro servidor le dio 403. Y si no, la barra de
+     la ventana tiene el «Abrir en …», que es el que sí sale del sitio. -->
+<p><a href="${esc(destino)}" rel="noopener nofollow">Probar a abrirlo aquí dentro</a></p>
+<p><small>Si tampoco carga, arriba está «Abrir en ${esc(donde)} ↗».</small></p>
 </div></body></html>`,
     {
       status: 502,

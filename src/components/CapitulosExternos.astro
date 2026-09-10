@@ -87,12 +87,24 @@ const etiquetaTipo = (tipo: 'manhwa' | 'novela') => (tipo === 'manhwa' ? 'Manhwa
             {etiquetaTipo(f.tipo)} en {idiomaNombre(f.idioma)}, {f.total} capítulos en{' '}
             <strong class="text-base-600 dark:text-base-300">{f.dominio}</strong>.
             {f.soloEnlace
-              ? ' Esta fuente no lista los capítulos aquí: el enlace lleva a su página, donde se elige y se lee.'
-              : ' Se leen allí: cada enlace lleva a la fuente original y se marca como leído al hacer click.'}
+              ? ' Esta fuente no lista los capítulos aquí: el enlace abre su página en una ventana, sin salir del sitio.'
+              : ' Se leen aquí mismo: el capítulo se abre en una ventana dentro del sitio y se marca como leído al hacer click.'}
             {f.recortada && (
               <>
                 {' '}Mostramos los últimos {f.capitulos.length} de {f.total};{' '}
-                <a href={`https://${f.dominio}`} target="_blank" rel="noopener nofollow" class="text-acento-500 underline">
+                {/* También en la ventana: este era el último enlace de la ficha
+                    que todavía se llevaba al lector a otra pestaña. */}
+                <a
+                  href={`https://${f.dominio}`}
+                  target="_blank"
+                  rel="noopener nofollow"
+                  data-visor-src={
+                    esFuenteDelCatalogo(`https://${f.dominio}`) ? urlDeLectura(`https://${f.dominio}`) : undefined
+                  }
+                  data-etiqueta={`Todos los capítulos · ${f.nombre}`}
+                  data-donde={f.dominio}
+                  class="text-acento-500 underline"
+                >
                   ver todos en {f.dominio}
                 </a>.
               </>
@@ -167,10 +179,11 @@ const etiquetaTipo = (tipo: 'manhwa' | 'novela') => (tipo === 'manhwa' ? 'Manhwa
 
           `<dialog>` nativo: el Esc, el foco y el fondo los pone el navegador.
 
-          El `sandbox` NO lleva `allow-top-navigation` a propósito: es lo único
-          que impide que una scan con frame-busting se lleve al lector fuera del
-          sitio de un salto. Lo demás va permitido porque sin scripts ni cookies
-          casi ninguna carga sus imágenes. */}
+          El `sandbox` es la otra mitad del bloqueo de publicidad: sin
+          `allow-popups` no hay popunder que valga —son la mitad de los anuncios
+          de una scan y la CSP de /leer no los para, porque los abre el JS de la
+          propia página—. Lo que carga el capítulo (scripts, imágenes) sigue
+          permitido. */}
       <dialog
         data-visor
         class="w-screen h-[100dvh] max-w-none max-h-none m-0 p-0 border-0 bg-base-900 backdrop:bg-black/80"
@@ -194,12 +207,18 @@ const etiquetaTipo = (tipo: 'manhwa' | 'novela') => (tipo === 'manhwa' ? 'Manhwa
               class="shrink-0 grid place-items-center size-11 -mr-2 rounded-xl text-2xl leading-none text-base-300 hover:text-white hover:bg-white/10 active:bg-white/20"
             >✕</button>
           </header>
-          {/* `allow-top-navigation` NO va: es lo único que impide que una scan
-              con frame-busting se lleve al lector fuera del sitio de un salto. */}
+          {/* Lo que NO va, y por qué:
+              · `allow-top-navigation`: una scan con frame-busting se llevaría al
+                lector fuera del sitio de un salto.
+              · `allow-popups`: es el popunder, el anuncio que más molesta.
+              · `allow-same-origin`: el documento de /leer se sirve desde NUESTRO
+                dominio, así que con esto el JS de la scan leería nuestro
+                localStorage —progreso y sesión de Supabase incluidos—. Antes del
+                proxy daba igual (era su origen); ahora no. */}
           <iframe
             data-visor-marco
             title="Capítulo"
-            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+            sandbox="allow-scripts allow-forms"
             class="flex-1 w-full border-0 bg-white"></iframe>
         </div>
       </dialog>
@@ -258,8 +277,11 @@ const etiquetaTipo = (tipo: 'manhwa' | 'novela') => (tipo === 'manhwa' ? 'Manhwa
           rotulo.textContent = `${a.dataset.etiqueta ?? ''} · ${a.dataset.donde ?? ''}`.trim();
           abrir.href = a.href; // la fuente de verdad, no /leer
           abrir.textContent = `Abrir en ${a.dataset.donde ?? 'la fuente'} ↗`;
-          marco.src = a.dataset.visorSrc!;
+          // Abrir ANTES de pedir el capítulo: mientras el dialog está cerrado es
+          // display:none, y hay navegadores que no cargan el iframe de un
+          // elemento sin pintar.
           visor.showModal();
+          marco.src = a.dataset.visorSrc!;
         });
       });
 
