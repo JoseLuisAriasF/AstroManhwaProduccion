@@ -46,7 +46,14 @@ const soloIdioma = args.find((a) => a.startsWith('--idioma='))?.split('=')[1];
 // ── Idiomas destino: los mismos que el sitio, leídos del único sitio de verdad ─
 const fuenteI18n = readFileSync('src/lib/i18n.ts', 'utf8');
 const base = fuenteI18n.match(/IDIOMA_BASE = '(\w+)'/)[1];
-const codigos = [...fuenteI18n.matchAll(/^  (\w+): \{ nombre:/gm)].map((m) => m[1]);
+// Solo los ENCENDIDOS (ACTIVOS), no los siete declarados: traducir a idiomas
+// que el build no publica es tiempo de CPU tirado —el caché quedaría con
+// entradas que nadie lee—. Si algún día se quita ACTIVOS, cae a todos los
+// declarados, que es el comportamiento antiguo.
+const activos = fuenteI18n.match(/ACTIVOS[^=]*=\s*\[([^\]]*)\]/)?.[1];
+const codigos = activos
+  ? [...activos.matchAll(/'(\w+)'/g)].map((m) => m[1])
+  : [...fuenteI18n.matchAll(/^  (\w+): \{ nombre:/gm)].map((m) => m[1]);
 // Los idiomas destino se calculan más abajo (`objetivos`): incluyen el base,
 // porque un texto en inglés también necesita su versión española.
 

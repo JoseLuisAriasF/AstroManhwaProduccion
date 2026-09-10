@@ -1,0 +1,41 @@
+services:
+  traductor:
+    build: .
+    container_name: nllb-traductor
+    ports:
+      - "5000:5000"
+    volumes:
+      # El modelo se baja aquí y queda: reiniciar no vuelve a descargarlo.
+      - modelos:/models
+    environment:
+      # 4 = menos alucinaciones en textos cortos, mejor prosa. Bájalo a 1-2 si
+      # priorizas velocidad sobre calidad.
+      NLLB_BEAMS: "4"
+    restart: unless-stopped
+    healthcheck:
+      # 'starting' hasta que el modelo carga; después 'healthy'. La primera vez
+      # baja ~2,4 GB en CPU, así que el margen es amplio: 20 min de start_period
+      # (durante el cual un fallo NO cuenta) cubren una descarga lenta. Ya con el
+      # modelo en el volumen, arranca en segundos.
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:5000/health')"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 1200s
+
+    # ── GPU (opcional) ────────────────────────────────────────────────────────
+    # Tienes el runtime nvidia y una RTX 3050 (4 GB): el 600M entra de sobra y va
+    # ~10× más rápido. Para activarlo:
+    #   1) en el Dockerfile, cambia la línea de torch por la de CUDA:
+    #        RUN pip install --no-cache-dir torch==2.5.1
+    #   2) descomenta este bloque y reconstruye: docker compose up -d --build
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+volumes:
+  modelos:
