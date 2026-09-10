@@ -150,3 +150,15 @@
 [data-leido='true'] .check-trazo {
   animation: trazo-check 320ms cubic-bezier(0.65, 0, 0.35, 1) forwards;
 }
+
+/* Listas de capítulos: hasta 3.000 filas por fuente (TOPE_RENDER en api.ts).
+   `content-visibility: auto` hace que el navegador NO calcule estilo ni layout
+   de las que están fuera de pantalla —el coste pasa de 3.000 filas a las 15 que
+   se ven—, y el `contain-intrinsic-size` reserva su alto para que la barra de
+   scroll no salte al ir apareciendo. El `auto` de dentro recuerda el alto real
+   ya medido, así que la primera estimación solo se usa una vez.
+   No rompe Ctrl+F: el navegador busca dentro de este contenido igualmente. */
+[data-cap] {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 44px;
+}

@@ -54,6 +54,31 @@ export type Idioma = keyof typeof IDIOMAS;
 
 export const CODIGOS = Object.keys(IDIOMAS) as Idioma[];
 
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * LOS QUE ESTÁN ENCENDIDOS HOY
+ * ─────────────────────────────────────────────────────────────────────────────
+ * IDIOMAS declara la intención; esto dice cuáles salen a producción AHORA. Son
+ * cosas distintas y por eso son dos listas: el diccionario de los apagados se
+ * queda escrito y traducido, listo para encenderlo con una palabra.
+ *
+ * Por qué solo `es` + `en`, y no los siete:
+ *
+ *  - Un dominio de semanas indexa ~25 páginas al día. Con 9.552 fichas
+ *    esperando turno, cada idioma extra no añade tráfico: le quita rastreo al
+ *    que sí lo tiene. Primero se demuestra que `en` funciona, después se
+ *    enciende el siguiente.
+ *  - `id` y `vi` además no pagan: RPM de $0.1-0.5 frente a $4-15 de `en`. Son
+ *    los dos mercados más saturados de manhwa y los que menos monetizan.
+ *
+ * Orden previsto cuando `en` demuestre que indexa y trae impresiones: `de`
+ * (el mejor CPM y poca competencia en este nicho), luego `fr`.
+ *
+ * Encender uno es añadirlo aquí. La compuerta de `publicables.ts` sigue
+ * mandando: si su contenido no está traducido de verdad, no sale igualmente.
+ */
+export const ACTIVOS: Idioma[] = ['es', 'en'];
+
 export function esIdioma(x: unknown): x is Idioma {
   return typeof x === 'string' && x in IDIOMAS;
 }
