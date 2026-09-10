@@ -8,9 +8,16 @@ services:
       # El modelo se baja aquí y queda: reiniciar no vuelve a descargarlo.
       - modelos:/models
     environment:
-      # 4 = menos alucinaciones en textos cortos, mejor prosa. Bájalo a 1-2 si
-      # priorizas velocidad sobre calidad.
-      NLLB_BEAMS: "4"
+      # 2 en CPU: con 4 una sola sinopsis larga tardaba >5 min y agotaba el
+      # timeout del cliente (traducir.mjs) con 'fetch failed'. 2 es el doble de
+      # rápido y sigue muy por encima del greedy (1) en calidad. Con GPU sube a 4.
+      NLLB_BEAMS: "2"
+      # Frases por pasada del modelo. Con beams=4 en CPU, 16 disparaba la RAM
+      # (>10 GB) y el kernel mataba el proceso a mitad de un lote de sinopsis;
+      # 4 acota la memoria por generate() sin apenas perder velocidad, porque
+      # las frases son cortas.
+      NLLB_BATCH: "4"
+    mem_limit: 12g
     restart: unless-stopped
     healthcheck:
       # 'starting' hasta que el modelo carga; después 'healthy'. La primera vez

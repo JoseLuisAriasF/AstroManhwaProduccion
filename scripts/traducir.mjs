@@ -112,13 +112,14 @@ if (urlSb && claveSb) {
   const db = createClient(urlSb, claveSb, { auth: { persistSession: false } });
   const TAM = 1000;
   const tope = Number(args.find((a) => a.startsWith('--limite='))?.split('=')[1]) || Infinity;
+  // --tipo=ambos traduce solo las obras que tienen manhwa Y novela: son las que
+  // llevan el contenido único (la equivalencia), las que valen en otro idioma.
+  const tipo = args.find((a) => a.startsWith('--tipo='))?.split('=')[1];
   let leidas = 0;
   for (let desde = 0; leidas < tope; desde += TAM) {
-    const { data, error } = await db
-      .from('obras')
-      .select('titulo, sinopsis')
-      .eq('publicada', true)
-      .range(desde, desde + TAM - 1);
+    let consulta = db.from('obras').select('titulo, sinopsis').eq('publicada', true);
+    if (tipo) consulta = consulta.eq('tipo', tipo);
+    const { data, error } = await consulta.range(desde, desde + TAM - 1);
     if (error) throw new Error(`Supabase: ${error.message}`);
     if (!data?.length) break;
     for (const o of data) {
@@ -252,7 +253,29 @@ console.log(`Proveedor: ${urlLibre ? `LibreTranslate (${urlLibre})` : 'DeepL'}`)
 // ── Traducir en lotes, guardando sobre la marcha ─────────────────────────────
 // Se escribe el caché tras cada lote: si algo falla a mitad, lo ya pagado
 // queda guardado y el siguiente intento retoma donde se quedó.
-const LOTE = 40;
+//
+// 10 y no 40: con NLLB local a beams=4, un lote de 40 sinopsis tarda tanto en
+// una sola petición que la conexión se cae (`fetch failed`). Lotes más chicos
+// terminan antes y, si algo falla, se pierde y reintenta menos trabajo. DeepL
+// aguanta 40 de sobra, pero el mínimo común es lo seguro. Configurable por si
+// se vuelve a GPU, donde 40 vuela.
+const LOTE = Number(process.env.TRADUCIR_LOTE) || 10;
+
+/** Reintenta una función asíncrona con espera creciente (2s, 6s, 18s). El NLLB
+ *  local da 'fetch failed' cuando un lote agota el timeout o cuando el servidor
+ *  está recargando el modelo tras un reinicio; casi siempre entra al 2º intento. */
+async function conReintento(fn, intentos = 4) {
+  for (let n = 1; ; n++) {
+    try {
+      return await fn();
+    } catch (e) {
+      if (n >= intentos) throw e;
+      const espera = 2000 * 3 ** (n - 1);
+      console.error(`    reintento ${n}/${intentos - 1} en ${espera / 1000}s (${e.message.slice(0, 60)})`);
+      await new Promise((r) => setTimeout(r, espera));
+    }
+  }
+}
 
 for (const idioma of objetivos) {
   const pendientes = faltan[idioma];
@@ -272,12 +295,18 @@ for (const idioma of objetivos) {
       const trozo = grupo.slice(i, i + LOTE);
       let traducidos;
       try {
-        traducidos = await traducirLote(trozo, idioma, origen);
+        // Reintenta el MISMO lote antes de rendirse: con el NLLB local un lote
+        // lento agota el timeout del fetch y da 'fetch failed', pero el
+        // servidor sigue vivo y a la segunda entra. Sin esto, un corte puntual
+        // en la obra 300 abortaba las 4.700 restantes. Espera creciente entre
+        // intentos por si el servidor está recargando el modelo tras un reinicio.
+        traducidos = await conReintento(() => traducirLote(trozo, idioma, origen));
       } catch (e) {
-        // Un par de idiomas sin modelo (o un lote que el motor rechaza) no debe
-        // tirar la corrida entera: se anota y se sigue con el resto.
-        console.error(`  ${origen}→${idioma}: ${e.message.slice(0, 120)}`);
-        break;
+        // Agotados los reintentos: se anota el lote y se SIGUE con el resto, no
+        // se aborta. Lo ya traducido está guardado; este lote se reintenta en la
+        // próxima corrida (el caché lo ve pendiente).
+        console.error(`  ${origen}→${idioma} (lote saltado): ${e.message.slice(0, 120)}`);
+        continue;
       }
 
       trozo.forEach((texto, j) => {
