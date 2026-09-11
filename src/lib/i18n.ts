@@ -170,6 +170,21 @@ const es = {
   equivalenciaComunidad:
     'La equivalencia la pone la comunidad: entra a una obra y aporta qué capítulo del manhwa corresponde al de la novela.',
   aportaEquivalencia: '¿Sabes la equivalencia? Apórtala',
+  // Sección «dónde leerla» de la ficha (CapitulosExternos). `es` lleva los tipos;
+  // el resto los infiere del tipo Diccionario.
+  fuenteAria: 'Fuentes donde leer',
+  fuenteInfo: (formato: string, idioma: string, total: number): string =>
+    `${formato} en ${idioma}, ${total} capítulos en`,
+  fuenteSoloEnlace:
+    ' Esta fuente no lista los capítulos aquí: el enlace abre su página en una ventana, sin salir del sitio.',
+  fuenteSeLeen:
+    ' Se leen aquí mismo: el capítulo se abre en una ventana dentro del sitio y se marca como leído al hacer click.',
+  mostramosUltimos: (n: number, total: number): string => `Mostramos los últimos ${n} de ${total}; `,
+  verTodosEn: (dominio: string): string => `ver todos en ${dominio}`,
+  todosCapitulos: (nombre: string): string => `Todos los capítulos · ${nombre}`,
+  seAbreEn: (dominio: string): string => `(se abre en ${dominio})`,
+  abrirEnFuente: (dominio: string): string => `Abrir en ${dominio} ↗`,
+  visorMarco: 'Capítulo',
   verFicha: 'Ver ficha',
   anterior: 'Anterior',
   siguiente: 'Siguiente',
@@ -317,6 +332,18 @@ const en: Diccionario = {
   equivalenciaComunidad:
     'The community sets the match: open a series and add which manhwa chapter matches which novel chapter.',
   aportaEquivalencia: 'Know the match? Add it',
+  fuenteAria: 'Where to read',
+  fuenteInfo: (formato, idioma, total) => `${formato} in ${idioma}, ${total} chapters at`,
+  fuenteSoloEnlace:
+    " This source doesn't list the chapters here: the link opens its page in a window, without leaving the site.",
+  fuenteSeLeen:
+    ' Read them right here: the chapter opens in a window inside the site and is marked as read when you click.',
+  mostramosUltimos: (n, total) => `Showing the last ${n} of ${total}; `,
+  verTodosEn: (dominio) => `see all at ${dominio}`,
+  todosCapitulos: (nombre) => `All chapters · ${nombre}`,
+  seAbreEn: (dominio) => `(opens at ${dominio})`,
+  abrirEnFuente: (dominio) => `Open at ${dominio} ↗`,
+  visorMarco: 'Chapter',
   verFicha: 'View series',
   anterior: 'Previous',
   siguiente: 'Next',
@@ -451,6 +478,19 @@ const pt: Diccionario = {
   equivalenciaComunidad:
     'A equivalência é feita pela comunidade: entre numa obra e informe qual capítulo do manhwa corresponde ao da novela.',
   aportaEquivalencia: 'Sabe a equivalência? Contribua',
+  // ponytail: reserva en inglés hasta que se active pt (idioma dormido).
+  fuenteAria: 'Where to read',
+  fuenteInfo: (formato, idioma, total) => `${formato} in ${idioma}, ${total} chapters at`,
+  fuenteSoloEnlace:
+    " This source doesn't list the chapters here: the link opens its page in a window, without leaving the site.",
+  fuenteSeLeen:
+    ' Read them right here: the chapter opens in a window inside the site and is marked as read when you click.',
+  mostramosUltimos: (n, total) => `Showing the last ${n} of ${total}; `,
+  verTodosEn: (dominio) => `see all at ${dominio}`,
+  todosCapitulos: (nombre) => `All chapters · ${nombre}`,
+  seAbreEn: (dominio) => `(opens at ${dominio})`,
+  abrirEnFuente: (dominio) => `Open at ${dominio} ↗`,
+  visorMarco: 'Chapter',
   verFicha: 'Ver ficha',
   anterior: 'Anterior',
   siguiente: 'Próximo',
@@ -585,6 +625,19 @@ const id: Diccionario = {
   equivalenciaComunidad:
     'Kecocokan diisi oleh komunitas: buka sebuah judul dan tambahkan bab manhwa mana yang cocok dengan bab novel.',
   aportaEquivalencia: 'Tahu kecocokannya? Tambahkan',
+  // ponytail: reserva en inglés hasta que se active id (idioma dormido).
+  fuenteAria: 'Where to read',
+  fuenteInfo: (formato, idioma, total) => `${formato} in ${idioma}, ${total} chapters at`,
+  fuenteSoloEnlace:
+    " This source doesn't list the chapters here: the link opens its page in a window, without leaving the site.",
+  fuenteSeLeen:
+    ' Read them right here: the chapter opens in a window inside the site and is marked as read when you click.',
+  mostramosUltimos: (n, total) => `Showing the last ${n} of ${total}; `,
+  verTodosEn: (dominio) => `see all at ${dominio}`,
+  todosCapitulos: (nombre) => `All chapters · ${nombre}`,
+  seAbreEn: (dominio) => `(opens at ${dominio})`,
+  abrirEnFuente: (dominio) => `Open at ${dominio} ↗`,
+  visorMarco: 'Chapter',
   verFicha: 'Lihat detail',
   anterior: 'Sebelumnya',
   siguiente: 'Berikutnya',
@@ -721,6 +774,19 @@ const fr: Diccionario = {
   equivalenciaComunidad:
     'La correspondance vient de la communauté : ouvrez une œuvre et indiquez quel chapitre du manhwa correspond à celui du roman.',
   aportaEquivalencia: 'Vous connaissez la correspondance ? Ajoutez-la',
+  // ponytail: reserva en inglés hasta que se active fr (idioma dormido).
+  fuenteAria: 'Where to read',
+  fuenteInfo: (formato, idioma, total) => `${formato} in ${idioma}, ${total} chapters at`,
+  fuenteSoloEnlace:
+    " This source doesn't list the chapters here: the link opens its page in a window, without leaving the site.",
+  fuenteSeLeen:
+    ' Read them right here: the chapter opens in a window inside the site and is marked as read when you click.',
+  mostramosUltimos: (n, total) => `Showing the last ${n} of ${total}; `,
+  verTodosEn: (dominio) => `see all at ${dominio}`,
+  todosCapitulos: (nombre) => `All chapters · ${nombre}`,
+  seAbreEn: (dominio) => `(opens at ${dominio})`,
+  abrirEnFuente: (dominio) => `Open at ${dominio} ↗`,
+  visorMarco: 'Chapter',
   verFicha: 'Voir la fiche',
   anterior: 'Précédent',
   siguiente: 'Suivant',
@@ -859,6 +925,19 @@ const de: Diccionario = {
   equivalenciaComunidad:
     'Die Zuordnung kommt von der Community: Öffne ein Werk und trage ein, welches Manhwa-Kapitel welchem Novel-Kapitel entspricht.',
   aportaEquivalencia: 'Kennst du die Zuordnung? Trag sie ein',
+  // ponytail: reserva en inglés hasta que se active de (idioma dormido).
+  fuenteAria: 'Where to read',
+  fuenteInfo: (formato, idioma, total) => `${formato} in ${idioma}, ${total} chapters at`,
+  fuenteSoloEnlace:
+    " This source doesn't list the chapters here: the link opens its page in a window, without leaving the site.",
+  fuenteSeLeen:
+    ' Read them right here: the chapter opens in a window inside the site and is marked as read when you click.',
+  mostramosUltimos: (n, total) => `Showing the last ${n} of ${total}; `,
+  verTodosEn: (dominio) => `see all at ${dominio}`,
+  todosCapitulos: (nombre) => `All chapters · ${nombre}`,
+  seAbreEn: (dominio) => `(opens at ${dominio})`,
+  abrirEnFuente: (dominio) => `Open at ${dominio} ↗`,
+  visorMarco: 'Chapter',
   verFicha: 'Zur Übersicht',
   anterior: 'Zurück',
   siguiente: 'Weiter',
@@ -996,6 +1075,19 @@ const vi: Diccionario = {
   equivalenciaComunidad:
     'Sự tương ứng do cộng đồng đóng góp: mở một tác phẩm và cho biết chương manhwa nào khớp với chương tiểu thuyết.',
   aportaEquivalencia: 'Biết sự tương ứng? Đóng góp',
+  // ponytail: reserva en inglés hasta que se active vi (idioma dormido).
+  fuenteAria: 'Where to read',
+  fuenteInfo: (formato, idioma, total) => `${formato} in ${idioma}, ${total} chapters at`,
+  fuenteSoloEnlace:
+    " This source doesn't list the chapters here: the link opens its page in a window, without leaving the site.",
+  fuenteSeLeen:
+    ' Read them right here: the chapter opens in a window inside the site and is marked as read when you click.',
+  mostramosUltimos: (n, total) => `Showing the last ${n} of ${total}; `,
+  verTodosEn: (dominio) => `see all at ${dominio}`,
+  todosCapitulos: (nombre) => `All chapters · ${nombre}`,
+  seAbreEn: (dominio) => `(opens at ${dominio})`,
+  abrirEnFuente: (dominio) => `Open at ${dominio} ↗`,
+  visorMarco: 'Chapter',
   verFicha: 'Xem chi tiết',
   anterior: 'Trước',
   siguiente: 'Tiếp',
