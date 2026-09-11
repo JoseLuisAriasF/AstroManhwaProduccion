@@ -8,7 +8,7 @@
  *   node --experimental-strip-types functions/portada.test.ts
  */
 import assert from 'node:assert/strict';
-import { onRequest } from './portada/[slug].ts';
+import { onRequest } from '../functions/portada/[slug].ts';
 
 const MAPA = {
   buena: ['https://scan-a.test/ok.jpg'],

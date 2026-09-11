@@ -8,7 +8,7 @@
  *   node --experimental-strip-types functions/capitulo.test.ts
  */
 import assert from 'node:assert/strict';
-import { onRequest } from './novela/[slug]/[capitulo].ts';
+import { onRequest } from '../functions/novela/[slug]/[capitulo].ts';
 
 const FILAS: Record<string, unknown[]> = {
   // El capítulo 20 existe en dos fuentes; el 19 y el 21 también, para prev/next.
