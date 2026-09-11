@@ -35,10 +35,7 @@ const dic = t(idioma);
           <h2 id={`cruce-${slug}`} class="font-semibold text-base-800 dark:text-base-100">
             {dic.puenteTitulo}
           </h2>
-          <p class="text-sm text-base-500 mt-0.5">
-            Equivalencias de capítulo aportadas por la comunidad. La más votada se muestra;
-            la del admin manda.
-          </p>
+          <p class="text-sm text-base-500 mt-0.5">{dic.puenteComunidadSub}</p>
         </div>
       </div>
 
@@ -50,26 +47,24 @@ const dic = t(idioma);
           .sort((a, b) => a.capituloManhwa - b.capituloManhwa)
           .map((a) => (
             <li class="neu-inset rounded-xl px-3 py-2 tabular-nums">
-              Cap. manhwa <b>{a.capituloManhwa}</b> = cap. novela <b>{a.capituloNovela}</b>
+              {dic.puenteCapManhwa} <b>{a.capituloManhwa}</b> {dic.puenteEqCapNovela} <b>{a.capituloNovela}</b>
             </li>
           ))}
       </ol>
 
-      <p data-cruce-vacio hidden class="mt-4 text-sm text-base-500">
-        Aún no hay equivalencias. ¡Sé el primero en aportar una!
-      </p>
+      <p data-cruce-vacio hidden class="mt-4 text-sm text-base-500">{dic.puenteVacio}</p>
 
       {/* Aporte / voto. El script revela el formulario según haya sesión. */}
       <div class="mt-4 border-t border-base-300/40 dark:border-base-700/40 pt-4">
         <div data-cruce-form hidden>
-          <p class="text-sm text-base-500 mb-2">Aporta una equivalencia (o vota una existente en “ver detalle”):</p>
+          <p class="text-sm text-base-500 mb-2">{dic.puenteAporta}</p>
           <div class="flex flex-wrap items-center gap-2 text-sm">
-            <span class="text-base-500">Cap. manhwa</span>
+            <span class="text-base-500">{dic.puenteCapManhwa}</span>
             <input type="number" min="1" data-aporte-manhwa class="neu-inset rounded-lg w-16 px-2 py-1.5 bg-transparent outline-none tabular-nums" />
-            <span class="text-base-500">= cap. novela</span>
+            <span class="text-base-500">{dic.puenteEqCapNovela}</span>
             <input type="number" min="1" data-aporte-novela class="neu-inset rounded-lg w-16 px-2 py-1.5 bg-transparent outline-none tabular-nums" />
             <button data-aporte-enviar class="neu-sm neu-press rounded-lg px-3 py-1.5 font-medium text-acento-500">
-              Aportar
+              {dic.puenteAportar}
             </button>
           </div>
           <p data-aporte-msg hidden class="mt-2 text-xs" />
@@ -85,6 +80,9 @@ const dic = t(idioma);
 
 <script>
   import { supabase } from '@/lib/supabaseClient';
+  import { idiomaDeRuta, t } from '@/lib/i18n';
+
+  const dic = t(idiomaDeRuta(location.pathname));
 
   type Fila = { capitulo_manhwa: number; capitulo_novela: number };
 
@@ -116,10 +114,10 @@ const dic = t(idioma);
       );
       if (error) {
         const esLimite = /aporte|l[ií]mite|d[ií]a/i.test(error.message);
-        mostrarMsg(esLimite ? error.message : 'No se pudo guardar. Intenta de nuevo.', false);
+        mostrarMsg(esLimite ? error.message : dic.puenteNoGuardado, false);
         return;
       }
-      mostrarMsg('¡Listo! Tu voto cuenta.', true);
+      mostrarMsg(dic.puenteVotoOk, true);
       await cargar();
     }
 
@@ -142,34 +140,34 @@ const dic = t(idioma);
           const votosGana = oficial ? 0 : (opciones[0]?.[1] ?? 0);
           const miVoto = mias.get(cap);
           const badge = oficial
-            ? '<span class="text-[11px] text-acento-500 neu-inset rounded px-1.5 py-0.5">oficial</span>'
-            : `<span class="text-[11px] text-base-400">${votosGana} ${votosGana === 1 ? 'voto' : 'votos'}</span>`;
+            ? `<span class="text-[11px] text-acento-500 neu-inset rounded px-1.5 py-0.5">${dic.puenteOficial}</span>`
+            : `<span class="text-[11px] text-base-400">${dic.puenteVotos(votosGana)}</span>`;
 
           // Alternativas con menos votos (para "ver detalle").
           const alternativas = opciones
             .filter(([nov]) => nov !== ganadora)
             .map(([nov, v]) => {
-              const yo = miVoto === nov ? ' · <span class="text-emerald-500">tu voto</span>' : '';
+              const yo = miVoto === nov ? ` · <span class="text-emerald-500">${dic.puenteTuVoto}</span>` : '';
               const botn = usuarioId && miVoto !== nov
-                ? ` <button data-votar="${cap}:${nov}" class="text-acento-500 underline ml-1">votar</button>`
+                ? ` <button data-votar="${cap}:${nov}" class="text-acento-500 underline ml-1">${dic.puenteVotar}</button>`
                 : '';
-              return `<li class="text-base-500">cap. novela <b>${nov}</b> · ${v} ${v === 1 ? 'voto' : 'votos'}${yo}${botn}</li>`;
+              return `<li class="text-base-500">${dic.puenteCapNovela} <b>${nov}</b> · ${dic.puenteVotos(v)}${yo}${botn}</li>`;
             })
             .join('');
           const votarGanadora =
             usuarioId && !oficial && miVoto !== ganadora
-              ? ` <button data-votar="${cap}:${ganadora}" class="text-acento-500 underline ml-1">votar</button>`
+              ? ` <button data-votar="${cap}:${ganadora}" class="text-acento-500 underline ml-1">${dic.puenteVotar}</button>`
               : '';
-          const tuVotoGana = miVoto === ganadora ? ' · <span class="text-emerald-500">tu voto</span>' : '';
+          const tuVotoGana = miVoto === ganadora ? ` · <span class="text-emerald-500">${dic.puenteTuVoto}</span>` : '';
           const detalle =
             alternativas.length || (usuarioId && !oficial)
-              ? `<details class="mt-1"><summary class="cursor-pointer text-[11px] text-base-400">ver detalle</summary>
-                   <ul class="mt-1 grid gap-1 text-xs pl-1">${alternativas}${oficial && opciones.length ? `<li class="text-base-400">(propuestas de la comunidad; la oficial manda)</li>` : ''}</ul>
+              ? `<details class="mt-1"><summary class="cursor-pointer text-[11px] text-base-400">${dic.puenteVerDetalle}</summary>
+                   <ul class="mt-1 grid gap-1 text-xs pl-1">${alternativas}${oficial && opciones.length ? `<li class="text-base-400">${dic.puentePropuestas}</li>` : ''}</ul>
                  </details>`
               : '';
 
           return `<li class="neu-inset rounded-xl px-3 py-2">
-            <div class="tabular-nums">Cap. manhwa <b>${cap}</b> = cap. novela <b>${ganadora}</b> ${badge}${tuVotoGana}${votarGanadora}</div>
+            <div class="tabular-nums">${dic.puenteCapManhwa} <b>${cap}</b> ${dic.puenteEqCapNovela} <b>${ganadora}</b> ${badge}${tuVotoGana}${votarGanadora}</div>
             ${detalle}
           </li>`;
         })
@@ -214,7 +212,7 @@ const dic = t(idioma);
         const m = parseInt(inM.value, 10);
         const n = parseInt(inN.value, 10);
         if (!Number.isFinite(m) || !Number.isFinite(n) || m < 1 || n < 1) {
-          mostrarMsg('Pon dos números de capítulo válidos.', false);
+          mostrarMsg(dic.puenteNumsInvalidos, false);
           return;
         }
         inM.value = '';
