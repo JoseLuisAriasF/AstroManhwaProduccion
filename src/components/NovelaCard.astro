@@ -64,7 +64,7 @@ const href = ruta(idiomaFicha, `/novela/${novela.slug}`);
             f === 'manhwa' ? 'text-emerald-500' : 'text-acento-500',
           ]}
         >
-          {f}
+          {dic.formato(f)}
         </span>
       ))}
       {totalCapitulos ? <span class="text-base-400 tabular-nums">{totalCapitulos} {dic.capitulosCorto}</span> : null}

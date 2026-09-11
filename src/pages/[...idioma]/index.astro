@@ -111,7 +111,7 @@ const jsonLd = {
   {/* Carrusel como PORTADA: lo primero que se ve, en grande. El texto de héroe
       va debajo. */}
   <div id="destacados" class="mb-8">
-    <Carrusel items={carrusel} titulo="Destacados: manhwa + novela" />
+    <Carrusel items={carrusel} titulo={dic.destacados} />
   </div>
 
   <!-- Hero -->
@@ -191,8 +191,8 @@ const jsonLd = {
 
   {nuevos.length > 0 && (
     <section id="nuevos" class="mb-10">
-      <h2 class="font-semibold text-base-800 dark:text-base-100 mb-1">Nuevos lanzamientos</h2>
-      <p class="text-sm text-base-500 mb-4">Novelas con su manhwa (y viceversa), recién añadidas.</p>
+      <h2 class="font-semibold text-base-800 dark:text-base-100 mb-1">{dic.nuevosLanzamientos}</h2>
+      <p class="text-sm text-base-500 mb-4">{dic.nuevosLanzamientosSub}</p>
       {/* Se muestran 6; el resto se despliega con "Ver más". El colapso es CSS
           (nth-child) para que no dependa de JS y funcione sin él. */}
       <div data-colapsable="6" class="grid grid-cols-1 sm:grid-cols-2 gap-4">

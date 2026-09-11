@@ -26,7 +26,6 @@ const { fuentes, slug } = Astro.props;
 const dic = t(idiomaDeRuta(Astro.url.pathname));
 
 const idiomaNombre = (i: string) => (esIdioma(i) ? IDIOMAS[i].nombre : i.toUpperCase());
-const etiquetaTipo = (tipo: 'manhwa' | 'novela') => (tipo === 'manhwa' ? 'Manhwa' : 'Novela');
 ---
 
 {
@@ -67,7 +66,7 @@ const etiquetaTipo = (tipo: 'manhwa' | 'novela') => (tipo === 'manhwa' ? 'Manhwa
                   f.tipo === 'novela' ? 'text-acento-500' : 'text-emerald-500',
                 ]}
               >
-                {etiquetaTipo(f.tipo)}
+                {dic.formato(f.tipo)}
               </span>
               <span class="text-[11px] text-base-400">{idiomaNombre(f.idioma)}</span>
             </div>
@@ -84,7 +83,7 @@ const etiquetaTipo = (tipo: 'manhwa' | 'novela') => (tipo === 'manhwa' ? 'Manhwa
         <div data-panel={f.fuenteId} hidden={i !== 0}>
           {/* Decir de dónde sale cada enlace no es letra chica: es el sitio. */}
           <p class="text-sm text-base-500 mb-3">
-            {etiquetaTipo(f.tipo)} en {idiomaNombre(f.idioma)}, {f.total} capítulos en{' '}
+            {dic.formato(f.tipo)} en {idiomaNombre(f.idioma)}, {f.total} capítulos en{' '}
             <strong class="text-base-600 dark:text-base-300">{f.dominio}</strong>.
             {f.soloEnlace
               ? ' Esta fuente no lista los capítulos aquí: el enlace abre su página en una ventana, sin salir del sitio.'
