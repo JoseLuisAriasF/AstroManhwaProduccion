@@ -10,8 +10,13 @@
   Cache-Control: public, max-age=0, must-revalidate
   CDN-Cache-Control: public, s-maxage=86400, stale-while-revalidate=604800
 
-# Lo mismo para los idiomas con prefijo: /en/novela/…, /pt/novela/…
-/*/novela/*
+# Lo mismo para los idiomas con prefijo: /en/novela/…
+#
+# Con DOS comodines (`/*/novela/*`) Cloudflare descarta la regla entera —"Only
+# one wildcard is allowed per rule"— y lo dice solo en el log del build, así que
+# estas páginas llevaban meses sirviéndose sin caché de edge. El marcador con
+# nombre es la forma soportada de tener dos partes variables.
+/:idioma/novela/*
   Cache-Control: public, max-age=0, must-revalidate
   CDN-Cache-Control: public, s-maxage=86400, stale-while-revalidate=604800
 

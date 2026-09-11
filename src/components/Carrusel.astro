@@ -1,5 +1,6 @@
 ---
 import type { EquivalenciaManhwa, Novela } from '@/types/novela';
+import { idiomaDeRuta, t } from '@/lib/i18n';
 
 interface Item {
   novela: Novela;
@@ -15,6 +16,7 @@ interface Props {
 }
 
 const { items, titulo } = Astro.props;
+const dic = t(idiomaDeRuta(Astro.url.pathname));
 ---
 
 {
@@ -24,17 +26,15 @@ const { items, titulo } = Astro.props;
         <div class="flex items-center gap-2">
           <h2 class="font-semibold text-base-800 dark:text-base-100">{titulo}</h2>
           <div class="ml-auto flex gap-1.5">
-            <button data-prev aria-label="Anterior" class="neu-sm neu-press rounded-xl size-9 grid place-items-center text-base-500">
+            <button data-prev aria-label={dic.anterior} class="neu-sm neu-press rounded-xl size-9 grid place-items-center text-base-500">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" class="size-4"><path d="m15 18-6-6 6-6" /></svg>
             </button>
-            <button data-next aria-label="Siguiente" class="neu-sm neu-press rounded-xl size-9 grid place-items-center text-base-500">
+            <button data-next aria-label={dic.siguiente} class="neu-sm neu-press rounded-xl size-9 grid place-items-center text-base-500">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" class="size-4"><path d="m9 18 6-6-6-6" /></svg>
             </button>
           </div>
         </div>
-        <p class="text-sm text-base-500 mt-0.5">
-          La equivalencia la pone la comunidad: entra a una obra y aporta qué capítulo del manhwa corresponde al de la novela.
-        </p>
+        <p class="text-sm text-base-500 mt-0.5">{dic.equivalenciaComunidad}</p>
       </div>
 
       <div data-track class="flex overflow-x-auto snap-x snap-mandatory gap-4 scrollbar-none scroll-smooth -mx-4 px-4 sm:mx-0 sm:px-0">
@@ -75,7 +75,7 @@ const { items, titulo } = Astro.props;
                         f === 'manhwa' ? 'bg-emerald-500/90' : 'bg-acento-500/90',
                       ]}
                     >
-                      {f}
+                      {dic.formato(f)}
                     </span>
                   ))}
                   {it.total > 0 && (
@@ -99,19 +99,17 @@ const { items, titulo } = Astro.props;
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" class="size-3.5 text-acento-300">
                       <path d="M4 7h9m0 0-3-3m3 3-3 3M20 17h-9m0 0 3-3m-3 3 3 3" />
                     </svg>
-                    Manhwa {it.ancla.capituloManhwa} = Novela {it.ancla.capituloNovela}
+                    {dic.formato('manhwa')} {it.ancla.capituloManhwa} = {dic.formato('novela')} {it.ancla.capituloNovela}
                   </div>
                 ) : (
                   <div class="mt-2.5 inline-flex items-center gap-1.5 text-xs bg-white/10 rounded-lg px-2.5 py-1 text-white/80">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" class="size-3.5 text-acento-300">
                       <path d="M12 5v14M5 12h14" />
-                    </svg>
-                    ¿Sabes la equivalencia? Apórtala
-                  </div>
+                    </svg>{dic.aportaEquivalencia}</div>
                 )}
 
                 <span class="mt-3 hidden sm:inline-flex items-center gap-1 text-sm font-medium text-white/90 group-hover:text-white">
-                  Ver ficha
+                  {dic.verFicha}
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" class="size-4"><path d="m9 18 6-6-6-6" /></svg>
                 </span>
               </div>

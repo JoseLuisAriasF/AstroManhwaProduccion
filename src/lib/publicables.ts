@@ -1,4 +1,4 @@
-import { CODIGOS, IDIOMAS, IDIOMA_BASE, ruta, rutaCanonica, type Idioma } from './i18n';
+import { ACTIVOS, CODIGOS, IDIOMAS, IDIOMA_BASE, ruta, rutaCanonica, type Idioma } from './i18n';
 import { capitulosDe, novelas } from './mockData';
 import { cobertura, traducirTexto } from './traducir';
 
@@ -34,8 +34,12 @@ const textos = [
 ];
 const unicos = [...new Set(textos)];
 
+// Dos compuertas en serie, y las dos tienen que abrirse: ACTIVOS dice cuáles
+// QUEREMOS publicar (decisión de negocio, ver i18n.ts) y la cobertura dice
+// cuáles PODEMOS (¿está el texto traducido?). Un idioma encendido sin traducir
+// no sale, y uno traducido pero apagado tampoco.
 export const PUBLICADOS: Idioma[] = CODIGOS.filter(
-  (c) => c === IDIOMA_BASE || cobertura(unicos, c) >= UMBRAL,
+  (c) => ACTIVOS.includes(c) && (c === IDIOMA_BASE || cobertura(unicos, c) >= UMBRAL),
 );
 
 /** Informe para el build: qué salió y qué se quedó fuera, y por qué. */

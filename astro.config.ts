@@ -1,13 +1,16 @@
 import { defineConfig } from 'astro/config';
 import sitemap from '@astrojs/sitemap';
 import tailwind from '@tailwindcss/vite';
-import { CODIGOS, IDIOMA_BASE, IDIOMAS } from './src/lib/i18n';
+import { ACTIVOS, CODIGOS, IDIOMA_BASE, IDIOMAS } from './src/lib/i18n';
 import { metaSitemap } from './src/lib/sitemapMeta';
 
 // Un solo sitio de verdad para los idiomas: src/lib/i18n.ts.
 // Añadir uno ahí lo propaga a rutas, sitemap, hreflang y selector.
+// Solo los ENCENDIDOS: declarar en el sitemap un hreflang a /de/ mientras /de/
+// no se genera es prometerle a Google una página que da 404, y esos 404 se los
+// apunta al dominio.
 const localesSitemap = Object.fromEntries(
-  CODIGOS.map((c) => [c, IDIOMAS[c].htmlLang]),
+  ACTIVOS.map((c) => [c, IDIOMAS[c].htmlLang]),
 ) as Record<string, string>;
 
 // Metadatos por obra (fecha real + si es "ambos"), una lectura antes de generar
