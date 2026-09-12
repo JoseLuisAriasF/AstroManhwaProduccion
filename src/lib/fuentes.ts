@@ -83,17 +83,20 @@ export function esFuenteDelCatalogo(url: string): boolean {
  * de un iframe de otro origen para saber si pintó algo.
  */
 export const SIN_VISOR = [
-  // Apps JS que dibujan el capítulo desde su API:
+  // Apps JS que dibujan el capítulo desde su API (visor en blanco):
   'olympusxyz.com',
   'mangadex.org',
   'manhwaweb.com',
   'wtr-lab.com',
   'wetriedtls.com',
   'webtoons.com',
-  // Cloudflare 403 al fetch del edge:
+  'esponsor.com',
+  // Cloudflare 403 al fetch del edge (no llega el HTML):
   'daotranslate.com',
   'readtoon.com',
   'kairew.com',
+  'readrealm.co',
+  'kaichan.co',
 ];
 
 /**
