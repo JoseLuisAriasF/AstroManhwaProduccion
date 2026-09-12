@@ -251,6 +251,10 @@ export const onRequest = async (context: { request: Request }): Promise<Response
   // imágenes sin decir de dónde viene y la protección las deja pasar. Nunca es
   // peor que mandar el nuestro, que es justo el caso que bloquean.
   cabeceras.set('Referrer-Policy', 'no-referrer');
+  // Marca de versión: sirve para confirmar de un vistazo qué build de esta
+  // función está viva en el edge (los deploys de Pages pueden tardar en
+  // propagar la función aunque el estático ya esté).
+  cabeceras.set('X-Visor-Rev', 'img-2');
 
   // Lo que no es HTML se devuelve tal cual (una imagen suelta, un PDF…).
   if (!(origen.headers.get('content-type') ?? '').includes('text/html')) {
@@ -293,7 +297,11 @@ export const onRequest = async (context: { request: Request }): Promise<Response
     // quita el ocultado. Al borrar `data-lm-orig-src` —la marca por la que el
     // script del escudo las busca— y sus `onload/onerror`, el escudo ya no
     // tiene de dónde agarrarlas y no las vuelve a tapar.
-    .on('img[data-lm-orig-src]', {
+    // Selector de ETIQUETA, no de atributo (`img[...]`): el motor de
+    // HTMLRewriter que corre en producción no casaba el selector de atributo
+    // —sí el de etiqueta—, así que el filtro por `data-lm-orig-src` se hace
+    // dentro. Las <img> sin esa marca salen intactas en la primera línea.
+    .on('img', {
       element: (e: any) => {
         const real = e.getAttribute('data-lm-orig-src');
         if (!real) return;

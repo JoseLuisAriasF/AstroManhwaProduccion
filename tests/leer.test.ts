@@ -139,7 +139,7 @@ assert.equal(huecos, 3, 'un <iframe> sin src es el hueco que rellena un script')
     'aria-hidden': 'true',
     style: 'display: none;',
   };
-  registrado['img[data-lm-orig-src]'].element({
+  registrado['img'].element({
     getAttribute: (k: string) => attrs[k] ?? null,
     setAttribute: (k: string, v: string) => (attrs[k] = v),
     removeAttribute: (k: string) => delete attrs[k],
@@ -148,6 +148,16 @@ assert.equal(huecos, 3, 'un <iframe> sin src es el hueco que rellena un script')
   assert.equal(attrs['data-lm-orig-src'], undefined, 'la marca del escudo se borra');
   assert.equal(attrs.style, undefined, 'sin el display:none, la imagen se ve');
   assert.equal(attrs.onload, undefined, 'sin el hook, el escudo no la retapa');
+
+  // Una <img> normal (sin la marca del escudo) no se toca: el selector es de
+  // etiqueta, así que el filtro va dentro y sale en la primera línea.
+  const normal: Record<string, string | null> = { src: 'https://x/foto.jpg' };
+  registrado['img'].element({
+    getAttribute: (k: string) => normal[k] ?? null,
+    setAttribute: (k: string, v: string) => (normal[k] = v),
+    removeAttribute: (k: string) => delete normal[k],
+  });
+  assert.equal(normal.src, 'https://x/foto.jpg', 'una imagen sin escudo queda igual');
 }
 
 // Lo que no es HTML pasa tal cual, sin tocar el cuerpo.
