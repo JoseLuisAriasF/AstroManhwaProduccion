@@ -62,6 +62,58 @@ export function esFuenteDelCatalogo(url: string): boolean {
   return DOMINIOS.some((d) => host === d || host.endsWith(`.${d}`));
 }
 
+/**
+ * Fuentes del catálogo que NO se dejan LEER dentro del visor. Dos motivos, uno
+ * por bloque:
+ *
+ *  · Apps JS (Nuxt/React/Next) que no traen el capítulo en el HTML: lo dibuja su
+ *    JavaScript llamando a SU API, y esa llamada sale ahora desde nuestro
+ *    dominio. Si su CORS no lo permite —y ninguna lo permite— el visor sale en
+ *    blanco o revienta con «Application error». Medido en las cuatro.
+ *  · Su Cloudflare responde 403 a un fetch de servidor (anti-bot): el HTML no
+ *    llega y `/leer` solo puede enseñar el aviso.
+ *
+ * Para estas, el capítulo NO abre el visor: se abre en pestaña como un enlace
+ * normal, donde el navegador del lector —con sus cookies y su JS— sí las hace
+ * funcionar. Es el mismo trato que un dominio fuera del catálogo (ver
+ * CapitulosExternos: sin `data-visor-src`, el `href` a la fuente manda).
+ *
+ * Lista corta y a mano a propósito, como `DOMINIOS`: son 23 fuentes, no cambian
+ * de tecnología en una tarde, y una heurística en cliente no puede mirar dentro
+ * de un iframe de otro origen para saber si pintó algo.
+ */
+export const SIN_VISOR = [
+  // Apps JS que dibujan el capítulo desde su API (visor en blanco):
+  'olympusxyz.com',
+  'mangadex.org',
+  'manhwaweb.com',
+  'wtr-lab.com',
+  'wetriedtls.com',
+  'webtoons.com',
+  'esponsor.com',
+  // Cloudflare 403 al fetch del edge (no llega el HTML):
+  'daotranslate.com',
+  'readtoon.com',
+  'kairew.com',
+  'readrealm.co',
+  'kaichan.co',
+];
+
+/**
+ * ¿El capítulo se puede LEER dentro del visor? Tiene que ser del catálogo y no
+ * estar en `SIN_VISOR`. Cuando devuelve false, el enlace se abre en pestaña.
+ */
+export function abreEnVisor(url: string): boolean {
+  if (!esFuenteDelCatalogo(url)) return false;
+  let host: string;
+  try {
+    host = new URL(url).hostname.replace(/^www\./, '').toLowerCase();
+  } catch {
+    return false;
+  }
+  return !SIN_VISOR.some((d) => host === d || host.endsWith(`.${d}`));
+}
+
 /** La URL del visor para un capítulo. `encodeURIComponent` y no un `+`: los
  *  enlaces de las scans llevan `?`, `&` y `#` de sobra. */
 export const urlDeLectura = (url: string) => `/leer?u=${encodeURIComponent(url)}`;

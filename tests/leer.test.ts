@@ -31,7 +31,7 @@ globalThis.fetch = (async (u: any, init: any) => {
   return respuesta;
 }) as typeof fetch;
 
-const { onRequest } = await import('./leer.ts');
+const { onRequest } = await import('../functions/leer.ts');
 const pedir = (u: string) =>
   onRequest({ request: new Request(`https://mtn.test/leer?u=${encodeURIComponent(u)}`) });
 
