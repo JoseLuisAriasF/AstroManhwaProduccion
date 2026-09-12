@@ -230,7 +230,7 @@ function ajeno(src: string | null, base: string): boolean {
  * `CLASE_PAGINA`) y poner el dominio en esta lista. Si la extracción no
  * encuentra páginas, `onRequest` sigue por el proxy de siempre: nunca se rompe.
  */
-const CON_LECTOR = ['leemiau.com', 'imperiomanhua.com'];
+const CON_LECTOR = ['leemiau.com', 'imperiomanhua.com', 'asurascans.com'];
 
 function tieneLectorPropio(url: string): boolean {
   try {
@@ -252,6 +252,13 @@ function attr(tag: string, nombre: string): string | null {
  *  vale por sí solo: ese atributo solo lo llevan las páginas. */
 const CLASE_PAGINA = /(^|\s)(wp-manga-chapter-img|ts-main-image)(\s|$)/i;
 
+/** Atributos que por sí solos dicen que la <img> es una página. Van aparte de
+ *  la clase porque hay lectores sin clase útil: el de Asura viste las imágenes
+ *  con utilidades de Tailwind (`w-full block`), que también lleva media
+ *  interfaz, pero numera cada página con `data-page-index`. Y `data-lm-orig-src`
+ *  es el escudo de leemiau, que solo llevan las páginas. */
+const ATRIBUTOS_PAGINA = ['data-lm-orig-src', 'data-page-index'];
+
 /** Dónde esconden la URL buena, por orden de preferencia: la primera que no sea
  *  un placeholder `data:` gana. El lazy-load de cada tema usa la suya. */
 const ATRIBUTOS_URL = ['data-lm-orig-src', 'data-src', 'data-lazy-src', 'data-original', 'src'];
@@ -263,7 +270,8 @@ function paginasDelCapitulo(html: string): string[] {
   for (const m of html.matchAll(/<img\b[^>]*>/gi)) {
     const tag = m[0];
     const esPagina =
-      CLASE_PAGINA.test(attr(tag, 'class') ?? '') || attr(tag, 'data-lm-orig-src') !== null;
+      CLASE_PAGINA.test(attr(tag, 'class') ?? '') ||
+      ATRIBUTOS_PAGINA.some((a) => attr(tag, a) !== null);
     if (!esPagina) continue;
     for (const a of ATRIBUTOS_URL) {
       const u = (attr(tag, a) ?? '').replace(/&amp;/gi, '&').trim();

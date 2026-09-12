@@ -175,6 +175,24 @@ assert.ok(!paginasMadara.includes('logo.png'), 'el logo no es una página');
 assert.ok(!paginasMadara.includes('avatar.jpg'), 'ni el avatar de un comentario');
 assert.match(madara.headers.get('content-security-policy') ?? '', /default-src 'none'/);
 
+// Asura viste sus imágenes con utilidades de Tailwind (`w-full block`), que
+// también lleva media interfaz: la clase no sirve para saber qué es una página.
+// Lo que sí sirve es que numere cada una con `data-page-index`.
+respuesta = html(
+  `<html><head><title>Obra — Chapter 186</title></head><body>
+   <img class="rounded-lg object-cover w-full" src="https://cdn.asurascans.com/portada.webp">
+   <img data-page-index="0" class="w-full block" src="https://cdn.asurascans.com/c/186/a.webp?v=1">
+   <img data-page-index="1" class="w-full block" src="https://cdn.asurascans.com/c/186/b.webp?v=1">
+   </body></html>`,
+  {},
+  'https://asurascans.com/comics/obra/chapter/186',
+);
+const asura = await pedir('https://asurascans.com/comics/obra/chapter/186');
+const paginasAsura = await asura.text();
+assert.match(paginasAsura, /c\/186\/a\.webp\?v=1/, 'la página 0, con su query');
+assert.match(paginasAsura, /c\/186\/b\.webp\?v=1/, 'y la 1');
+assert.ok(!paginasAsura.includes('portada.webp'), 'la portada no es una página');
+
 // Si su anti-bot devuelve una página sin capítulo, se sigue por el camino
 // normal: su HTML es mejor que un lector vacío.
 respuesta = html('<html><head></head><body>sin capitulo</body></html>', {}, 'https://leemiau.com/x/');
