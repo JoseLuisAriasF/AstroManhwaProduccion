@@ -42,7 +42,9 @@ assert.equal(
 // sí, pero `abreEnVisor` las deja fuera.
 assert.equal(abreEnVisor('https://imperiomanhua.com/manga/x/capitulo-1/'), true, 'HTML normal: visor');
 assert.equal(abreEnVisor('https://anslid.com/novela/x/capitulo-1/'), true);
-assert.equal(abreEnVisor('https://leemiau.com/x-capitulo-1/'), false, 'escudo anti-embed: pestaña');
+// leemiau va al visor aunque blinde su página: /leer le arma un lector propio
+// con las imágenes (ver `lectorPropio` en functions/leer.ts).
+assert.equal(abreEnVisor('https://leemiau.com/x-capitulo-1/'), true, 'con lector propio: visor');
 assert.equal(abreEnVisor('https://olympusxyz.com/series/x'), false, 'Nuxt: en blanco');
 assert.equal(abreEnVisor('https://www.webtoons.com/en/x/list?title_no=1'), false, 'con www');
 assert.equal(abreEnVisor('https://mangadex.org/chapter/abc'), false);

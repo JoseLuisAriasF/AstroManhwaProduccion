@@ -198,6 +198,85 @@ function ajeno(src: string | null, base: string): boolean {
   }
 }
 
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Fuentes con escudo: el capítulo lo armamos NOSOTROS
+ * ─────────────────────────────────────────────────────────────────────────────
+ * leemiau sirve el capítulo blindado contra el embebido: las <img> van en
+ * blanco, la URL real escondida en `data-lm-orig-src`, y su JavaScript solo las
+ * dibuja —en un <canvas>— si la página corre en su propio dominio. Proxear su
+ * HTML tal cual da un capítulo NEGRO. Devolverle el `src` tampoco sirve: su
+ * script las vuelve a tapar en el navegador, y encima responde distinto a un
+ * fetch de servidor.
+ *
+ * La salida no es pelear con su página: es **no servirla**. Las URLs ya vienen
+ * en el documento, así que se leen y se escribe un lector nuestro con las
+ * imágenes y nada más. Su JS nunca llega a existir, así que no hay escudo que
+ * valga —ni anuncios, ni popunders, ni 270 KB de tema—.
+ *
+ * El archivo de imagen NO está protegido, solo el documento: desde aquí carga
+ * entero con `no-referrer` (medido: 200 y 720×10000).
+ */
+const ESCUDADAS = ['leemiau.com'];
+
+function conEscudo(url: string): boolean {
+  try {
+    const h = new URL(url).hostname.replace(/^www\./, '').toLowerCase();
+    return ESCUDADAS.some((d) => h === d || h.endsWith(`.${d}`));
+  } catch {
+    return false;
+  }
+}
+
+/** Las páginas del capítulo, en orden y sin repetir. El escudo no las borra:
+ *  solo las mueve fuera del `src`, que es donde las vamos a buscar. */
+function paginasDelCapitulo(html: string): string[] {
+  const vistas = new Set<string>();
+  const urls: string[] = [];
+  for (const m of html.matchAll(/data-lm-orig-src="([^"]+)"/g)) {
+    const u = m[1].replace(/&amp;/gi, '&').trim();
+    if (!/^https?:\/\//i.test(u)) continue;
+    // Solo archivos de imagen: el mismo atributo lo llevan el logo y adornos.
+    if (!/\.(webp|avif|jpe?g|png|gif)(\?|#|$)/i.test(u)) continue;
+    if (vistas.has(u)) continue;
+    vistas.add(u);
+    urls.push(u);
+  }
+  return urls;
+}
+
+/** El `<title>` de la fuente, sin `<` que puedan romper el nuestro. */
+const tituloDe = (html: string) =>
+  (html.match(/<title[^>]*>([\s\S]{0,200}?)<\/title>/i)?.[1] ?? 'Capítulo').replace(/</g, '').trim();
+
+const atributo = (s: string) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+
+/** La página la escribimos nosotros y no ejecuta NADA: se cierra entera y solo
+ *  pasan las imágenes, que son el capítulo. Es la CSP más estricta del sitio. */
+const CSP_LECTOR =
+  "default-src 'none'; img-src * data: blob:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'";
+
+/** El capítulo, servido por nosotros: las imágenes y punto. */
+function lectorPropio(titulo: string, urls: string[]): string {
+  // Las dos primeras sin `lazy`: son las que se ven al abrir, y esperar al
+  // observer para pedirlas es medio segundo de pantalla vacía.
+  const hojas = urls
+    .map(
+      (u, i) =>
+        `<img src="${atributo(u)}" alt="" decoding="async" loading="${i < 2 ? 'eager' : 'lazy'}">`,
+    )
+    .join('');
+  return `<!doctype html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>${titulo}</title>
+<style>html,body{margin:0;padding:0;background:#0b0d12}
+.hoja{max-width:900px;margin:0 auto}
+.hoja img{display:block;width:100%;height:auto;border:0}
+.fin{margin:0;padding:22px 16px 40px;text-align:center;color:#9aa2b1;
+font:13px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}</style></head>
+<body><div class="hoja">${hojas}</div>
+<p class="fin">Fin del capítulo · ${urls.length} páginas</p></body></html>`;
+}
+
 export const onRequest = async (context: { request: Request }): Promise<Response> => {
   const destino = new URL(context.request.url).searchParams.get('u') ?? '';
   if (!esFuenteDelCatalogo(destino)) {
@@ -257,6 +336,32 @@ export const onRequest = async (context: { request: Request }): Promise<Response
     return new Response(origen.body, { status: origen.status, headers: cabeceras });
   }
 
+  // ── Fuentes con escudo: su HTML no se sirve, se rearma ───────────────────
+  // Se lee entero (son ~270 KB, nada para el runtime) porque hay que tener las
+  // URLs ANTES de escribir la respuesta; el streaming no sirve para esto.
+  let cuerpo: BodyInit = origen.body as BodyInit;
+  if (conEscudo(base)) {
+    const texto = await origen.text();
+    const paginas = paginasDelCapitulo(texto);
+    if (paginas.length) {
+      return new Response(lectorPropio(tituloDe(texto), paginas), {
+        status: 200,
+        headers: new Headers({
+          'Content-Type': 'text/html; charset=utf-8',
+          'Cache-Control': CACHE,
+          'X-Robots-Tag': 'noindex, nofollow',
+          'Content-Security-Policy': CSP_LECTOR,
+          'Permissions-Policy': PERMISOS,
+          // Sin Referer es como la scan deja pasar sus propias imágenes.
+          'Referrer-Policy': 'no-referrer',
+        }),
+      });
+    }
+    // No se encontró el capítulo (su anti-bot a veces devuelve otra página):
+    // mejor su HTML por el camino normal que un lector vacío.
+    cuerpo = texto;
+  }
+
   // `transform()` YA devuelve una Response. Envolverla en otra `new Response()`
   // la trata como cuerpo y tira el status y las cabeceras —incluido el trabajo
   // de quitar el X-Frame-Options—, que es justo lo que se venía a hacer.
@@ -281,7 +386,7 @@ export const onRequest = async (context: { request: Request }): Promise<Response
         if (ajeno(e.getAttribute('src'), base)) e.remove();
       },
     })
-    .transform(new Response(origen.body, { status: origen.status, headers: cabeceras }));
+    .transform(new Response(cuerpo, { status: origen.status, headers: cabeceras }));
 };
 
 /** Cuando la fuente no colabora, una página que lo dice y ofrece la salida.
