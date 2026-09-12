@@ -281,6 +281,34 @@ export const onRequest = async (context: { request: Request }): Promise<Response
         if (ajeno(e.getAttribute('src'), base)) e.remove();
       },
     })
+    // ── El «escudo» anti-embed (leemiau) ────────────────────────────────────
+    // leemiau sirve el capítulo con las imágenes en blanco: la URL real va en
+    // `data-lm-orig-src`, el `src` es un gif de 1px, el <img> va oculto
+    // (`display:none`) y un script la dibuja en un <canvas> SOLO si la página
+    // corre en leemiau.com. Aquí no lo es, así que el canvas queda a 1×1 y el
+    // capítulo sale sin imágenes.
+    //
+    // La URL real ya está en el HTML y carga sin problema con `no-referrer`
+    // (medido: 200 y la imagen entera). Así que se le devuelve al `src` y se le
+    // quita el ocultado. Al borrar `data-lm-orig-src` —la marca por la que el
+    // script del escudo las busca— y sus `onload/onerror`, el escudo ya no
+    // tiene de dónde agarrarlas y no las vuelve a tapar.
+    .on('img[data-lm-orig-src]', {
+      element: (e: any) => {
+        const real = e.getAttribute('data-lm-orig-src');
+        if (!real) return;
+        e.setAttribute('src', real);
+        e.removeAttribute('data-lm-orig-src');
+        e.removeAttribute('data-lm-shield');
+        e.removeAttribute('data-lm-done-canvas');
+        e.removeAttribute('onload');
+        e.removeAttribute('onerror');
+        e.removeAttribute('aria-hidden');
+        // El escudo oculta con `style="display:none"`; en estas <img> el style
+        // es solo eso, así que quitarlo entero las devuelve a la vista.
+        e.removeAttribute('style');
+      },
+    })
     .transform(new Response(origen.body, { status: origen.status, headers: cabeceras }));
 };
 
