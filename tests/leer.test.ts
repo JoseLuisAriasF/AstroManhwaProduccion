@@ -127,39 +127,6 @@ assert.equal(huecos, 2, 'lo que sirve la propia fuente se respeta');
 marco(null);
 assert.equal(huecos, 3, 'un <iframe> sin src es el hueco que rellena un script');
 
-// El escudo de leemiau: la <img> llega con el src en blanco y la URL real en
-// `data-lm-orig-src`. Se le devuelve al src y se le quita el ocultado, o el
-// capítulo sale sin imágenes.
-{
-  const attrs: Record<string, string | null> = {
-    src: 'data:image/gif;base64,blank',
-    'data-lm-orig-src': 'https://leemiau.com/wp-content/uploads/pagina-1.webp',
-    'data-lm-shield': '1',
-    onload: 'ts_reader_control.singleImageOnload();',
-    'aria-hidden': 'true',
-    style: 'display: none;',
-  };
-  registrado['img'].element({
-    getAttribute: (k: string) => attrs[k] ?? null,
-    setAttribute: (k: string, v: string) => (attrs[k] = v),
-    removeAttribute: (k: string) => delete attrs[k],
-  });
-  assert.equal(attrs.src, 'https://leemiau.com/wp-content/uploads/pagina-1.webp', 'src restaurado');
-  assert.equal(attrs['data-lm-orig-src'], undefined, 'la marca del escudo se borra');
-  assert.equal(attrs.style, undefined, 'sin el display:none, la imagen se ve');
-  assert.equal(attrs.onload, undefined, 'sin el hook, el escudo no la retapa');
-
-  // Una <img> normal (sin la marca del escudo) no se toca: el selector es de
-  // etiqueta, así que el filtro va dentro y sale en la primera línea.
-  const normal: Record<string, string | null> = { src: 'https://x/foto.jpg' };
-  registrado['img'].element({
-    getAttribute: (k: string) => normal[k] ?? null,
-    setAttribute: (k: string, v: string) => (normal[k] = v),
-    removeAttribute: (k: string) => delete normal[k],
-  });
-  assert.equal(normal.src, 'https://x/foto.jpg', 'una imagen sin escudo queda igual');
-}
-
 // Lo que no es HTML pasa tal cual, sin tocar el cuerpo.
 respuesta = new Response('bytes', { status: 200, headers: { 'Content-Type': 'image/jpeg' } });
 const img = await pedir('https://leemiau.com/x.jpg');

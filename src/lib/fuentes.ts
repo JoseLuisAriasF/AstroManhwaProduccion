@@ -83,6 +83,12 @@ export function esFuenteDelCatalogo(url: string): boolean {
  * de un iframe de otro origen para saber si pintó algo.
  */
 export const SIN_VISOR = [
+  // Escudo anti-embed: sirve el capítulo con las imágenes en blanco
+  // (`data-lm-orig-src`) y un script las dibuja en un <canvas> solo si la página
+  // corre en su propio dominio; fuera de él salen negras. Restaurarlas desde el
+  // edge no basta —su JS las vuelve a tapar en el navegador— y encima responde
+  // distinto a un fetch de servidor. En pestaña (su dominio) sí cargan.
+  'leemiau.com',
   // Apps JS que dibujan el capítulo desde su API (visor en blanco):
   'olympusxyz.com',
   'mangadex.org',

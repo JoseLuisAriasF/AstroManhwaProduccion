@@ -251,10 +251,6 @@ export const onRequest = async (context: { request: Request }): Promise<Response
   // imágenes sin decir de dónde viene y la protección las deja pasar. Nunca es
   // peor que mandar el nuestro, que es justo el caso que bloquean.
   cabeceras.set('Referrer-Policy', 'no-referrer');
-  // Marca de versión: sirve para confirmar de un vistazo qué build de esta
-  // función está viva en el edge (los deploys de Pages pueden tardar en
-  // propagar la función aunque el estático ya esté).
-  cabeceras.set('X-Visor-Rev', 'img-2');
 
   // Lo que no es HTML se devuelve tal cual (una imagen suelta, un PDF…).
   if (!(origen.headers.get('content-type') ?? '').includes('text/html')) {
@@ -283,38 +279,6 @@ export const onRequest = async (context: { request: Request }): Promise<Response
     .on('iframe', {
       element: (e: any) => {
         if (ajeno(e.getAttribute('src'), base)) e.remove();
-      },
-    })
-    // ── El «escudo» anti-embed (leemiau) ────────────────────────────────────
-    // leemiau sirve el capítulo con las imágenes en blanco: la URL real va en
-    // `data-lm-orig-src`, el `src` es un gif de 1px, el <img> va oculto
-    // (`display:none`) y un script la dibuja en un <canvas> SOLO si la página
-    // corre en leemiau.com. Aquí no lo es, así que el canvas queda a 1×1 y el
-    // capítulo sale sin imágenes.
-    //
-    // La URL real ya está en el HTML y carga sin problema con `no-referrer`
-    // (medido: 200 y la imagen entera). Así que se le devuelve al `src` y se le
-    // quita el ocultado. Al borrar `data-lm-orig-src` —la marca por la que el
-    // script del escudo las busca— y sus `onload/onerror`, el escudo ya no
-    // tiene de dónde agarrarlas y no las vuelve a tapar.
-    // Selector de ETIQUETA, no de atributo (`img[...]`): el motor de
-    // HTMLRewriter que corre en producción no casaba el selector de atributo
-    // —sí el de etiqueta—, así que el filtro por `data-lm-orig-src` se hace
-    // dentro. Las <img> sin esa marca salen intactas en la primera línea.
-    .on('img', {
-      element: (e: any) => {
-        const real = e.getAttribute('data-lm-orig-src');
-        if (!real) return;
-        e.setAttribute('src', real);
-        e.removeAttribute('data-lm-orig-src');
-        e.removeAttribute('data-lm-shield');
-        e.removeAttribute('data-lm-done-canvas');
-        e.removeAttribute('onload');
-        e.removeAttribute('onerror');
-        e.removeAttribute('aria-hidden');
-        // El escudo oculta con `style="display:none"`; en estas <img> el style
-        // es solo eso, así que quitarlo entero las devuelve a la vista.
-        e.removeAttribute('style');
       },
     })
     .transform(new Response(origen.body, { status: origen.status, headers: cabeceras }));
