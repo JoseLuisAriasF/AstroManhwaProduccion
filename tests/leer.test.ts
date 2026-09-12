@@ -127,6 +127,40 @@ assert.equal(huecos, 2, 'lo que sirve la propia fuente se respeta');
 marco(null);
 assert.equal(huecos, 3, 'un <iframe> sin src es el hueco que rellena un script');
 
+// ── Fuentes con escudo: su HTML no se sirve, se rearma ───────────────────────
+// leemiau manda las <img> en blanco y la URL real en `data-lm-orig-src`; su JS
+// solo las pinta en su dominio. Así que se escribe un lector NUESTRO con las
+// imágenes: su página —y su escudo— no llegan a existir.
+respuesta = html(
+  `<html><head><title>Obra — Capítulo 1</title></head><body>
+   <img src="data:image/gif;base64,blank" data-lm-orig-src="https://leemiau.com/wp-content/uploads/p1.webp">
+   <img src="data:image/gif;base64,blank" data-lm-orig-src="https://leemiau.com/wp-content/uploads/p2.webp">
+   <img data-lm-orig-src="https://leemiau.com/wp-content/uploads/p1.webp">
+   <img data-lm-orig-src="https://leemiau.com/wp-content/themes/logo.svg">
+   <script>ts_reader_control.shield();</script></body></html>`,
+  {},
+  'https://leemiau.com/obra-capitulo-1/',
+);
+const lector = await pedir('https://leemiau.com/obra-capitulo-1/');
+assert.equal(lector.status, 200);
+const pagina = await lector.text();
+assert.match(pagina, /src="https:\/\/leemiau\.com\/wp-content\/uploads\/p1\.webp"/, 'la página 1');
+assert.match(pagina, /src="https:\/\/leemiau\.com\/wp-content\/uploads\/p2\.webp"/, 'y la 2');
+assert.equal(pagina.match(/uploads\/p1\.webp/g)?.length, 1, 'sin repetir');
+assert.ok(!pagina.includes('logo.svg'), 'lo que no es imagen de página, fuera');
+assert.ok(!pagina.includes('ts_reader_control'), 'su JS no llega a existir: no hay escudo');
+assert.match(pagina, /Capítulo 1/, 'conserva el título de la fuente');
+// La CSP más estricta del sitio: esta página no ejecuta nada.
+assert.match(lector.headers.get('content-security-policy') ?? '', /default-src 'none'/);
+assert.equal(lector.headers.get('referrer-policy'), 'no-referrer', 'o las imágenes dan 403');
+
+// Si su anti-bot devuelve una página sin capítulo, se sigue por el camino
+// normal: su HTML es mejor que un lector vacío.
+respuesta = html('<html><head></head><body>sin capitulo</body></html>', {}, 'https://leemiau.com/x/');
+const sinPaginas = await pedir('https://leemiau.com/x/');
+assert.equal(sinPaginas.status, 200);
+assert.match(sinPaginas.headers.get('content-security-policy') ?? '', /script-src/, 'CSP normal');
+
 // Lo que no es HTML pasa tal cual, sin tocar el cuerpo.
 respuesta = new Response('bytes', { status: 200, headers: { 'Content-Type': 'image/jpeg' } });
 const img = await pedir('https://leemiau.com/x.jpg');
