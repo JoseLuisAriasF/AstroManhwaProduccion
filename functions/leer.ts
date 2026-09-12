@@ -263,10 +263,18 @@ const ATRIBUTOS_PAGINA = ['data-lm-orig-src', 'data-page-index'];
  *  un placeholder `data:` gana. El lazy-load de cada tema usa la suya. */
 const ATRIBUTOS_URL = ['data-lm-orig-src', 'data-src', 'data-lazy-src', 'data-original', 'src'];
 
-/** Las páginas del capítulo, en orden y sin repetir. */
-function paginasDelCapitulo(html: string): string[] {
+/** Una página: su URL y, si la fuente las da, sus medidas. */
+type Pagina = { u: string; w?: string; h?: string };
+
+/** Las páginas del capítulo, en orden y sin repetir.
+ *
+ *  Se arrastran `width`/`height` cuando la fuente los trae: con ellos el
+ *  navegador reserva el hueco ANTES de descargar la imagen y el capítulo no
+ *  pega saltos mientras carga. En tiras de 720×10000 el salto es la página
+ *  entera, y es lo que Google mide como CLS. */
+function paginasDelCapitulo(html: string): Pagina[] {
   const vistas = new Set<string>();
-  const urls: string[] = [];
+  const paginas: Pagina[] = [];
   for (const m of html.matchAll(/<img\b[^>]*>/gi)) {
     const tag = m[0];
     const esPagina =
@@ -279,12 +287,17 @@ function paginasDelCapitulo(html: string): string[] {
       if (!/\.(webp|avif|jpe?g|png|gif)(\?|#|$)/i.test(u)) continue;
       if (!vistas.has(u)) {
         vistas.add(u);
-        urls.push(u);
+        // Solo números: un `width="100%"` como medida rompería el aspect-ratio.
+        const medida = (n: string) => {
+          const v = attr(tag, n) ?? '';
+          return /^\d+$/.test(v) ? v : undefined;
+        };
+        paginas.push({ u, w: medida('width'), h: medida('height') });
       }
       break; // una URL por <img>: la mejor que tenga
     }
   }
-  return urls;
+  return paginas;
 }
 
 /** El `<title>` de la fuente, sin `<` que puedan romper el nuestro. */
@@ -299,14 +312,16 @@ const CSP_LECTOR =
   "default-src 'none'; img-src * data: blob:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'";
 
 /** El capítulo, servido por nosotros: las imágenes y punto. */
-function lectorPropio(titulo: string, urls: string[]): string {
+function lectorPropio(titulo: string, paginas: Pagina[]): string {
   // Las dos primeras sin `lazy`: son las que se ven al abrir, y esperar al
   // observer para pedirlas es medio segundo de pantalla vacía.
-  const hojas = urls
-    .map(
-      (u, i) =>
-        `<img src="${atributo(u)}" alt="" decoding="async" loading="${i < 2 ? 'eager' : 'lazy'}">`,
-    )
+  const hojas = paginas
+    .map(({ u, w, h }, i) => {
+      const medidas = w && h ? ` width="${w}" height="${h}"` : '';
+      return `<img src="${atributo(u)}" alt=""${medidas} decoding="async" loading="${
+        i < 2 ? 'eager' : 'lazy'
+      }">`;
+    })
     .join('');
   return `<!doctype html><html lang="es"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1"><title>${titulo}</title>
@@ -316,7 +331,7 @@ function lectorPropio(titulo: string, urls: string[]): string {
 .fin{margin:0;padding:22px 16px 40px;text-align:center;color:#9aa2b1;
 font:13px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}</style></head>
 <body><div class="hoja">${hojas}</div>
-<p class="fin">Fin del capítulo · ${urls.length} páginas</p></body></html>`;
+<p class="fin">Fin del capítulo · ${paginas.length} páginas</p></body></html>`;
 }
 
 export const onRequest = async (context: { request: Request }): Promise<Response> => {
