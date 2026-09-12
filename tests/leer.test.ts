@@ -161,8 +161,8 @@ assert.equal(lector.headers.get('referrer-policy'), 'no-referrer', 'o las imáge
 respuesta = html(
   `<html><head><title>Obra — capitulo 135</title></head><body>
    <img class="site-logo" src="https://imperiomanhua.com/logo.png">
-   <img id="image-0" class="wp-manga-chapter-img img-responsive" src="https://imperiomanhua.com/wp-content/uploads/WP-manga/data/x/0.jpg">
-   <img id="image-1" class="wp-manga-chapter-img img-responsive" src="https://imperiomanhua.com/wp-content/uploads/WP-manga/data/x/1.jpg">
+   <img id="image-0" class="wp-manga-chapter-img img-responsive" width="720" height="10000" src="https://imperiomanhua.com/wp-content/uploads/WP-manga/data/x/0.jpg">
+   <img id="image-1" class="wp-manga-chapter-img img-responsive" width="100%" src="https://imperiomanhua.com/wp-content/uploads/WP-manga/data/x/1.jpg">
    <img class="avatar" src="https://imperiomanhua.com/avatar.jpg"></body></html>`,
   {},
   'https://imperiomanhua.com/manga/obra/capitulo-135/',
@@ -174,6 +174,11 @@ assert.match(paginasMadara, /data\/x\/1\.jpg/, 'y la 1');
 assert.ok(!paginasMadara.includes('logo.png'), 'el logo no es una página');
 assert.ok(!paginasMadara.includes('avatar.jpg'), 'ni el avatar de un comentario');
 assert.match(madara.headers.get('content-security-policy') ?? '', /default-src 'none'/);
+// Las medidas se arrastran: con ellas el navegador reserva el hueco y el
+// capítulo no pega saltos al cargar (es lo que Google mide como CLS).
+assert.match(paginasMadara, /width="720" height="10000"/, 'medidas de la fuente');
+// Pero solo si son números: un `width="100%"` rompería el aspect-ratio.
+assert.ok(!paginasMadara.includes('width="100%"'), 'una medida que no es número, fuera');
 
 // Asura viste sus imágenes con utilidades de Tailwind (`w-full block`), que
 // también lleva media interfaz: la clase no sirve para saber qué es una página.

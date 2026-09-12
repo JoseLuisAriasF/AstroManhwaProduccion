@@ -189,12 +189,32 @@ const idiomaNombre = (i: string) => (esIdioma(i) ? IDIOMAS[i].nombre : i.toUpper
           {/* La barra, lo más baja posible: la pantalla es para el capítulo. */}
           <header class="flex items-center gap-3 px-3 h-11 shrink-0 bg-base-900 text-base-100">
             <span data-visor-titulo class="font-medium text-sm truncate"></span>
+            {/* Encadenar capítulos SIN cerrar la ventana. Cada cierre es una
+                oportunidad de que el lector se vaya del sitio: si para seguir
+                leyendo hay que cerrar, buscar en la lista y volver a abrir, se
+                pierde a mucha gente por el camino. Con esto se lee la obra
+                entera de un tirón. Las flechas del teclado hacen lo mismo
+                mientras el foco no se haya ido dentro del capítulo. */}
+            <div class="ml-auto flex items-center gap-0.5 shrink-0">
+              <button
+                data-visor-prev
+                aria-label={dic.anterior}
+                title={`${dic.anterior} (←)`}
+                class="grid place-items-center size-9 rounded-lg text-xl leading-none text-base-300 hover:text-white hover:bg-white/10 active:bg-white/20 disabled:opacity-30 disabled:pointer-events-none"
+              >‹</button>
+              <button
+                data-visor-next
+                aria-label={dic.siguiente}
+                title={`${dic.siguiente} (→)`}
+                class="grid place-items-center size-9 rounded-lg text-xl leading-none text-base-300 hover:text-white hover:bg-white/10 active:bg-white/20 disabled:opacity-30 disabled:pointer-events-none"
+              >›</button>
+            </div>
             <a
               data-visor-abrir
               href="#"
               target="_blank"
               rel="noopener nofollow"
-              class="ml-auto shrink-0 text-xs text-acento-400 hover:underline"></a>
+              class="shrink-0 text-xs text-acento-400 hover:underline"></a>
             {/* 44 px: el mínimo que se acierta con el pulgar sin mirar. Cerrar
                 rápido es la mitad del valor de leer aquí dentro. */}
             <button
@@ -269,20 +289,74 @@ const idiomaNombre = (i: string) => (esIdioma(i) ? IDIOMAS[i].nombre : i.toUpper
     const rotulo = visor?.querySelector<HTMLElement>('[data-visor-titulo]');
     const abrir = visor?.querySelector<HTMLAnchorElement>('[data-visor-abrir]');
 
-    if (visor && marco && rotulo && abrir) {
+    const irPrev = visor?.querySelector<HTMLButtonElement>('[data-visor-prev]');
+    const irNext = visor?.querySelector<HTMLButtonElement>('[data-visor-next]');
+
+    if (visor && marco && rotulo && abrir && irPrev && irNext) {
+      // ── Encadenar capítulos dentro de la ventana ──────────────────────────
+      // `cadena` son los capítulos de la MISMA scan, del más nuevo al más
+      // viejo; `pos` es dónde estamos. Se recalcula al abrir y no antes: hasta
+      // entonces no se sabe de qué panel salió el click.
+      let cadena: HTMLAnchorElement[] = [];
+      let pos = -1;
+
+      /** Los capítulos numerados del panel de esa scan, de mayor a menor. Los
+       *  spinoffs sin número quedan fuera: no hay "siguiente" de algo que no
+       *  está en la cuenta. */
+      const cadenaDe = (a: HTMLAnchorElement) =>
+        [...(a.closest('[data-panel]') ?? lista).querySelectorAll<HTMLAnchorElement>('a[data-visor-src]')]
+          .map((el) => {
+            // `data-cap` va vacío en los spinoffs, y `Number('')` es 0 —no NaN—,
+            // así que sin este guardia se colarían como "capítulo 0".
+            const cap = el.closest<HTMLElement>('[data-cap]')?.dataset.cap;
+            return { el, n: cap ? Number(cap) : NaN };
+          })
+          .filter((x) => Number.isFinite(x.n))
+          .sort((x, y) => y.n - x.n)
+          .map((x) => x.el);
+
+      const mostrar = (a: HTMLAnchorElement) => {
+        rotulo.textContent = `${a.dataset.etiqueta ?? ''} · ${a.dataset.donde ?? ''}`.trim();
+        abrir.href = a.href; // la fuente de verdad, no /leer
+        abrir.textContent = dic.abrirEnFuente(a.dataset.donde ?? '');
+        marco.src = a.dataset.visorSrc!;
+        const cap = a.closest<HTMLElement>('[data-cap]')?.dataset.cap;
+        if (cap) marcarLeido(slug, +cap);
+        // La cadena va de mayor a menor, así que el capítulo SIGUIENTE está una
+        // posición ANTES. Con `pos` a -1 (un capítulo suelto, sin número) se
+        // apagan las dos flechas solas.
+        pos = cadena.indexOf(a);
+        irNext.disabled = pos <= 0;
+        irPrev.disabled = pos < 0 || pos >= cadena.length - 1;
+      };
+
+      const saltar = (i: number) => {
+        if (i >= 0 && i < cadena.length) mostrar(cadena[i]);
+      };
+
       lista.querySelectorAll<HTMLAnchorElement>('a[data-visor-src]').forEach((a) => {
         a.addEventListener('click', (e) => {
           if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
           e.preventDefault();
-          rotulo.textContent = `${a.dataset.etiqueta ?? ''} · ${a.dataset.donde ?? ''}`.trim();
-          abrir.href = a.href; // la fuente de verdad, no /leer
-          abrir.textContent = dic.abrirEnFuente(a.dataset.donde ?? '');
+          cadena = cadenaDe(a);
           // Abrir ANTES de pedir el capítulo: mientras el dialog está cerrado es
           // display:none, y hay navegadores que no cargan el iframe de un
           // elemento sin pintar.
           visor.showModal();
-          marco.src = a.dataset.visorSrc!;
+          mostrar(a);
         });
+      });
+
+      irPrev.addEventListener('click', () => saltar(pos + 1));
+      irNext.addEventListener('click', () => saltar(pos - 1));
+
+      // Las flechas, mientras el foco siga en la ventana. En cuanto el lector
+      // pica DENTRO del capítulo el foco pasa al iframe —que es de otro origen—
+      // y sus teclas ya no se oyen aquí; por eso los botones son los que mandan
+      // y esto es un atajo, no la única forma.
+      visor.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowLeft') saltar(pos + 1);
+        else if (e.key === 'ArrowRight') saltar(pos - 1);
       });
 
       // Vaciar el marco al cerrar no es cosmético: si no, la página de la scan
