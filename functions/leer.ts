@@ -217,30 +217,64 @@ function ajeno(src: string | null, base: string): boolean {
  * El archivo de imagen NO está protegido, solo el documento: desde aquí carga
  * entero con `no-referrer` (medido: 200 y 720×10000).
  */
-const ESCUDADAS = ['leemiau.com'];
+/**
+ * Hosts a los que se les sirve NUESTRO lector en vez de su página. Dos motivos
+ * para estar aquí, y el segundo es el que hace especial al sitio:
+ *
+ *  · leemiau BLINDA su capítulo y proxearlo da una pantalla negra.
+ *  · imperiomanhua se deja proxear, pero su página son ~280 KB de tema y
+ *    anuncios. Con el lector propio el capítulo son 3 KB y **cero publicidad**,
+ *    porque su HTML no llega a existir: no hay nada que inyecte un anuncio.
+ *
+ * Añadir una fuente es comprobar que sus <img> de página estén marcadas (ver
+ * `CLASE_PAGINA`) y poner el dominio en esta lista. Si la extracción no
+ * encuentra páginas, `onRequest` sigue por el proxy de siempre: nunca se rompe.
+ */
+const CON_LECTOR = ['leemiau.com', 'imperiomanhua.com'];
 
-function conEscudo(url: string): boolean {
+function tieneLectorPropio(url: string): boolean {
   try {
     const h = new URL(url).hostname.replace(/^www\./, '').toLowerCase();
-    return ESCUDADAS.some((d) => h === d || h.endsWith(`.${d}`));
+    return CON_LECTOR.some((d) => h === d || h.endsWith(`.${d}`));
   } catch {
     return false;
   }
 }
 
-/** Las páginas del capítulo, en orden y sin repetir. El escudo no las borra:
- *  solo las mueve fuera del `src`, que es donde las vamos a buscar. */
+/** Un atributo suelto de una etiqueta, tal cual viene en el HTML. */
+function attr(tag: string, nombre: string): string | null {
+  return tag.match(new RegExp(`\\b${nombre}="([^"]*)"`, 'i'))?.[1] ?? null;
+}
+
+/** Que la <img> sea una PÁGINA del capítulo y no el logo, un banner o el avatar
+ *  de un comentario. Los temas de scan las marcan: `wp-manga-chapter-img` es
+ *  Madara (imperiomanhua) y `ts-main-image` es Themesia. El escudo de leemiau
+ *  vale por sí solo: ese atributo solo lo llevan las páginas. */
+const CLASE_PAGINA = /(^|\s)(wp-manga-chapter-img|ts-main-image)(\s|$)/i;
+
+/** Dónde esconden la URL buena, por orden de preferencia: la primera que no sea
+ *  un placeholder `data:` gana. El lazy-load de cada tema usa la suya. */
+const ATRIBUTOS_URL = ['data-lm-orig-src', 'data-src', 'data-lazy-src', 'data-original', 'src'];
+
+/** Las páginas del capítulo, en orden y sin repetir. */
 function paginasDelCapitulo(html: string): string[] {
   const vistas = new Set<string>();
   const urls: string[] = [];
-  for (const m of html.matchAll(/data-lm-orig-src="([^"]+)"/g)) {
-    const u = m[1].replace(/&amp;/gi, '&').trim();
-    if (!/^https?:\/\//i.test(u)) continue;
-    // Solo archivos de imagen: el mismo atributo lo llevan el logo y adornos.
-    if (!/\.(webp|avif|jpe?g|png|gif)(\?|#|$)/i.test(u)) continue;
-    if (vistas.has(u)) continue;
-    vistas.add(u);
-    urls.push(u);
+  for (const m of html.matchAll(/<img\b[^>]*>/gi)) {
+    const tag = m[0];
+    const esPagina =
+      CLASE_PAGINA.test(attr(tag, 'class') ?? '') || attr(tag, 'data-lm-orig-src') !== null;
+    if (!esPagina) continue;
+    for (const a of ATRIBUTOS_URL) {
+      const u = (attr(tag, a) ?? '').replace(/&amp;/gi, '&').trim();
+      if (!/^https?:\/\//i.test(u)) continue;
+      if (!/\.(webp|avif|jpe?g|png|gif)(\?|#|$)/i.test(u)) continue;
+      if (!vistas.has(u)) {
+        vistas.add(u);
+        urls.push(u);
+      }
+      break; // una URL por <img>: la mejor que tenga
+    }
   }
   return urls;
 }
@@ -336,11 +370,11 @@ export const onRequest = async (context: { request: Request }): Promise<Response
     return new Response(origen.body, { status: origen.status, headers: cabeceras });
   }
 
-  // ── Fuentes con escudo: su HTML no se sirve, se rearma ───────────────────
-  // Se lee entero (son ~270 KB, nada para el runtime) porque hay que tener las
+  // ── Lector propio: su HTML no se sirve, se rearma ────────────────────────
+  // Se lee entero (son ~280 KB, nada para el runtime) porque hay que tener las
   // URLs ANTES de escribir la respuesta; el streaming no sirve para esto.
   let cuerpo: BodyInit = origen.body as BodyInit;
-  if (conEscudo(base)) {
+  if (tieneLectorPropio(base)) {
     const texto = await origen.text();
     const paginas = paginasDelCapitulo(texto);
     if (paginas.length) {

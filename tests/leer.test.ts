@@ -154,6 +154,27 @@ assert.match(pagina, /Capítulo 1/, 'conserva el título de la fuente');
 assert.match(lector.headers.get('content-security-policy') ?? '', /default-src 'none'/);
 assert.equal(lector.headers.get('referrer-policy'), 'no-referrer', 'o las imágenes dan 403');
 
+// Madara (imperiomanhua): aquí no hay escudo —la URL va directa en el `src`—,
+// pero su página son ~280 KB de tema y anuncios. El lector propio deja el
+// capítulo en 3 KB y sin publicidad, porque su HTML no llega a existir. Lo que
+// separa una página del logo es la clase que pone el tema.
+respuesta = html(
+  `<html><head><title>Obra — capitulo 135</title></head><body>
+   <img class="site-logo" src="https://imperiomanhua.com/logo.png">
+   <img id="image-0" class="wp-manga-chapter-img img-responsive" src="https://imperiomanhua.com/wp-content/uploads/WP-manga/data/x/0.jpg">
+   <img id="image-1" class="wp-manga-chapter-img img-responsive" src="https://imperiomanhua.com/wp-content/uploads/WP-manga/data/x/1.jpg">
+   <img class="avatar" src="https://imperiomanhua.com/avatar.jpg"></body></html>`,
+  {},
+  'https://imperiomanhua.com/manga/obra/capitulo-135/',
+);
+const madara = await pedir('https://imperiomanhua.com/manga/obra/capitulo-135/');
+const paginasMadara = await madara.text();
+assert.match(paginasMadara, /data\/x\/0\.jpg/, 'la página 0');
+assert.match(paginasMadara, /data\/x\/1\.jpg/, 'y la 1');
+assert.ok(!paginasMadara.includes('logo.png'), 'el logo no es una página');
+assert.ok(!paginasMadara.includes('avatar.jpg'), 'ni el avatar de un comentario');
+assert.match(madara.headers.get('content-security-policy') ?? '', /default-src 'none'/);
+
 // Si su anti-bot devuelve una página sin capítulo, se sigue por el camino
 // normal: su HTML es mejor que un lector vacío.
 respuesta = html('<html><head></head><body>sin capitulo</body></html>', {}, 'https://leemiau.com/x/');
