@@ -158,6 +158,39 @@ const PINTEREST =
       />
     </noscript>
 
+    {/* ── Speculation Rules: la siguiente página, ya descargada ──────────────
+        El navegador se baja el HTML del enlace cuando el lector lo apunta con
+        el ratón o empieza a tocarlo (`moderate`), así que al hacer clic la
+        página ya está. En un catálogo que se navega a saltos —ficha, capítulo,
+        siguiente— es la diferencia entre "carga" y "aparece", y sale gratis:
+        lo hace el navegador, no una librería.
+
+        Es `prefetch` y NO `prerender` a propósito: prerender EJECUTA el JS de
+        la página destino, y eso contaría visitas que nadie hizo en la analítica.
+        Prefetch solo trae el documento, que con el HTML ya cacheado en el edge
+        es justo lo que cuesta.
+
+        Fuera quedan /admin (privado) y /leer (el visor pesa y se abre desde un
+        click, no se "navega"). Un navegador que no lo entienda lo ignora. */}
+    <script
+      type="speculationrules"
+      is:inline
+      set:html={JSON.stringify({
+        prefetch: [
+          {
+            where: {
+              and: [
+                { href_matches: '/*' },
+                { not: { href_matches: '/admin*' } },
+                { not: { href_matches: '/leer*' } },
+              ],
+            },
+            eagerness: 'moderate',
+          },
+        ],
+      })}
+    />
+
     {jsonLd && <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />}
 
     {/* Identidad del sitio, en TODAS las páginas: es lo que permite a Google
