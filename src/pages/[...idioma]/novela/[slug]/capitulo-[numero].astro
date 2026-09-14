@@ -1,6 +1,7 @@
 ---
 import Base from '@/layouts/Base.astro';
 import ReadTrackerButton from '@/components/ReadTrackerButton.astro';
+import { segundoNombre } from '@/lib/titulos';
 import { getCapitulos, getEquivalencias, getNovelas, manhwaANovela } from '@/lib/api';
 import { IDIOMAS, idiomaDeRuta, ruta, t } from '@/lib/i18n';
 import { paramsDeIdioma } from '@/lib/publicables';
@@ -63,7 +64,7 @@ const url = new URL(`${base}capitulo-${capitulo.numero}`, Astro.site).toString()
 // La consulta real es "<título> capítulo 12", y ese título puede venir en
 // inglés, portugués o romanizado. Los alternos van en title, description,
 // JSON-LD y texto visible al pie.
-const [tituloIngles] = novela.titulosAlternativos;
+const tituloIngles = segundoNombre(novela, idioma) ?? novela.titulo;
 const alternos = novela.titulosAlternativos.join(', ');
 
 // La ruta completa hasta el capítulo. El enlace "← <obra>" de arriba es su

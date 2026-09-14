@@ -258,6 +258,24 @@ nosotros (`src/lib/indexacion.ts`):
 - **404 con arreglo → 301** (`functions/_middleware.ts`): `/pt/`, `/fr/`, `/de/`… a la página en español, y `/novela/x-capitulo-86` a `/novela/x/capitulo-86`.
 - **`ruta()` pone la barra final**: cada enlace interno sin ella era un 308.
 
+### Español e inglés en las obras A
+
+| Qué | Dónde | Por qué |
+|---|---|---|
+| **El nombre inglés de verdad** | `src/lib/titulos.ts` | El segundo nombre del `<title>`/`<h1>` era `titulosAlternativos[0]`: pinyin («Bie Zai Zhaohuan Wo La!») o coreano romanizado. Ahora se detecta el idioma de cada título; en `/en/` el principal es el inglés. **Los títulos nunca se traducen por máquina.** |
+| **Géneros canónicos** | `src/lib/generos.ts` | «Action», «action» y «Acción» eran tres etiquetas y dos hubs. Ahora una: `/categoria/accion/` (los slugs viejos → 301 en el middleware), «Action» en `/en/`. |
+| **Sinopsis en su idioma** | `api.ts` → `localizarNovela` | La ficha española enseñaba la sinopsis inglesa aunque el caché tuviera la española. Se localiza una vez por idioma. |
+| **`/en/` de ficha y de equivalencia** | `idiomasDeObra` + `textosObra.ts` | Una obra existe en inglés si su sinopsis está traducida **o ya venía en inglés**. Title, descripción, brecha y FAQ con datos, en los dos idiomas. |
+| **Portadas y sinopsis que faltan** | `npm run enriquecer -- --nivel-a` | Rellena desde AniList/MangaUpdates/MAL las obras A sin sinopsis o con portada en un host muerto (imageshack, mangadex). |
+
+Traducir las sinopsis de las obras A (NLLB local, ~2 h en CPU):
+
+```bash
+TRADUCIR_LOTE=1 npm run traducir -- --nivel-a --aplicar
+```
+
+En CPU, lotes de más de 1 sinopsis superan el timeout de `fetch` y se reintentan desde cero.
+
 ### Buscar un capítulo suelto
 
 «regreso de la secta del monte hua cap 1200», «… manhwa 1200», «… novel 1200».

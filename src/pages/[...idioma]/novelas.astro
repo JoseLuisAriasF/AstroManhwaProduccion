@@ -3,6 +3,7 @@ import Base from '@/layouts/Base.astro';
 import NovelaCard from '@/components/NovelaCard.astro';
 import { formatos, getCapitulosExternos, getNovelas } from '@/lib/api';
 import { IDIOMA_BASE, idiomaDeRuta, ruta, t } from '@/lib/i18n';
+import { segundoNombre } from '@/lib/titulos';
 import { idiomasDeObra, paramsDeIdioma } from '@/lib/publicables';
 import { totalPaginas } from '@/lib/catalogo';
 import { generosDestacados } from '@/lib/categorias';
@@ -51,7 +52,7 @@ const generos = idioma === IDIOMA_BASE ? await generosDestacados(12) : [];
 const indice = obras.map((o) => ({
   q: o.q,
   titulo: o.novela.titulo,
-  alt: o.novela.titulosAlternativos[0] ?? '',
+  alt: segundoNombre(o.novela, idioma) ?? '',
   portada: o.novela.portadaUrl,
   fmt: o.formatos,
   href: o.href,

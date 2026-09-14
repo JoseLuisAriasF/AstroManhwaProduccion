@@ -14,6 +14,50 @@ interface Props {
 const { slug, anclas, mostrar = false, compacto = false } = Astro.props;
 const idioma = idiomaDeRuta(Astro.url.pathname);
 const dic = t(idioma);
+
+// Textos del cruce en los dos idiomas que se publican. Los que pinta el script
+// viajan en `data-t`: el script no importa diccionarios (pesan en el cliente).
+const TEXTOS = {
+  es: {
+    intro: 'Equivalencias de capítulo aportadas por la comunidad. La más votada se muestra; la del admin manda.',
+    capManhwa: 'Cap. manhwa',
+    capNovela: 'cap. novela',
+    vacio: 'Aún no hay equivalencias. ¡Sé el primero en aportar una!',
+    aporta: 'Aporta una equivalencia (o vota una existente en “ver detalle”):',
+    aportar: 'Aportar',
+    login: 'Inicia sesión con Google (arriba a la derecha) para aportar y votar equivalencias.',
+    errorGuardar: 'No se pudo guardar. Intenta de nuevo.',
+    listo: '¡Listo! Tu voto cuenta.',
+    oficial: 'oficial',
+    voto: 'voto',
+    votos: 'votos',
+    tuVoto: 'tu voto',
+    votar: 'votar',
+    detalle: 'ver detalle',
+    comunidad: '(propuestas de la comunidad; la oficial manda)',
+    invalido: 'Pon dos números de capítulo válidos.',
+  },
+  en: {
+    intro: 'Chapter matches contributed by the community. The most voted one is shown; the admin one wins.',
+    capManhwa: 'Manhwa ch.',
+    capNovela: 'novel ch.',
+    vacio: 'No chapter matches yet. Be the first to add one!',
+    aporta: 'Add a chapter match (or vote for an existing one under “details”):',
+    aportar: 'Add',
+    login: 'Sign in with Google (top right) to add and vote on chapter matches.',
+    errorGuardar: 'Could not save. Please try again.',
+    listo: 'Done! Your vote counts.',
+    oficial: 'official',
+    voto: 'vote',
+    votos: 'votes',
+    tuVoto: 'your vote',
+    votar: 'vote',
+    detalle: 'details',
+    comunidad: '(community suggestions; the official one wins)',
+    invalido: 'Enter two valid chapter numbers.',
+  },
+};
+const tx = idioma === 'es' ? TEXTOS.es : TEXTOS.en;
 ---
 
 {
@@ -23,6 +67,7 @@ const dic = t(idioma);
       data-cruce
       data-slug={slug}
       data-base={ruta(idioma, `/novela/${slug}`)}
+      data-t={JSON.stringify(tx)}
       aria-labelledby={`cruce-${slug}`}
     >
       <div class="flex items-start gap-3">
@@ -36,8 +81,7 @@ const dic = t(idioma);
             {dic.puenteTitulo}
           </h2>
           <p class="text-sm text-base-500 mt-0.5">
-            Equivalencias de capítulo aportadas por la comunidad. La más votada se muestra;
-            la del admin manda.
+            {tx.intro}
           </p>
         </div>
       </div>
@@ -50,33 +94,33 @@ const dic = t(idioma);
           .sort((a, b) => a.capituloManhwa - b.capituloManhwa)
           .map((a) => (
             <li class="neu-inset rounded-xl px-3 py-2 tabular-nums">
-              Cap. manhwa <b>{a.capituloManhwa}</b> = cap. novela <b>{a.capituloNovela}</b>
+              {tx.capManhwa} <b>{a.capituloManhwa}</b> = {tx.capNovela} <b>{a.capituloNovela}</b>
             </li>
           ))}
       </ol>
 
       <p data-cruce-vacio hidden class="mt-4 text-sm text-base-500">
-        Aún no hay equivalencias. ¡Sé el primero en aportar una!
+        {tx.vacio}
       </p>
 
       {/* Aporte / voto. El script revela el formulario según haya sesión. */}
       <div class="mt-4 border-t border-base-300/40 dark:border-base-700/40 pt-4">
         <div data-cruce-form hidden>
-          <p class="text-sm text-base-500 mb-2">Aporta una equivalencia (o vota una existente en “ver detalle”):</p>
+          <p class="text-sm text-base-500 mb-2">{tx.aporta}</p>
           <div class="flex flex-wrap items-center gap-2 text-sm">
-            <span class="text-base-500">Cap. manhwa</span>
+            <span class="text-base-500">{tx.capManhwa}</span>
             <input type="number" min="1" data-aporte-manhwa class="neu-inset rounded-lg w-16 px-2 py-1.5 bg-transparent outline-none tabular-nums" />
-            <span class="text-base-500">= cap. novela</span>
+            <span class="text-base-500">= {tx.capNovela}</span>
             <input type="number" min="1" data-aporte-novela class="neu-inset rounded-lg w-16 px-2 py-1.5 bg-transparent outline-none tabular-nums" />
             <button data-aporte-enviar class="neu-sm neu-press rounded-lg px-3 py-1.5 font-medium text-acento-500">
-              Aportar
+              {tx.aportar}
             </button>
           </div>
           <p data-aporte-msg hidden class="mt-2 text-xs" />
         </div>
 
         <p data-cruce-login hidden class="text-xs text-base-400">
-          Inicia sesión con Google (arriba a la derecha) para aportar y votar equivalencias.
+          {tx.login}
         </p>
       </div>
     </section>
@@ -90,6 +134,7 @@ const dic = t(idioma);
 
   for (const caja of document.querySelectorAll<HTMLElement>('[data-cruce]')) {
     const slug = caja.dataset.slug!;
+    const T = JSON.parse(caja.dataset.t!) as Record<string, string>;
     const lista = caja.querySelector<HTMLElement>('[data-lista]')!;
     const vacio = caja.querySelector<HTMLElement>('[data-cruce-vacio]')!;
     const form = caja.querySelector<HTMLElement>('[data-cruce-form]')!;
@@ -116,10 +161,10 @@ const dic = t(idioma);
       );
       if (error) {
         const esLimite = /aporte|l[ií]mite|d[ií]a/i.test(error.message);
-        mostrarMsg(esLimite ? error.message : 'No se pudo guardar. Intenta de nuevo.', false);
+        mostrarMsg(esLimite ? error.message : T.errorGuardar, false);
         return;
       }
-      mostrarMsg('¡Listo! Tu voto cuenta.', true);
+      mostrarMsg(T.listo, true);
       await cargar();
     }
 
@@ -142,34 +187,34 @@ const dic = t(idioma);
           const votosGana = oficial ? 0 : (opciones[0]?.[1] ?? 0);
           const miVoto = mias.get(cap);
           const badge = oficial
-            ? '<span class="text-[11px] text-acento-500 neu-inset rounded px-1.5 py-0.5">oficial</span>'
-            : `<span class="text-[11px] text-base-400">${votosGana} ${votosGana === 1 ? 'voto' : 'votos'}</span>`;
+            ? `<span class="text-[11px] text-acento-500 neu-inset rounded px-1.5 py-0.5">${T.oficial}</span>`
+            : `<span class="text-[11px] text-base-400">${votosGana} ${votosGana === 1 ? T.voto : T.votos}</span>`;
 
           // Alternativas con menos votos (para "ver detalle").
           const alternativas = opciones
             .filter(([nov]) => nov !== ganadora)
             .map(([nov, v]) => {
-              const yo = miVoto === nov ? ' · <span class="text-emerald-500">tu voto</span>' : '';
+              const yo = miVoto === nov ? ` · <span class="text-emerald-500">${T.tuVoto}</span>` : '';
               const botn = usuarioId && miVoto !== nov
-                ? ` <button data-votar="${cap}:${nov}" class="text-acento-500 underline ml-1">votar</button>`
+                ? ` <button data-votar="${cap}:${nov}" class="text-acento-500 underline ml-1">${T.votar}</button>`
                 : '';
-              return `<li class="text-base-500">cap. novela <b>${nov}</b> · ${v} ${v === 1 ? 'voto' : 'votos'}${yo}${botn}</li>`;
+              return `<li class="text-base-500">${T.capNovela} <b>${nov}</b> · ${v} ${v === 1 ? T.voto : T.votos}${yo}${botn}</li>`;
             })
             .join('');
           const votarGanadora =
             usuarioId && !oficial && miVoto !== ganadora
-              ? ` <button data-votar="${cap}:${ganadora}" class="text-acento-500 underline ml-1">votar</button>`
+              ? ` <button data-votar="${cap}:${ganadora}" class="text-acento-500 underline ml-1">${T.votar}</button>`
               : '';
-          const tuVotoGana = miVoto === ganadora ? ' · <span class="text-emerald-500">tu voto</span>' : '';
+          const tuVotoGana = miVoto === ganadora ? ` · <span class="text-emerald-500">${T.tuVoto}</span>` : '';
           const detalle =
             alternativas.length || (usuarioId && !oficial)
-              ? `<details class="mt-1"><summary class="cursor-pointer text-[11px] text-base-400">ver detalle</summary>
-                   <ul class="mt-1 grid gap-1 text-xs pl-1">${alternativas}${oficial && opciones.length ? `<li class="text-base-400">(propuestas de la comunidad; la oficial manda)</li>` : ''}</ul>
+              ? `<details class="mt-1"><summary class="cursor-pointer text-[11px] text-base-400">${T.detalle}</summary>
+                   <ul class="mt-1 grid gap-1 text-xs pl-1">${alternativas}${oficial && opciones.length ? `<li class="text-base-400">${T.comunidad}</li>` : ''}</ul>
                  </details>`
               : '';
 
           return `<li class="neu-inset rounded-xl px-3 py-2">
-            <div class="tabular-nums">Cap. manhwa <b>${cap}</b> = cap. novela <b>${ganadora}</b> ${badge}${tuVotoGana}${votarGanadora}</div>
+            <div class="tabular-nums">${T.capManhwa} <b>${cap}</b> = ${T.capNovela} <b>${ganadora}</b> ${badge}${tuVotoGana}${votarGanadora}</div>
             ${detalle}
           </li>`;
         })
@@ -214,7 +259,7 @@ const dic = t(idioma);
         const m = parseInt(inM.value, 10);
         const n = parseInt(inN.value, 10);
         if (!Number.isFinite(m) || !Number.isFinite(n) || m < 1 || n < 1) {
-          mostrarMsg('Pon dos números de capítulo válidos.', false);
+          mostrarMsg(T.invalido, false);
           return;
         }
         inM.value = '';

@@ -18,6 +18,7 @@
  * Firma sin los tipos de Cloudflare (no están instalados) para no ensuciar el
  * typecheck; CF solo necesita el export `onRequest`.
  */
+import { slugGeneroCanonico } from '../src/lib/generos.ts';
 import { CODIGOS, IDIOMA_BASE } from '../src/lib/i18n.ts';
 
 const CANONICO = 'www.manhwatonovel.com';
@@ -33,6 +34,8 @@ const PREFIJO = new RegExp(`^/(?:${CODIGOS.filter((c) => c !== IDIOMA_BASE).join
  *   prosa traducida. Google las conoce por enlaces y hreflang viejos: la misma
  *   página en español es su destino natural, y el 301 le pasa lo que acumularon.
  * - `/novela/x-capitulo-86`: un enlace externo mal armado, sin la barra.
+ * - `/categoria/action/`: los géneros tenían slug en inglés; ahora en español
+ *   (`/categoria/accion/`, ver src/lib/generos.ts).
  *
  * Solo se mira DESPUÉS de un 404: una ruta que existe nunca se redirige.
  */
@@ -41,6 +44,9 @@ export function reparar(pathname: string): string | null {
   if (idioma) return idioma[1] || '/';
   const cap = /^\/novela\/(.+)-capitulo-(\d+)\/?$/.exec(pathname);
   if (cap) return `/novela/${cap[1]}/capitulo-${cap[2]}`;
+  const cat = /^\/categoria\/([^/]+)\/?$/.exec(pathname);
+  const bueno = cat && slugGeneroCanonico(cat[1]);
+  if (bueno) return `/categoria/${bueno}/`;
   return null;
 }
 

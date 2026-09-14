@@ -4,7 +4,10 @@ import ManhwaToNovelBridge from '@/components/ManhwaToNovelBridge.astro';
 import { formatos, getCapitulosExternos, getEquivalencias, getNovelas } from '@/lib/api';
 import { brechaDe } from '@/lib/brecha';
 import { niveles } from '@/lib/catalogo';
-import { IDIOMA_BASE, ruta, t } from '@/lib/i18n';
+import { segundoNombre } from '@/lib/titulos';
+import { idiomaDeRuta, ruta, t } from '@/lib/i18n';
+import { idiomasDeObra, paramsDeIdioma } from '@/lib/publicables';
+import { textosObra } from '@/lib/textosObra';
 import { faq, migas } from '@/lib/seo';
 
 /**
@@ -23,21 +26,26 @@ import { faq, migas } from '@/lib/seo';
  * El FAQPage de aquí sí es legítimo: las preguntas están escritas en la página
  * con su respuesta visible. Marcado sin contenido visible es una penalización
  * esperando a ocurrir, no un atajo.
+ *
+ * Existe en cada idioma en que existe la ficha (idiomasDeObra): /en/…/equivalencia/
+ * responde «which novel chapter does the manhwa continue from?», la misma
+ * pregunta del lector anglófono.
  */
 export async function getStaticPaths() {
-  const novelas = await getNovelas();
+  const paramDe = new Map(paramsDeIdioma().map((p) => [p.codigo, p.idioma]));
   const rutas = [];
-  for (const novela of novelas) {
-    const externos = await getCapitulosExternos(novela.slug);
-    if (formatos(externos).length === 2) {
-      rutas.push({ params: { idioma: undefined, slug: novela.slug } });
+  for (const novela of await getNovelas()) {
+    if (formatos(await getCapitulosExternos(novela.slug)).length !== 2) continue;
+    for (const codigo of idiomasDeObra(novela)) {
+      if (paramDe.has(codigo)) rutas.push({ params: { idioma: paramDe.get(codigo), slug: novela.slug } });
     }
   }
   return rutas;
 }
 
-const idioma = IDIOMA_BASE;
+const idioma = idiomaDeRuta(Astro.url.pathname);
 const dic = t(idioma);
+const tx = textosObra(idioma);
 const { slug } = Astro.params;
 
 const novela = (await getNovelas(idioma)).find((n) => n.slug === slug)!;
@@ -47,56 +55,40 @@ const anclas = await getEquivalencias(novela.slug);
 
 const base = ruta(idioma, `/novela/${novela.slug}`);
 const aqui = `${base}equivalencia/`;
-const [tituloIngles] = novela.titulosAlternativos;
+const tituloIngles = segundoNombre(novela, idioma);
 
 // La respuesta, en una frase, antes de cualquier interfaz. Quien llega desde
 // Google tiene que leerla sin hacer clic ni esperar a que cargue un script.
-const respuestaCorta = brecha.faltan
-  ? `El manhwa de ${novela.titulo} va por el capítulo ${brecha.manhwa} y la novela por el ${brecha.novela}: hay ${brecha.faltan} capítulos de historia que el manhwa todavía no ha contado.`
-  : `El manhwa de ${novela.titulo} va por el capítulo ${brecha.manhwa} y la novela por el ${brecha.novela}: el manhwa está prácticamente al día con la novela.`;
-
-const preguntas = [
-  {
-    pregunta: `¿En qué capítulo de la novela continúa el manhwa de ${novela.titulo}?`,
-    respuesta: respuestaCorta,
-  },
-  {
-    pregunta: `¿Cuántos capítulos tiene la novela de ${novela.titulo}?`,
-    respuesta: `La novela lleva ${brecha.novela} capítulos indexados y el manhwa ${brecha.manhwa}.`,
-  },
-  {
-    pregunta: `¿Leer la novela de ${novela.titulo} tiene spoilers del manhwa?`,
-    respuesta: `Si empiezas por el capítulo que corresponde a donde dejaste el manhwa, no. Lo que se salta el manhwa está por delante, no por detrás: la novela solo te adelanta lo que el manhwa aún no dibujó.`,
-  },
-];
+const respuestaCorta = tx.eqRespuesta(novela.titulo, brecha);
+const preguntas = tx.eqPreguntas(novela.titulo, brecha, respuestaCorta);
 
 const ruta_migas = migas(Astro.site, [
   { nombre: dic.navInicio, href: ruta(idioma) },
   { nombre: dic.navNovelas, href: ruta(idioma, '/novelas') },
   { nombre: novela.titulo, href: base },
-  { nombre: 'Equivalencia de capítulos', href: aqui },
+  { nombre: tx.eqMiga, href: aqui },
 ]);
 ---
 
 <Base
-  titulo={`${novela.titulo}: ¿por qué capítulo de la novela sigo? — Manhwa ${brecha.manhwa} → Novela ${brecha.novela}`}
+  titulo={tx.eqTitulo(novela.titulo, brecha)}
   descripcion={respuestaCorta}
   imagen={novela.portadaUrl}
   jsonLd={[faq(preguntas), ruta_migas]}
   noindex={(await niveles()).get(novela.slug) !== 'A'}
-  idiomas={[IDIOMA_BASE]}
+  idiomas={idiomasDeObra(novela)}
 >
   <nav class="text-sm text-base-400 mb-5" aria-label="breadcrumb">
     <a href={ruta(idioma)} class="hover:text-acento-500">{dic.navInicio}</a>
     <span class="mx-1.5">/</span>
     <a href={base} class="hover:text-acento-500">{novela.titulo}</a>
     <span class="mx-1.5">/</span>
-    <span class="text-base-500">Equivalencia</span>
+    <span class="text-base-500">{tx.eqMigaCorta}</span>
   </nav>
 
   <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-base-800 dark:text-base-50 text-balance">
-    ¿Por qué capítulo de la novela sigo {novela.titulo}?
-    {tituloIngles && tituloIngles !== novela.titulo && (
+    {tx.eqH1(novela.titulo)}
+    {tituloIngles && (
       <span class="block mt-1 text-base sm:text-lg font-medium text-base-500">{tituloIngles}</span>
     )}
   </h1>
@@ -111,17 +103,17 @@ const ruta_migas = migas(Astro.site, [
   <div class="mt-6 grid grid-cols-3 gap-3 max-w-xl">
     <div class="neu-inset rounded-2xl p-4 text-center">
       <div class="text-2xl font-bold tabular-nums text-base-700 dark:text-base-200">{brecha.manhwa}</div>
-      <div class="mt-0.5 text-xs text-base-400">último del manhwa</div>
+      <div class="mt-0.5 text-xs text-base-400">{tx.eqUltimoManhwa}</div>
     </div>
     <div class="neu-inset rounded-2xl p-4 text-center">
       <div class="text-2xl font-bold tabular-nums text-acento-500">
         {brecha.faltan ? `+${brecha.faltan}` : '0'}
       </div>
-      <div class="mt-0.5 text-xs text-base-400">capítulos por delante</div>
+      <div class="mt-0.5 text-xs text-base-400">{tx.eqPorDelante}</div>
     </div>
     <div class="neu-inset rounded-2xl p-4 text-center">
       <div class="text-2xl font-bold tabular-nums text-base-700 dark:text-base-200">{brecha.novela}</div>
-      <div class="mt-0.5 text-xs text-base-400">último de la novela</div>
+      <div class="mt-0.5 text-xs text-base-400">{tx.eqUltimoNovela}</div>
     </div>
   </div>
 
@@ -132,7 +124,7 @@ const ruta_migas = migas(Astro.site, [
   {/* Las preguntas, escritas. El FAQPage del <head> las repite: si estuvieran
       solo en el marcado y no aquí, Google lo trataría como marcado engañoso. */}
   <section class="mt-10 max-w-3xl" aria-labelledby="preguntas">
-    <h2 id="preguntas" class="text-xl font-bold text-base-800 dark:text-base-50">Preguntas frecuentes</h2>
+    <h2 id="preguntas" class="text-xl font-bold text-base-800 dark:text-base-50">{tx.faqTitulo}</h2>
     <dl class="mt-4 grid gap-4">
       {preguntas.map((p) => (
         <div class="neu-sm rounded-2xl p-4">
@@ -145,10 +137,11 @@ const ruta_migas = migas(Astro.site, [
 
   <div class="mt-8 flex flex-wrap gap-3">
     <a href={base} class="neu-sm neu-press rounded-xl px-4 py-2.5 text-sm font-medium text-acento-500">
-      Ver dónde leer {novela.titulo} →
+      {tx.eqVerDonde(novela.titulo)}
     </a>
-    <a href={ruta(idioma, '/rankings')} class="neu-sm neu-press rounded-xl px-4 py-2.5 text-sm font-medium">
-      Otras obras con la novela adelantada
+    {/* /rankings solo existe en español. */}
+    <a href={ruta('es', '/rankings')} hreflang="es" class="neu-sm neu-press rounded-xl px-4 py-2.5 text-sm font-medium">
+      {tx.eqOtras}
     </a>
   </div>
 </Base>
