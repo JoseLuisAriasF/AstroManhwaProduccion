@@ -1,4 +1,5 @@
 import { getNovelas } from './api';
+import { esAdulta, esGeneroAdulto } from './indexacion';
 import type { Novela } from '@/types/novela';
 
 /**
@@ -33,9 +34,12 @@ export function generos(): Promise<Map<string, Genero>> {
     const novelas = await getNovelas();
     const mapa = new Map<string, Genero>();
     for (const n of novelas) {
+      // Lo adulto no tiene hub propio (/categoria/hentai) ni se lista en los
+      // demás: son las páginas indexables que más pesan en una revisión de AdSense.
+      if (esAdulta(n)) continue;
       for (const c of n.categorias) {
         const slug = slugCategoria(c);
-        if (!slug) continue;
+        if (!slug || esGeneroAdulto(c)) continue;
         const g = mapa.get(slug) ?? { slug, nombre: c, obras: [] };
         g.obras.push(n);
         mapa.set(slug, g);

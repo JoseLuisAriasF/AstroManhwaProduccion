@@ -58,7 +58,7 @@ const manhwaAqui = (() => {
   return null;
 })();
 
-const url = new URL(`${base}/capitulo-${capitulo.numero}`, Astro.site).toString();
+const url = new URL(`${base}capitulo-${capitulo.numero}`, Astro.site).toString();
 
 // La consulta real es "<título> capítulo 12", y ese título puede venir en
 // inglés, portugués o romanizado. Los alternos van en title, description,
@@ -72,7 +72,7 @@ const ruta_migas = migas(Astro.site, [
   { nombre: dic.navInicio, href: ruta(idioma) },
   { nombre: dic.navNovelas, href: ruta(idioma, '/novelas') },
   { nombre: novela.titulo, href: base },
-  { nombre: dic.capitulo(capitulo.numero), href: `${base}/capitulo-${capitulo.numero}` },
+  { nombre: dic.capitulo(capitulo.numero), href: `${base}capitulo-${capitulo.numero}` },
 ]);
 
 const jsonLd = {
@@ -101,8 +101,8 @@ const jsonLd = {
   jsonLd={[jsonLd, ruta_migas]}
 >
   <Fragment slot="head">
-    {anterior && <link rel="prev" href={`${base}/capitulo-${anterior}`} />}
-    {siguiente && <link rel="next" href={`${base}/capitulo-${siguiente}`} />}
+    {anterior && <link rel="prev" href={`${base}capitulo-${anterior}`} />}
+    {siguiente && <link rel="next" href={`${base}capitulo-${siguiente}`} />}
   </Fragment>
 
   <div class="flex items-center gap-3 text-sm">
@@ -151,7 +151,7 @@ const jsonLd = {
   <nav class="mt-10 flex gap-3" data-nav-caps aria-label={dic.navCapitulos}>
     {
       anterior ? (
-        <a href={`${base}/capitulo-${anterior}`} rel="prev" class="neu-sm neu-press rounded-xl px-4 py-3 text-sm flex-1 text-center">
+        <a href={`${base}capitulo-${anterior}`} rel="prev" class="neu-sm neu-press rounded-xl px-4 py-3 text-sm flex-1 text-center">
           {dic.capAnterior(anterior)}
         </a>
       ) : (
@@ -161,7 +161,7 @@ const jsonLd = {
     {
       siguiente ? (
         <a
-          href={`${base}/capitulo-${siguiente}`}
+          href={`${base}capitulo-${siguiente}`}
           rel="next"
           data-siguiente
           class="neu neu-press rounded-xl px-4 py-3 text-sm font-medium text-acento-500 flex-1 text-center"

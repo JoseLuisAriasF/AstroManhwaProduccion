@@ -66,7 +66,21 @@ const { data, error } = await db
   .limit(10000);
 if (error) throw new Error(error.message);
 
-const slugs = [...new Set((data ?? []).map((f) => f.obra_slug).filter(Boolean))];
+// Solo lo que queremos indexado (niveles A y B, ver src/lib/indexacion.ts). Se
+// lee del sitio publicado, no se recalcula: son los mismos archivos que usan
+// el sitemap y la función de capítulo. Avisar de una URL con noindex es pedirle
+// a Bing que gaste un rastreo en una página que no va a indexar.
+const leer = async (ruta, como) => {
+  const r = await fetch(`${sitio}${ruta}`).catch(() => null);
+  if (!r?.ok) throw new Error(`${sitio}${ruta} no responde (HTTP ${r?.status}). ¿Está desplegado?`);
+  return como === 'json' ? r.json() : r.text();
+};
+const enSitemap = new Set(
+  [...(await leer('/sitemap-obras.xml')).matchAll(/\/novela\/([^/<]+)\/<\/loc>/g)].map((m) => m[1]),
+);
+const obrasA = new Set(await leer('/obras-nivel-a.json', 'json'));
+
+const slugs = [...new Set((data ?? []).map((f) => f.obra_slug).filter((s) => s && enSitemap.has(s)))];
 
 // Los CAPÍTULOS nuevos, uno a uno. Cada uno tiene su propia página —la arma
 // functions/novela/[slug]/[capitulo].ts— y es la URL con más intención de
@@ -77,15 +91,16 @@ const slugs = [...new Set((data ?? []).map((f) => f.obra_slug).filter(Boolean))]
 // arriba. Las fuentes link-out quedan fuera (n_caps <= 1): su fila guarda el
 // TOTAL en `numero` y enlaza a la serie, no al capítulo, y esa página da 404.
 const capitulos = [];
-if (slugs.length) {
+const slugsA = slugs.filter((s) => obrasA.has(s));
+if (slugsA.length) {
   const { data: fuentesLinkOut } = await db.from('fuentes').select('id').lte('n_caps', 1);
   const excluir = new Set((fuentesLinkOut ?? []).map((f) => f.id));
   const LOTE_SLUGS = 200; // el filtro `in.()` va en la URL: no cabe el catálogo entero
-  for (let i = 0; i < slugs.length; i += LOTE_SLUGS) {
+  for (let i = 0; i < slugsA.length; i += LOTE_SLUGS) {
     const { data: nuevos, error: errCaps } = await db
       .from('capitulos_externos')
       .select('obra_slug, numero, fuente_id')
-      .in('obra_slug', slugs.slice(i, i + LOTE_SLUGS))
+      .in('obra_slug', slugsA.slice(i, i + LOTE_SLUGS))
       .gte('visto_en', desde)
       .eq('aprobado', true)
       .not('numero', 'is', null)
@@ -100,8 +115,8 @@ if (slugs.length) {
 // La portada y el catálogo cambian con cada tanda nueva, así que van siempre.
 const urlList = [
   `${sitio}/`,
-  `${sitio}/novelas`,
-  ...slugs.map((s) => `${sitio}/novela/${s}`),
+  `${sitio}/novelas/`,
+  ...slugs.map((s) => `${sitio}/novela/${s}/`),
   ...new Set(capitulos),
 ];
 

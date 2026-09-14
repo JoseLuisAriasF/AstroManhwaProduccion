@@ -56,6 +56,7 @@ const ventana = [...new Set([1, 2, actual - 1, actual, actual + 1, paginas - 1, 
   titulo={`${dic.catalogo} de manhwas y novelas · Página ${actual - 1} de ${paginas - 1} · ManhwaToNovel`}
   descripcion={`Catálogo completo de manhwas y novelas ligeras con sus títulos alternativos. Página ${actual - 1} de ${paginas - 1}.`}
   anchoCompleto
+  idiomas={[IDIOMA_BASE]}
 >
   <Fragment slot="head">
     {actual > 1 && <link rel="prev" href={new URL(href(actual - 1), Astro.site).toString()} />}

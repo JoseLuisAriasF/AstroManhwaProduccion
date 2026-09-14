@@ -99,7 +99,7 @@ const indice = obras.map((o) => ({
       <h2 class="font-semibold text-base-800 dark:text-base-100">Explora por género</h2>
       <div class="mt-3 flex flex-wrap gap-2">
         {generos.map((g) => (
-          <a href={ruta(idioma, `/categoria/${g.slug}`)} class="neu-sm neu-press rounded-xl px-3 py-1.5 text-sm">
+          <a href={ruta(IDIOMA_BASE, `/categoria/${g.slug}`)} class="neu-sm neu-press rounded-xl px-3 py-1.5 text-sm">
             {g.nombre} <span class="text-base-400 tabular-nums">{g.obras.length}</span>
           </a>
         ))}

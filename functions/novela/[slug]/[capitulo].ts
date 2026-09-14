@@ -35,6 +35,7 @@ import { manhwaANovela } from '../../../src/lib/equivalencia.ts';
 // El mismo visor que la ficha: la lista de dominios que se pueden proxear vive
 // en un solo sitio (`src/lib/fuentes.ts`), no copiada aquí.
 import { esFuenteDelCatalogo, urlDeLectura } from '../../../src/lib/fuentes.ts';
+import { esProhibida } from '../../../src/lib/indexacion.ts';
 
 /** Un día en el edge, una hora en el navegador: aparece un capítulo nuevo o una
  *  fuente nueva y la página se rehace sola al día siguiente. */
@@ -77,6 +78,18 @@ const sinLista = (origen: string) =>
   (enlace ??= fetch(new URL('/fuentes-enlace.json', origen).toString())
     .then((r) => (r.ok ? r.json() : []))
     .then((ids) => new Set(ids as string[]))
+    .catch(() => new Set<string>()));
+
+/** Las obras (nivel A, manhwa y novela) cuyos capítulos se indexan. Las demás
+ *  sirven la página igual, con noindex (ver src/lib/indexacion.ts). Si el
+ *  archivo falla, conjunto vacío: todo noindex hasta el siguiente isolate. Aquí
+ *  el error barato es el contrario al de `sinLista`: una página sin indexar un
+ *  día cuesta poco; 270.000 indexables por un fallo es lo que se quiso evitar. */
+let nivelA: Promise<Set<string>> | null = null;
+const obrasA = (origen: string) =>
+  (nivelA ??= fetch(new URL('/obras-nivel-a.json', origen).toString())
+    .then((r) => (r.ok ? r.json() : []))
+    .then((slugs) => new Set(slugs as string[]))
     .catch(() => new Set<string>()));
 
 const NOMBRE_IDIOMA: Record<string, string> = {
@@ -151,9 +164,10 @@ export const onRequest = async (context: {
   // solo capítulo publicado sí tiene el capítulo 1 de verdad.
   const soloEnlace = numero > 1 ? await sinLista(url.origin) : new Set<string>();
 
-  const [fuentes, obras] = await Promise.all([
+  const [fuentes, obras, indexables] = await Promise.all([
     rest<any>(`fuentes?obra_slug=eq.${s}&select=id,nombre`),
-    rest<any>(`obras?slug=eq.${s}&publicada=eq.true&select=titulo,titulos_alternativos,tipo&limit=1`),
+    rest<any>(`obras?slug=eq.${s}&publicada=eq.true&select=titulo,titulos_alternativos,tipo,categorias&limit=1`),
+    obrasA(url.origin),
   ]);
   const excluidas = fuentes.filter((f: any) => soloEnlace.has(f.id)).map((f: any) => f.id);
   const reales = excluidas.length ? `&fuente_id=not.in.(${excluidas.join(',')})` : '';
@@ -171,8 +185,11 @@ export const onRequest = async (context: {
     ),
   ]);
 
-  const obra = obras[0];
-  const ficha = `${url.origin}/novela/${slug}`;
+  // Lo prohibido no existe en el sitio (el build no genera su ficha): tampoco aquí.
+  const obra = obras.find((o: any) => !esProhibida(o.categorias ?? []));
+  // Con barra final: es la URL canónica de la ficha. Sin ella, cada enlace de
+  // esta página hacia la ficha costaba un 308.
+  const ficha = `${url.origin}/novela/${slug}/`;
 
   // Sin obra o sin ese capítulo en ninguna fuente que lo enlace de verdad: 404.
   // La página ofrece la ficha, que es donde está la lista completa.
@@ -249,15 +266,15 @@ export const onRequest = async (context: {
     ${
       enNovela
         ? `<p class="respuesta">Si vas por el <strong>capítulo ${numero} del manhwa</strong>, la novela va por el
-           <strong>capítulo ${enNovela}</strong>. <a href="${esc(ficha)}/equivalencia">Ver la equivalencia completa</a>.</p>`
+           <strong>capítulo ${enNovela}</strong>. <a href="${esc(ficha)}equivalencia/">Ver la equivalencia completa</a>.</p>`
         : ''
     }
     <h2>Dónde leer el capítulo ${numero}</h2>
     <ul class="fuentes">${filas}</ul>
     <nav class="paso">
-      ${prev ? `<a href="${esc(ficha)}/capitulo-${prev}">← Capítulo ${prev}</a>` : '<span></span>'}
+      ${prev ? `<a href="${esc(ficha)}capitulo-${prev}">← Capítulo ${prev}</a>` : '<span></span>'}
       <a href="${esc(ficha)}">Todos los capítulos</a>
-      ${next ? `<a href="${esc(ficha)}/capitulo-${next}">Capítulo ${next} →</a>` : '<span></span>'}
+      ${next ? `<a href="${esc(ficha)}capitulo-${next}">Capítulo ${next} →</a>` : '<span></span>'}
     </nav>
     ${
       alternos.length
@@ -320,7 +337,7 @@ export const onRequest = async (context: {
       if(ir)ir.addEventListener('submit',function(e){
         e.preventDefault();
         var n=parseInt(ir.n.value,10);
-        if(n>0)location.href=ir.getAttribute('data-ficha')+'/capitulo-'+n;
+        if(n>0)location.href=ir.getAttribute('data-ficha')+'capitulo-'+n;
       });
     })();
     </script>`;
@@ -339,10 +356,11 @@ export const onRequest = async (context: {
     pagina({
       titulo,
       descripcion,
-      canonical: `${ficha}/capitulo-${numero}`,
+      canonical: `${ficha}capitulo-${numero}`,
       imagen: `${url.origin}/portada/${slug}.jpg`,
-      prev: prev ? `${ficha}/capitulo-${prev}` : undefined,
-      next: next ? `${ficha}/capitulo-${next}` : undefined,
+      prev: prev ? `${ficha}capitulo-${prev}` : undefined,
+      next: next ? `${ficha}capitulo-${next}` : undefined,
+      noindex: !indexables.has(slug),
       jsonLd,
       cuerpo,
     }),

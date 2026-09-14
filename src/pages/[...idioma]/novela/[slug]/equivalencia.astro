@@ -3,6 +3,7 @@ import Base from '@/layouts/Base.astro';
 import ManhwaToNovelBridge from '@/components/ManhwaToNovelBridge.astro';
 import { formatos, getCapitulosExternos, getEquivalencias, getNovelas } from '@/lib/api';
 import { brechaDe } from '@/lib/brecha';
+import { niveles } from '@/lib/catalogo';
 import { IDIOMA_BASE, ruta, t } from '@/lib/i18n';
 import { faq, migas } from '@/lib/seo';
 
@@ -45,7 +46,7 @@ const brecha = brechaDe(externos)!;
 const anclas = await getEquivalencias(novela.slug);
 
 const base = ruta(idioma, `/novela/${novela.slug}`);
-const aqui = `${base}/equivalencia`;
+const aqui = `${base}equivalencia/`;
 const [tituloIngles] = novela.titulosAlternativos;
 
 // La respuesta, en una frase, antes de cualquier interfaz. Quien llega desde
@@ -82,6 +83,8 @@ const ruta_migas = migas(Astro.site, [
   descripcion={respuestaCorta}
   imagen={novela.portadaUrl}
   jsonLd={[faq(preguntas), ruta_migas]}
+  noindex={(await niveles()).get(novela.slug) !== 'A'}
+  idiomas={[IDIOMA_BASE]}
 >
   <nav class="text-sm text-base-400 mb-5" aria-label="breadcrumb">
     <a href={ruta(idioma)} class="hover:text-acento-500">{dic.navInicio}</a>

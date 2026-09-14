@@ -1,4 +1,5 @@
 import { getCapitulosExternos, getNovelas } from './api';
+import { niveles } from './catalogo';
 import { fuentesSoloEnlace } from './soloEnlace';
 
 /**
@@ -38,7 +39,12 @@ function todas(): Promise<string[]> {
     // La misma lista que publica `/fuentes-enlace.json` y lee la función del
     // edge: sitemap y función no pueden discrepar por construcción.
     const linkOut = new Set(await fuentesSoloEnlace());
+    // Solo las obras A (manhwa y novela). Las demás sirven sus capítulos con
+    // noindex (ver indexacion.ts): eran ~270.000 URLs casi iguales, justo el
+    // patrón de «contenido a escala» que Google castiga en el dominio entero.
+    const mapa = await niveles();
     for (const novela of await getNovelas()) {
+      if (mapa.get(novela.slug) !== 'A') continue;
       const externos = await getCapitulosExternos(novela.slug);
       // Los números salen de la lista CRUDA, no de la de `fuentesDe`: esa viene
       // recortada a TOPE_RENDER (3.000) para no inflar el HTML de la ficha, y

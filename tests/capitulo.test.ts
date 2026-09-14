@@ -37,6 +37,16 @@ const FILAS: Record<string, unknown[]> = {
   'capitulos_externos?obra_slug=eq.monte-hua&numero=eq.18': [
     { titulo: 'Serie completa · 18 capítulos', url: 'https://olympusxyz.test/series/x', tipo: 'manhwa', idioma: 'es', fuente_id: 'f3' },
   ],
+  // Una obra de un solo formato (nivel B/C): su capítulo existe, pero no se indexa.
+  'capitulos_externos?obra_slug=eq.solo-manhwa&numero=eq.3': [
+    { titulo: 'Capítulo 3', url: 'https://scan-b.test/c3', tipo: 'manhwa', idioma: 'es', fuente_id: 'f9' },
+  ],
+  'obras?slug=eq.solo-manhwa': [{ titulo: 'Solo Manhwa', titulos_alternativos: [], tipo: 'manhwa', categorias: ['Drama'] }],
+  // Prohibida: el capítulo existe en la fuente y aun así no hay página.
+  'capitulos_externos?obra_slug=eq.prohibida&numero=eq.1': [
+    { titulo: 'Capítulo 1', url: 'https://scan-b.test/p1', tipo: 'manhwa', idioma: 'es', fuente_id: 'f8' },
+  ],
+  'obras?slug=eq.prohibida': [{ titulo: 'X', titulos_alternativos: [], tipo: 'manhwa', categorias: ['Lolicon'] }],
   // Dos anclas: el capítulo 20 del manhwa cae justo en el 28 de la novela.
   'equivalencias?novela_slug=eq.monte-hua': [
     { capitulo_manhwa: 1, capitulo_novela: 1 },
@@ -52,6 +62,8 @@ const FILAS: Record<string, unknown[]> = {
 // capítulos: la función ya no lo deduce de `n_caps`, que mentía.
 globalThis.fetch = (async (entrada: any) => {
   if (String(entrada).endsWith('/fuentes-enlace.json')) return Response.json(['f3']);
+  // Monte Hua es A (manhwa y novela); solo-manhwa y prohibida, no.
+  if (String(entrada).endsWith('/obras-nivel-a.json')) return Response.json(['monte-hua']);
   const consulta = String(entrada).split('/rest/v1/')[1];
   const clave = Object.keys(FILAS)
     .filter((k) => consulta.startsWith(k))
@@ -94,7 +106,14 @@ assert.match(html, /capitulo-19">← Capítulo 19/, 'anterior');
 assert.match(html, /capitulo-21">Capítulo 21 →/, 'siguiente');
 assert.match(html, /<strong>capítulo 28<\/strong>/, 'la novela va por el 28 cuando el manhwa va por el 20');
 assert.ok(html.includes('화산귀환'), 'los otros nombres, para que se encuentre por ellos');
-assert.ok(!html.includes('noindex'), 'un capítulo que existe SÍ se indexa');
+assert.ok(!html.includes('noindex'), 'un capítulo de una obra A SÍ se indexa');
+assert.match(html, /href="https:\/\/mtn\.test\/novela\/monte-hua\/">Todos los capítulos/, 'la ficha con barra final, sin 308');
+assert.match(html, /href="https:\/\/mtn\.test\/novela\/monte-hua\/capitulo-19"/, 'sin doble barra');
+
+const soloManhwa = await pedir('solo-manhwa', 'capitulo-3');
+assert.equal(soloManhwa.status, 200, 'la página sigue sirviendo al lector');
+assert.match(await soloManhwa.text(), /name="robots" content="noindex/, 'pero fuera del índice si no es A');
+assert.equal((await pedir('prohibida', 'capitulo-1')).status, 404, 'lo prohibido no tiene página');
 
 // El capítulo se abre encima de esta página, como en la ficha, cuando la fuente
 // está en la lista que /leer puede traer. La que no lo está sigue abriéndose en
@@ -105,7 +124,7 @@ assert.match(html, /<dialog class="visor">/, 'la ventana de lectura existe');
 assert.match(html, /sandbox="allow-scripts allow-forms"/, 'sin popups ni same-origin: ahí viven los anuncios');
 
 // Con 2.000 capítulos, «anterior/siguiente» no lleva al 1200: se escribe.
-assert.match(html, /<form class="ir" data-ficha="https:\/\/mtn\.test\/novela\/monte-hua">/, 'buscador de capítulo');
+assert.match(html, /<form class="ir" data-ficha="https:\/\/mtn\.test\/novela\/monte-hua\/">/, 'buscador de capítulo');
 
 // Un capítulo que no existe: 404 de verdad. Un 200 vacío a esta escala hunde
 // la confianza del dominio entero.
