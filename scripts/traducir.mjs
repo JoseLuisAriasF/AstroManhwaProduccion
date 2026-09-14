@@ -24,6 +24,7 @@
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { limpiarSinopsis } from '../src/lib/sinopsis.ts';
 
 const require = createRequire(import.meta.url);
 const RUTA_CACHE = 'src/lib/traducciones.json';
@@ -141,7 +142,9 @@ if (urlSb && claveSb) {
       // por máquina («Return to the Mount Hua Sect») es un nombre que nadie busca.
       // Párrafo a párrafo, igual que lo consume `traducirTexto()` en el sitio:
       // si no, el hash del bloque entero no casaría con el que busca la web.
-      for (const parr of String(o.sinopsis ?? '').split('\n\n')) anadir(parr);
+      // Limpia como la web (src/lib/sinopsis.ts): sin eso el hash no casa, y NLLB
+      // recibía listas de enlaces que «traducía» inventando URLs.
+      for (const parr of limpiarSinopsis(o.sinopsis).split('\n\n')) anadir(parr);
       leidas++;
     }
     if (data.length < TAM) break;

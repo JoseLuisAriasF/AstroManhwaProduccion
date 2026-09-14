@@ -22,6 +22,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { clavesDe, normalizar } from './emparejar.mjs';
 import { espera } from './plataformas.mjs';
+import { limpiarSinopsis } from '../src/lib/sinopsis.ts';
 
 const args = Object.fromEntries(
   process.argv.slice(2).map((a) => {
@@ -249,7 +250,8 @@ export function parcheDe(obra, res) {
   const parche = { enriquecida: true };
   if (!res) return parche;
   parche.metadatos_fuente = res.fuente;
-  if (!obra.sinopsis?.trim() && res.sinopsis) parche.sinopsis = res.sinopsis.slice(0, 4000);
+  const sinopsis = limpiarSinopsis(res.sinopsis);
+  if (!obra.sinopsis?.trim() && sinopsis) parche.sinopsis = sinopsis.slice(0, 4000);
   if (!obra.categorias?.length && res.generos.length) parche.categorias = res.generos.slice(0, 8);
   if (!obra.estado && res.estado) parche.estado = res.estado;
   if (res.portada && (!obra.portada_url || PORTADA_MUERTA.test(obra.portada_url))) parche.portada_url = res.portada;
