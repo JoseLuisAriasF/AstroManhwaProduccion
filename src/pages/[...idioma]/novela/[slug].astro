@@ -7,8 +7,8 @@ import SyncExplanationBanner from '@/components/SyncExplanationBanner.astro';
 import { formatos, fuentesDe, getCapitulos, getCapitulosExternos, getEquivalencias, getNovelas } from '@/lib/api';
 import { IDIOMA_BASE, IDIOMAS, idiomaDeRuta, ruta, t } from '@/lib/i18n';
 import { idiomasDeObra, paramsDeIdioma } from '@/lib/publicables';
-import { relacionadasDe } from '@/lib/catalogo';
-import { slugCategoria } from '@/lib/categorias';
+import { niveles, relacionadasDe } from '@/lib/catalogo';
+import { generos, slugCategoria } from '@/lib/categorias';
 import { faq, migas, type Pregunta } from '@/lib/seo';
 import { brechaDe } from '@/lib/brecha';
 
@@ -112,31 +112,36 @@ const descripcionSeo =
     : dic.seoNovelaDesc(novela.titulo, alternos, capitulos.length);
 
 
+// Solo lo que es verdad. Estaba como `Book` con `author: ManhwaToNovel`,
+// `bookFormat: EBook` y `numberOfPages` = capítulos: ni somos el autor ni es un
+// ebook, y el marcado que no describe la página es motivo de acción manual
+// («datos estructurados spam»). Ninguno de estos tipos da resultado enriquecido;
+// sirven para que Google entienda QUÉ es la página, y para eso tienen que acertar.
+const nivel = (await niveles()).get(novela.slug) ?? 'C';
+const hubs = await generos();
 const jsonLd = {
   '@context': 'https://schema.org',
-  '@type': 'Book',
+  '@type': tieneAmbos ? 'CreativeWorkSeries' : formatosDisponibles[0] === 'novela' ? 'BookSeries' : 'ComicSeries',
   '@id': url,
   name: novela.titulo,
   alternateName: novela.titulosAlternativos,
   url,
-  description: novela.sinopsis,
+  ...(novela.sinopsis ? { description: novela.sinopsis } : {}),
   image: new URL(novela.portadaUrl, Astro.site).toString(),
   inLanguage: IDIOMAS[idioma].htmlLang,
-  bookFormat: 'https://schema.org/EBook',
   genre: novela.categorias,
-  numberOfPages: capitulos.length,
-  author: { '@type': 'Organization', name: 'ManhwaToNovel' },
-  potentialAction: {
-    '@type': 'ReadAction',
-    target: {
-      '@type': 'EntryPoint',
-      urlTemplate: `${url}/capitulo-1`,
-      actionPlatform: [
-        'https://schema.org/DesktopWebPlatform',
-        'https://schema.org/MobileWebPlatform',
-      ],
-    },
-  },
+  ...(hayLecturaInterna
+    ? {
+        potentialAction: {
+          '@type': 'ReadAction',
+          target: {
+            '@type': 'EntryPoint',
+            urlTemplate: `${url}capitulo-1`,
+            actionPlatform: ['https://schema.org/DesktopWebPlatform', 'https://schema.org/MobileWebPlatform'],
+          },
+        },
+      }
+    : {}),
 };
 
 // Las mismas migas que se pintan abajo, marcadas para Google. Si el marcado y
@@ -215,6 +220,7 @@ const jsonLdFaq = preguntas.length >= 2 && idioma === IDIOMA_BASE ? [faq(pregunt
   tipo="book"
   jsonLd={[jsonLd, ruta_migas, ...jsonLdFaq]}
   idiomas={idiomasDeObra(novela)}
+  noindex={nivel === 'C'}
 >
   {/* La portada es el LCP de la ficha: precargarla adelanta la mayor pintura y
       mejora Core Web Vitals (además del fetchpriority del <img>). */}
@@ -292,14 +298,21 @@ const jsonLdFaq = preguntas.length >= 2 && idioma === IDIOMA_BASE ? [faq(pregunt
 
       <div class="mt-3 flex flex-wrap gap-2">
         {
-          novela.categorias.map((c) => (
-            <a
-              href={ruta(idioma, `/categoria/${slugCategoria(c)}`)}
-              class="text-xs text-base-500 neu-inset neu-press rounded-lg px-2 py-1 hover:text-acento-500"
-            >
-              {c}
-            </a>
-          ))
+          // Enlace solo si la página de categoría existe: se generan en el idioma
+          // base y sin los géneros adultos. Si no, /en/categoria/x o
+          // /categoria/hentai serían enlaces internos a un 404.
+          novela.categorias.map((c) =>
+            hubs.has(slugCategoria(c)) ? (
+              <a
+                href={ruta(IDIOMA_BASE, `/categoria/${slugCategoria(c)}`)}
+                class="text-xs text-base-500 neu-inset neu-press rounded-lg px-2 py-1 hover:text-acento-500"
+              >
+                {c}
+              </a>
+            ) : (
+              <span class="text-xs text-base-500 neu-inset rounded-lg px-2 py-1">{c}</span>
+            ),
+          )
         }
       </div>
 
@@ -355,7 +368,7 @@ const jsonLdFaq = preguntas.length >= 2 && idioma === IDIOMA_BASE ? [faq(pregunt
       <div class="mt-5 flex flex-wrap gap-3">
         {hayLecturaInterna && (
           <a
-            href={`${base}/capitulo-1`}
+            href={`${base}capitulo-1`}
             data-empezar
             data-base={base}
             class="neu-sm neu-press rounded-xl px-4 py-2.5 text-sm font-medium text-acento-500"
@@ -385,7 +398,7 @@ const jsonLdFaq = preguntas.length >= 2 && idioma === IDIOMA_BASE ? [faq(pregunt
         pregunta entera. */}
     {brecha && brecha.faltan > 0 && (
       <a
-        href={`${base}/equivalencia`}
+        href={ruta(IDIOMA_BASE, `/novela/${novela.slug}/equivalencia`)}
         class="neu rounded-2xl p-5 flex flex-wrap items-center gap-x-6 gap-y-3 transition-transform duration-200 hover:-translate-y-0.5"
       >
         <span class="min-w-0 flex-1">
@@ -452,9 +465,12 @@ const jsonLdFaq = preguntas.length >= 2 && idioma === IDIOMA_BASE ? [faq(pregunt
           <button class="neu-sm neu-press rounded-xl px-4 py-1.5 text-sm font-medium text-acento-500">Ir</button>
         </form>
         <div class="flex flex-wrap gap-2">
+          {/* Los capítulos de una obra que no es A llevan noindex (ver
+              indexacion.ts): `nofollow` para que el rastreo no se gaste en ellos. */}
           {ultimosNumeros.map((n) => (
             <a
-              href={`${base}/capitulo-${n}`}
+              href={`${base}capitulo-${n}`}
+              rel={nivel === 'A' ? undefined : 'nofollow'}
               class="text-sm neu-sm neu-press rounded-xl px-3 py-1.5 text-base-600 dark:text-base-300 hover:text-acento-500"
             >
               Capítulo {n}
@@ -497,7 +513,7 @@ const jsonLdFaq = preguntas.length >= 2 && idioma === IDIOMA_BASE ? [faq(pregunt
           {relacionadas.map((r) => (
             <li>
               <a
-                href={ruta(idioma, `/novela/${r.slug}`)}
+                href={ruta(idiomasDeObra(r).includes(idioma) ? idioma : IDIOMA_BASE, `/novela/${r.slug}`)}
                 class="neu-sm rounded-xl p-3 flex gap-3 items-center transition-transform duration-200 hover:-translate-y-0.5"
               >
                 <img
@@ -547,7 +563,7 @@ const jsonLdFaq = preguntas.length >= 2 && idioma === IDIOMA_BASE ? [faq(pregunt
 
     const n = ultimoLeido(slug);
     if (n !== null && empezar && base) {
-      empezar.href = `${base}/capitulo-${n + 1}`;
+      empezar.href = `${base}capitulo-${n + 1}`;
       empezar.textContent = dic.continuarEnCap(n + 1);
     }
   }
@@ -558,7 +574,7 @@ const jsonLdFaq = preguntas.length >= 2 && idioma === IDIOMA_BASE ? [faq(pregunt
   irCap?.addEventListener('submit', (e) => {
     e.preventDefault();
     const n = parseInt((irCap.elements.namedItem('n') as HTMLInputElement).value, 10);
-    if (n > 0) location.href = `${irCap.dataset.base}/capitulo-${n}`;
+    if (n > 0) location.href = `${irCap.dataset.base}capitulo-${n}`;
   });
 
   boton.addEventListener('click', () => {

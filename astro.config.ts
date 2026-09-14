@@ -1,30 +1,18 @@
 import { defineConfig } from 'astro/config';
 import sitemap from '@astrojs/sitemap';
 import tailwind from '@tailwindcss/vite';
-import { ACTIVOS, CODIGOS, IDIOMA_BASE, IDIOMAS } from './src/lib/i18n';
-import { metaSitemap } from './src/lib/sitemapMeta';
+import { CODIGOS, IDIOMA_BASE, IDIOMAS } from './src/lib/i18n';
 
 // Un solo sitio de verdad para los idiomas: src/lib/i18n.ts.
 // Añadir uno ahí lo propaga a rutas, sitemap, hreflang y selector.
-// Solo los ENCENDIDOS: declarar en el sitemap un hreflang a /de/ mientras /de/
-// no se genera es prometerle a Google una página que da 404, y esos 404 se los
-// apunta al dominio.
 const localesSitemap = Object.fromEntries(
-  ACTIVOS.map((c) => [c, IDIOMAS[c].htmlLang]),
+  CODIGOS.map((c) => [c, IDIOMAS[c].htmlLang]),
 ) as Record<string, string>;
 
-// Metadatos por obra (fecha real + si es "ambos"), una lectura antes de generar
-// el sitemap. `serialize` de @astrojs/sitemap v3 es SÍNCRONO, así que el mapa se
-// precarga aquí con top-level await y luego se consulta sin esperar.
-const metaObras = await metaSitemap();
-
-/** El slug de una URL de ficha (/novela/<slug> o /<idioma>/novela/<slug>), o null.
- *  Las páginas de capítulo (/novela/<slug>/capitulo-N) no matchean: su último
- *  segmento no es el slug, y se quedan con la prioridad por defecto. */
-const slugFicha = (u: string) => new URL(u).pathname.match(/\/novela\/([^/]+)\/?$/)?.[1] ?? null;
+const SITE = process.env.SITE_URL || 'https://manhwatonovel.example.com';
 
 export default defineConfig({
-  site: process.env.SITE_URL || 'https://manhwatonovel.example.com',
+  site: SITE,
   output: 'static',
   i18n: {
     defaultLocale: IDIOMA_BASE,
@@ -36,11 +24,10 @@ export default defineConfig({
       i18n: { defaultLocale: IDIOMA_BASE, locales: localesSitemap },
       // /admin es una herramienta interna, no contenido. Fuera del sitemap
       // (y con noindex en su <head>) para que no se rastree ni se indexe.
-      filter: (pagina) => !pagina.includes('/admin'),
-      // `lastmod` real y `priority` por tipo de página, para que Google no gaste
-      // el rastreo por igual en 8.600 URLs: prioriza la portada, las páginas
-      // propias y las fichas "ambos" (el contenido único), y con la fecha del
-      // último capítulo sabe cuáles re-rastrear.
+      // Las fichas (/novela/…) tampoco: van en /sitemap-obras.xml, que sabe
+      // cuáles llevan noindex (ver src/lib/indexacion.ts). Este paquete no.
+      filter: (pagina) => !pagina.includes('/admin') && !new URL(pagina).pathname.includes('/novela/'),
+      customSitemaps: [`${SITE.replace(/\/$/, '')}/sitemap-obras.xml`],
       serialize(item) {
         // `as typeof item`: el tipo de `changefreq` es un ENUM del paquete
         // sitemap, y un literal 'daily' no le encaja aunque valga en runtime.
@@ -48,29 +35,6 @@ export default defineConfig({
         // Portada (con o sin prefijo de idioma).
         if (path === '/' || /^\/[a-z]{2}\/?$/.test(path)) {
           return { ...item, priority: 1.0, changefreq: 'daily' } as typeof item;
-        }
-        const slug = slugFicha(item.url);
-        if (slug) {
-          const meta = metaObras.get(slug);
-          return {
-            ...item,
-            ...(meta?.lastmod ? { lastmod: new Date(meta.lastmod).toISOString() } : {}),
-            priority: meta?.ambos ? 0.9 : 0.6,
-            changefreq: 'weekly',
-            // Sitemap de imagen. Desde que la portada se sirve por NUESTRO
-            // dominio (functions/portada/), Google Imágenes puede indexarla a
-            // nuestro nombre — pero primero tiene que encontrarla, y las
-            // portadas se pintan dentro de tarjetas y listas, no como imagen
-            // principal de la página. Declararlas aquí es lo que las mete al
-            // índice sin depender de que el rastreador las descubra solo.
-            // `img` no está en el tipo de @astrojs/sitemap (recorta a url,
-            // lastmod, changefreq, priority y links) pero el objeto pasa entero
-            // al paquete `sitemap`, que sí lo entiende; el namespace de imagen
-            // ya viene activado por defecto. De ahí el cast, igual que arriba.
-            ...(meta?.portada
-              ? { img: [{ url: new URL(`/portada/${slug}.jpg`, item.url).toString() }] }
-              : {}),
-          } as typeof item;
         }
         // Páginas propias de alto valor (series, rankings, novedades…).
         if (/\/(series|rankings|novedades|titulos)(\/|$)/.test(path)) {

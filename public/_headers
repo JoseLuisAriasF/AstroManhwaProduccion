@@ -50,3 +50,8 @@
 /portadas.json
   Cache-Control: public, max-age=0, must-revalidate
   CDN-Cache-Control: public, s-maxage=86400, stale-while-revalidate=604800
+
+# Qué obras indexan sus capítulos. Lo pide la función de capítulo, no el navegador.
+/obras-nivel-a.json
+  Cache-Control: public, max-age=0, must-revalidate
+  CDN-Cache-Control: public, s-maxage=86400, stale-while-revalidate=604800

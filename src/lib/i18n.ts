@@ -88,10 +88,23 @@ export function idiomaDe(param: string | undefined): Idioma {
   return esIdioma(param) ? param : IDIOMA_BASE;
 }
 
-/** Prefija una ruta con el idioma. El idioma base va sin prefijo. */
+/**
+ * Prefija una ruta con el idioma. El idioma base va sin prefijo.
+ *
+ * Y le pone la barra final, que es la URL canónica de toda página estática
+ * (`/novela/x/`, la del sitemap). Sin ella cada enlace interno costaba un 308
+ * de Cloudflare: el 4 % del rastreo de Google se iba en redirecciones. Van sin
+ * barra los capítulos (`capitulo-N`, los sirve la función del edge con esa URL
+ * exacta) y los archivos (`rss.xml`).
+ *
+ * Para colgar algo de una ficha, pásalo entero: `ruta(i, '/novela/x/capitulo-3')`,
+ * no `${ruta(i, '/novela/x')}/capitulo-3`, que ahora daría `//`.
+ */
 export function ruta(idioma: Idioma, camino = '/'): string {
   const limpio = camino.startsWith('/') ? camino : `/${camino}`;
-  return idioma === IDIOMA_BASE ? limpio : `/${idioma}${limpio}`;
+  const ultimo = limpio.slice(limpio.lastIndexOf('/') + 1);
+  const final = !ultimo || ultimo.includes('.') || /^capitulo-\d+$/.test(ultimo) ? limpio : `${limpio}/`;
+  return idioma === IDIOMA_BASE ? final : `/${idioma}${final}`;
 }
 
 /** Idioma a partir del pathname: /en/novela/x -> 'en', /novela/x -> 'es'. */

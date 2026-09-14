@@ -18,8 +18,31 @@
  * Firma sin los tipos de Cloudflare (no están instalados) para no ensuciar el
  * typecheck; CF solo necesita el export `onRequest`.
  */
+import { CODIGOS, IDIOMA_BASE } from '../src/lib/i18n.ts';
+
 const CANONICO = 'www.manhwatonovel.com';
 const APEX = 'manhwatonovel.com';
+
+const PREFIJO = new RegExp(`^/(?:${CODIGOS.filter((c) => c !== IDIOMA_BASE).join('|')})(/.*)?$`);
+
+/**
+ * Adónde mandar un 404 que tiene arreglo, o null. Search Console listaba 55:
+ *
+ * - `/pt/novela/x/`, `/de/…`, `/fr/…`: idiomas que se publicaron y ya no
+ *   (i18n.ts → ACTIVOS), y fichas /en/ que no existen porque la obra no tiene
+ *   prosa traducida. Google las conoce por enlaces y hreflang viejos: la misma
+ *   página en español es su destino natural, y el 301 le pasa lo que acumularon.
+ * - `/novela/x-capitulo-86`: un enlace externo mal armado, sin la barra.
+ *
+ * Solo se mira DESPUÉS de un 404: una ruta que existe nunca se redirige.
+ */
+export function reparar(pathname: string): string | null {
+  const idioma = PREFIJO.exec(pathname);
+  if (idioma) return idioma[1] || '/';
+  const cap = /^\/novela\/(.+)-capitulo-(\d+)\/?$/.exec(pathname);
+  if (cap) return `/novela/${cap[1]}/capitulo-${cap[2]}`;
+  return null;
+}
 
 export const onRequest = async (context: {
   request: Request;
@@ -32,5 +55,8 @@ export const onRequest = async (context: {
     url.hostname = CANONICO;
     return Response.redirect(url.toString(), 301);
   }
-  return context.next();
+  const res = await context.next();
+  if (res.status !== 404 || context.request.method !== 'GET') return res;
+  const destino = reparar(url.pathname);
+  return destino ? Response.redirect(new URL(destino + url.search, url).toString(), 301) : res;
 };

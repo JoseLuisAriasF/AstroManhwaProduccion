@@ -1,5 +1,6 @@
 import type { Capitulo, CapituloExterno, EquivalenciaManhwa, Novela } from '@/types/novela';
 import { IDIOMA_BASE, type Idioma } from './i18n';
+import { esProhibida } from './indexacion';
 import { capitulosDe, equivalencias, novelas } from './mockData';
 import { supabase } from './supabaseClient';
 import { traducir, traducirTexto } from './traducir';
@@ -235,13 +236,16 @@ function catalogo(): Promise<Novela[]> {
   catalogoCache ??= (async () => {
     if (!supabase) return novelas;
     try {
-      const [filas, portadasFuente] = await Promise.all([
+      const [todas, portadasFuente] = await Promise.all([
         // `slug` es la clave primaria de `obras`. El orden de presentación
         // (destacadas primero, luego por título) se pone abajo, en memoria.
         todasLasFilas<any>('obras', '*', (q) => q.eq('publicada', true), 'slug'),
         portadasPorObra(),
       ]);
-      if (!filas.length) return novelas;
+      if (!todas.length) return novelas;
+      // Sexualización de menores: no se publica, ni con noindex. El descubridor
+      // las vuelve a traer cada noche, así que el filtro vive aquí y no en la BD.
+      const filas = todas.filter((o) => !esProhibida(o.categorias ?? []));
       // Destacadas primero y luego por título: el orden que espera la portada.
       // Antes lo pedía la base; ahora la base solo pagina por clave primaria.
       filas.sort(

@@ -1,5 +1,39 @@
-import { getNovelas } from './api';
+import { formatos, fuentesDe, getCapitulosExternos, getNovelas } from './api';
+import { esAdulta, nivelDe, type Nivel } from './indexacion';
+import conTrafico from './con-trafico.json';
 import type { Novela } from '@/types/novela';
+
+/**
+ * El nivel de indexación de cada obra (ver `indexacion.ts`), UNA vez por build.
+ * Lo leen la ficha (noindex), el sitemap de obras, el de capítulos y
+ * `/obras-nivel-a.json` para la función del edge: todos del mismo mapa, así que
+ * no pueden discrepar —una URL en el sitemap con noindex es un error en GSC—.
+ */
+let nivelesCache: Promise<Map<string, Nivel>> | null = null;
+const trafico = new Set<string>(conTrafico);
+
+export function niveles(): Promise<Map<string, Nivel>> {
+  nivelesCache ??= (async () => {
+    const mapa = new Map<string, Nivel>();
+    for (const n of await getNovelas()) {
+      const externos = await getCapitulosExternos(n.slug);
+      mapa.set(
+        n.slug,
+        nivelDe({
+          adulta: esAdulta(n),
+          ambos: formatos(externos).length === 2,
+          ultimo: Math.max(0, ...fuentesDe(externos).map((f) => f.total)),
+          conTrafico: trafico.has(n.slug),
+        }),
+      );
+    }
+    const cuenta = { A: 0, B: 0, C: 0 };
+    for (const v of mapa.values()) cuenta[v]++;
+    console.log(`[niveles] A=${cuenta.A} B=${cuenta.B} C=${cuenta.C} (con tráfico: ${trafico.size})`);
+    return mapa;
+  })();
+  return nivelesCache;
+}
 
 /**
  * Orden y tamaño del catálogo paginado (/novelas/2, /novelas/3…).
@@ -34,6 +68,9 @@ async function porCategoria(): Promise<Map<string, Novela[]>> {
   if (!indiceCats) {
     indiceCats = new Map();
     for (const n of await catalogoOrdenado()) {
+      // Una ficha normal no recomienda lo adulto (sí al revés: de lo adulto a
+      // lo normal, que es sacar al lector de ahí).
+      if (esAdulta(n)) continue;
       for (const c of n.categorias) {
         const bucket = indiceCats.get(c) ?? [];
         if (bucket.length < TOPE_BUCKET) bucket.push(n);
@@ -72,7 +109,7 @@ export async function relacionadasDe(novela: Novela, cuantas = 6): Promise<Novel
     const vistos = new Set([novela.slug, ...elegidas.map((n) => n.slug)]);
     for (let k = 1; elegidas.length < cuantas && k <= todas.length; k++) {
       const vecina = todas[(i + k) % todas.length];
-      if (vecina && !vistos.has(vecina.slug)) {
+      if (vecina && !vistos.has(vecina.slug) && !esAdulta(vecina)) {
         vistos.add(vecina.slug);
         elegidas.push(vecina);
       }

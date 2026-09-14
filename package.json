@@ -12,6 +12,7 @@
     "sugerir": "node --env-file-if-exists=.env scripts/sugerir-fusiones.mjs",
     "avisar": "node --env-file-if-exists=.env scripts/indexnow.mjs",
     "palabras": "node scripts/palabras.mjs",
+    "trafico": "node scripts/gsc-trafico.mjs",
     "pinterest": "node --env-file-if-exists=.env scripts/pinterest.mjs",
     "dominios": "node --env-file-if-exists=.env scripts/dominios.mjs",
     "fusionar": "node --env-file-if-exists=.env scripts/fusionar.mjs",
@@ -21,7 +22,8 @@
     "check": "astro check",
     "test:portada": "node --experimental-strip-types tests/portada.test.ts",
     "test:capitulo": "node --experimental-strip-types tests/capitulo.test.ts",
-    "test:leer": "node --experimental-strip-types tests/leer.test.ts"
+    "test:leer": "node --experimental-strip-types tests/leer.test.ts",
+    "test:seo": "node --experimental-strip-types src/lib/indexacion.test.ts && node --experimental-strip-types src/lib/i18n.test.ts && node --experimental-strip-types tests/middleware.test.ts"
   },
   "dependencies": {
     "@astrojs/sitemap": "^3.2.1",

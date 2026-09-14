@@ -36,6 +36,7 @@ npm run build    # dist/ listo para Cloudflare Pages
 | `functions/novela/[slug]/[capitulo].ts` | **Una página por capítulo, armada en el edge.** Sin generar archivos. |
 | `src/lib/sitemapCapitulos.ts` | Las ~200.000 URLs de capítulo, troceadas en sitemaps de 45.000. |
 | `src/lib/soloEnlace.ts` | Qué fuentes no listan capítulos. Lo leen el sitemap y el edge, del mismo archivo. |
+| `src/lib/indexacion.ts` | **Qué se indexa**: niveles A/B/C y el filtro adulto. Ver «Qué se le ofrece a Google». |
 | `src/lib/seo.ts` | BreadcrumbList y FAQPage. Los datos estructurados que se repiten en varias páginas. |
 | `scripts/indexnow.mjs` | Avisa a Bing/Yandex/Naver/Seznam de lo que cambió: fichas **y capítulos nuevos**. |
 | `scripts/palabras.mjs` | Qué escribe la gente de verdad, del autocompletado de Google. Herramienta de escritorio. |
@@ -237,6 +238,26 @@ Lo que se añadió encima es lo que un agregador puede hacer y una scan no.
 Las cuatro se enlazan desde la portada y el pie **a propósito**: una página nueva
 que solo cuelga del sitemap tarda meses en despegar.
 
+### Qué se le ofrece a Google: niveles A, B y C
+
+Search Console (sept. 2026): 347 indexadas, **9.442 «Descubierta: actualmente
+sin indexar»** y ~220 rastreos al día. Con 10.000 fichas y 270.000 capítulos,
+Google no llega, y con tanta página delgada desconfía del resto. Ahora elegimos
+nosotros (`src/lib/indexacion.ts`):
+
+| Nivel | Qué obras | Qué se indexa |
+|---|---|---|
+| **A** | manhwa **y** novela | Ficha, `/equivalencia` y páginas de capítulo |
+| **B** | un formato, con 5+ capítulos **o** con tráfico en GSC | Solo la ficha; sus capítulos, `noindex` |
+| **C** | el resto, y lo adulto sin tráfico | Nada: `noindex, follow` y fuera del sitemap. La página sigue sirviendo. |
+
+- **No «solo A».** Medido: las 9 fichas con más clics son de un solo formato y suman más de la mitad del tráfico.
+- **`src/lib/con-trafico.json`** rescata fichas que Google ya enseña. Se actualiza con `npm run trafico -- Páginas.csv` (GSC → Rendimiento → 3 meses → Exportar).
+- **Un solo mapa decide todo** (`niveles()` en `catalogo.ts`): el `noindex` de la página, `/sitemap-obras.xml`, los sitemaps de capítulo y `/obras-nivel-a.json`, que lee la función del edge. Una URL no puede estar en el sitemap y con noindex.
+- **Adulto** (`adult`, `hentai`, `smut`, `erotica` o «Uncensored» en el título): nivel C salvo que tenga tráfico (entonces B, decisión consciente: la obra con más clics es Adult/Smut). Sin hub de categoría y fuera de «similares». ⚠ Esas fichas no deben llevar anuncios. **`lolicon`/`shotacon` no se publican.**
+- **404 con arreglo → 301** (`functions/_middleware.ts`): `/pt/`, `/fr/`, `/de/`… a la página en español, y `/novela/x-capitulo-86` a `/novela/x/capitulo-86`.
+- **`ruta()` pone la barra final**: cada enlace interno sin ella era un 308.
+
 ### Buscar un capítulo suelto
 
 «regreso de la secta del monte hua cap 1200», «… manhwa 1200», «… novel 1200».
@@ -365,7 +386,7 @@ Mount Hua Sect» y «화산귀환». El andamiaje ya está y son tres cosas dist
 |---|---|
 | `<title>` y `<h1>` de la ficha | El nombre en inglés, que es la consulta más común fuera de Latinoamérica. |
 | Texto visible «también conocida como» | Los ~8 nombres, **siempre** en el HTML (el recorte a 2 líneas es solo visual). |
-| `alternateName` del JSON-LD `Book` | Le dice a Google que los nombres son de la misma entidad. |
+| `alternateName` del JSON-LD (`ComicSeries`/`BookSeries`) | Le dice a Google que los nombres son de la misma entidad. |
 | `/titulos/<letra>` | Cada nombre como **enlace interno** con el nombre de texto: «화산귀환» apuntando a la ficha le dice al buscador, en coreano, de qué va. |
 
 Lo que falta ahí no es marcado, es que Google llegue: por eso IndexNow, el
