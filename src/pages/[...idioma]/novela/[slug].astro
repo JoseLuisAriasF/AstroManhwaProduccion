@@ -8,9 +8,12 @@ import { formatos, fuentesDe, getCapitulos, getCapitulosExternos, getEquivalenci
 import { IDIOMA_BASE, IDIOMAS, idiomaDeRuta, ruta, t } from '@/lib/i18n';
 import { idiomasDeObra, paramsDeIdioma } from '@/lib/publicables';
 import { niveles, relacionadasDe } from '@/lib/catalogo';
-import { generos, slugCategoria } from '@/lib/categorias';
-import { faq, migas, type Pregunta } from '@/lib/seo';
+import { generos } from '@/lib/categorias';
+import { claveGenero } from '@/lib/generos';
+import { faq, migas } from '@/lib/seo';
 import { brechaDe } from '@/lib/brecha';
+import { segundoNombre } from '@/lib/titulos';
+import { textosObra } from '@/lib/textosObra';
 
 export async function getStaticPaths() {
   const novelas = await getNovelas();
@@ -50,10 +53,13 @@ const url = new URL(base, Astro.site).toString();
 
 // Cómo la busca la gente: el título en inglés suele ser la consulta más común
 // fuera de Latinoamérica, así que va también en el <title>.
-const [tituloIngles] = novela.titulosAlternativos;
+// El otro nombre por el que se busca: el inglés de verdad, no el primero de la
+// lista (ver src/lib/titulos.ts).
+const tituloIngles = segundoNombre(novela, idioma);
 const relacionadas = await relacionadasDe(novela);
 
-const alternos = novela.titulosAlternativos.join(', ');
+// Los textos con datos (title, descripción, brecha, FAQ) en el idioma de la página.
+const tx = textosObra(idioma);
 
 // La brecha manhwa↔novela: el número por el que la gente llega. Si existe, se
 // pinta arriba y se le da su propia página (/equivalencia), que es la que pelea
@@ -71,12 +77,7 @@ const ultimoDe = (tipo: 'manhwa' | 'novela') =>
   Math.max(0, ...fuentes.filter((f) => f.tipo === tipo).map((f) => f.ultimo));
 const ultimoManhwa = ultimoDe('manhwa');
 const ultimoNovela = ultimoDe('novela');
-const capsTitulo = [
-  ultimoManhwa && `manhwa cap. ${ultimoManhwa}`,
-  ultimoNovela && `novela cap. ${ultimoNovela}`,
-]
-  .filter(Boolean)
-  .join(' · ');
+const capsTitulo = tx.capsTitulo(ultimoManhwa, ultimoNovela);
 const nombres = [novela.titulo, tituloIngles].filter((n, i, a) => n && a.indexOf(n) === i).join(' / ');
 
 // Los últimos capítulos con página propia (la arma la función del edge, ver
@@ -97,19 +98,15 @@ const ultimosNumeros = [
 ]
   .sort((a, b) => b - a)
   .slice(0, 6);
-const tituloSeo =
-  idioma === IDIOMA_BASE && capsTitulo
-    ? `${nombres} — ${capsTitulo}`
-    : dic.seoNovelaTitulo(novela.titulo, tituloIngles ?? novela.titulo);
+// Sin sufijos genéricos: el de antes decía «Novela completa en español» / «Full
+// novel online», y aquí no se aloja ninguna novela: se indexa dónde leerla.
+const tituloSeo = capsTitulo ? `${nombres} — ${capsTitulo}` : nombres;
 
 // La descripción es lo que decide el clic en el resultado de Google, y un
-// número concreto gana a cualquier adjetivo. Solo en español: es el idioma en
-// que está escrita esta frase, y meterla en /en/ sería texto suelto en otro
-// idioma. El resto de idiomas se queda con la del diccionario.
-const descripcionSeo =
-  idioma === IDIOMA_BASE && brecha?.faltan
-    ? `El manhwa va por el capítulo ${brecha.manhwa} y la novela por el ${brecha.novela}: te faltan ${brecha.faltan} capítulos de historia. Te decimos por cuál seguir y dónde leerla.`
-    : dic.seoNovelaDesc(novela.titulo, alternos, capitulos.length);
+// número concreto gana a cualquier adjetivo.
+const descripcionSeo = brecha?.faltan
+  ? tx.descripcionBrecha(brecha)
+  : tx.descripcionFicha(novela.titulo, tx.formatos(formatosDisponibles), fuentes.length);
 
 
 // Solo lo que es verdad. Estaba como `Book` con `author: ManhwaToNovel`,
@@ -177,40 +174,10 @@ const introGenerada = [
 // El FAQPage del <head> repite estas mismas preguntas, que se pintan visibles
 // más abajo. Marcado sin contenido visible es penalización, no atajo.
 const nombresFuentes = [...new Set(fuentes.map((f) => f.nombre).filter(Boolean))];
-const preguntas: Pregunta[] = [];
-if (fuentes.length) {
-  preguntas.push({
-    pregunta: `¿Dónde leer ${novela.titulo}?`,
-    respuesta: `Está indexada en ${fuentes.length} ${fuentes.length === 1 ? 'fuente' : 'fuentes'}${
-      nombresFuentes.length ? ` (${nombresFuentes.slice(0, 5).join(', ')})` : ''
-    }. Cada una enlaza al sitio original donde se lee gratis.`,
-  });
-}
-if (brecha) {
-  preguntas.push({
-    pregunta: `¿Cuántos capítulos tiene ${novela.titulo}?`,
-    respuesta: `El manhwa lleva ${brecha.manhwa} capítulos indexados y la novela ${brecha.novela}${
-      brecha.faltan ? `, ${brecha.faltan} por delante del manhwa` : ''
-    }.`,
-  });
-  preguntas.push({
-    pregunta: `¿Puedo leer la novela de ${novela.titulo} sin spoilers del manhwa?`,
-    respuesta: `Sí: empieza por el capítulo de la novela que corresponde a donde dejaste el manhwa. Lo que la novela te adelanta es lo que el manhwa aún no ha dibujado, no lo que ya leíste.`,
-  });
-}
-if (novela.estado) {
-  preguntas.push({
-    pregunta: `¿${novela.titulo} está terminada?`,
-    respuesta:
-      novela.estado === 'Finalizado'
-        ? `Sí, ${novela.titulo} está finalizada.`
-        : `No, ${novela.titulo} sigue en emisión y recibe capítulos nuevos.`,
-  });
-}
-// FAQPage solo si hay al menos dos (una sola no es una FAQ) y solo en el idioma
-// base: las preguntas están escritas en español, y el schema DEBE coincidir con
-// lo visible —que también es es-only—, o Google lo descarta por marcado engañoso.
-const jsonLdFaq = preguntas.length >= 2 && idioma === IDIOMA_BASE ? [faq(preguntas)] : [];
+const preguntas = tx.faqFicha(novela.titulo, nombresFuentes, brecha, novela.estado);
+// FAQPage solo si hay al menos dos (una sola no es una FAQ). El marcado DEBE
+// coincidir con lo visible —abajo se pintan las mismas—, o Google lo descarta.
+const jsonLdFaq = preguntas.length >= 2 ? [faq(preguntas)] : [];
 ---
 
 <Base
@@ -302,9 +269,9 @@ const jsonLdFaq = preguntas.length >= 2 && idioma === IDIOMA_BASE ? [faq(pregunt
           // base y sin los géneros adultos. Si no, /en/categoria/x o
           // /categoria/hentai serían enlaces internos a un 404.
           novela.categorias.map((c) =>
-            hubs.has(slugCategoria(c)) ? (
+            hubs.has(claveGenero(c)) ? (
               <a
-                href={ruta(IDIOMA_BASE, `/categoria/${slugCategoria(c)}`)}
+                href={ruta(IDIOMA_BASE, `/categoria/${claveGenero(c)}`)}
                 class="text-xs text-base-500 neu-inset neu-press rounded-lg px-2 py-1 hover:text-acento-500"
               >
                 {c}
@@ -398,16 +365,15 @@ const jsonLdFaq = preguntas.length >= 2 && idioma === IDIOMA_BASE ? [faq(pregunt
         pregunta entera. */}
     {brecha && brecha.faltan > 0 && (
       <a
-        href={ruta(IDIOMA_BASE, `/novela/${novela.slug}/equivalencia`)}
+        href={ruta(idioma, `/novela/${novela.slug}/equivalencia`)}
         class="neu rounded-2xl p-5 flex flex-wrap items-center gap-x-6 gap-y-3 transition-transform duration-200 hover:-translate-y-0.5"
       >
         <span class="min-w-0 flex-1">
           <span class="block font-semibold text-base-800 dark:text-base-100">
-            Te faltan {brecha.faltan} capítulos de historia
+            {tx.brechaTitulo(brecha.faltan)}
           </span>
           <span class="block mt-0.5 text-sm text-base-500 text-pretty">
-            El manhwa va por el {brecha.manhwa} y la novela por el {brecha.novela}. Mira por cuál
-            capítulo seguir →
+            {tx.brechaSub(brecha)}
           </span>
         </span>
         <span class="flex items-center gap-3 tabular-nums">
@@ -485,10 +451,10 @@ const jsonLdFaq = preguntas.length >= 2 && idioma === IDIOMA_BASE ? [faq(pregunt
     {/* Preguntas frecuentes: contenido propio, útil y con FAQPage en el <head>
         (mismas preguntas, visibles aquí). Solo en el idioma base, donde están
         escritas. Sube el CTR: Google las muestra desplegables bajo el resultado. */}
-    {jsonLdFaq.length > 0 && idioma === IDIOMA_BASE && (
+    {jsonLdFaq.length > 0 && (
       <section aria-labelledby="faq">
         <h2 id="faq" class="font-semibold text-base-800 dark:text-base-100 mb-4">
-          Preguntas frecuentes
+          {tx.faqTitulo}
         </h2>
         <dl class="grid gap-3">
           {preguntas.map((p) => (
@@ -529,8 +495,8 @@ const jsonLdFaq = preguntas.length >= 2 && idioma === IDIOMA_BASE ? [faq(pregunt
                   <span class="block text-sm font-medium text-base-700 dark:text-base-200 line-clamp-2">
                     {r.titulo}
                   </span>
-                  {r.titulosAlternativos[0] && (
-                    <span class="block text-[11px] text-base-400 truncate">{r.titulosAlternativos[0]}</span>
+                  {segundoNombre(r, idioma) && (
+                    <span class="block text-[11px] text-base-400 truncate">{segundoNombre(r, idioma)}</span>
                   )}
                 </span>
               </a>

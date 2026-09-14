@@ -18,6 +18,9 @@ export interface Novela {
    */
   titulosAlternativos: string[];
   sinopsis: string;
+  /** La sinopsis como está en la BD, antes de localizar. Es la clave del caché de
+   *  traducciones: con ella se sabe en qué idiomas existe la obra (publicables.ts). */
+  sinopsisOriginal?: string;
   portadaUrl: string; // Portada principal
   /** Portadas alternativas (de cada fuente): si la principal da link roto, el
       cliente prueba estas antes de caer al placeholder. */

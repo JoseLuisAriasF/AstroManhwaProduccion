@@ -38,8 +38,11 @@ export const GET: APIRoute = async ({ site }) => {
         `<url><loc>${base}${ruta(idioma, `/novela/${n.slug}`)}</loc>${lastmod}<priority>${nivel === 'A' ? '0.9' : '0.6'}</priority>${img}</url>`,
       );
     }
+    // La /equivalencia existe en los mismos idiomas que la ficha.
     if (nivel === 'A') {
-      urls.push(`<url><loc>${base}${ruta('es', `/novela/${n.slug}/equivalencia`)}</loc>${lastmod}<priority>0.8</priority></url>`);
+      for (const idioma of idiomasDeObra(n).filter((c) => PUBLICADOS.includes(c))) {
+        urls.push(`<url><loc>${base}${ruta(idioma, `/novela/${n.slug}/equivalencia`)}</loc>${lastmod}<priority>0.8</priority></url>`);
+      }
     }
   }
 

@@ -1,6 +1,8 @@
 import type { Capitulo, CapituloExterno, EquivalenciaManhwa, Novela } from '@/types/novela';
 import { IDIOMA_BASE, type Idioma } from './i18n';
+import { generosEn } from './generos';
 import { esProhibida } from './indexacion';
+import { tituloIngles } from './titulos';
 import { capitulosDe, equivalencias, novelas } from './mockData';
 import { supabase } from './supabaseClient';
 import { traducir, traducirTexto } from './traducir';
@@ -18,12 +20,19 @@ import { traducir, traducirTexto } from './traducir';
  */
 
 function localizarNovela(n: Novela, idioma: Idioma): Novela {
-  if (idioma === IDIOMA_BASE) return n;
-  const titulo = traducir(n.titulo, idioma);
+  // El título NUNCA se traduce por máquina: se busca por su nombre original o el
+  // inglés oficial («Return of the Mount Hua Sect»), no por «Return to the Mount
+  // Hua Sect». En /en/ se usa el inglés que ya está entre los alternos.
+  const titulo = idioma === 'en' ? (tituloIngles(n) ?? n.titulo) : n.titulo;
   return {
     ...n,
     titulo,
+    // También en español: muchas sinopsis llegaron en inglés (AniList, MangaDex)
+    // y su versión española vive en el caché. Antes el idioma base se servía tal
+    // cual y la ficha española enseñaba la sinopsis en inglés.
     sinopsis: traducirTexto(n.sinopsis, idioma),
+    sinopsisOriginal: n.sinopsis,
+    categorias: generosEn(n.categorias, idioma),
     // El título del idioma actual deja de ser "alterno" y el canónico pasa a
     // serlo: en /en/ el nombre en español es uno de los nombres alternativos.
     titulosAlternativos: [n.titulo, ...n.titulosAlternativos].filter((x) => x !== titulo),
@@ -313,16 +322,25 @@ function obrasConContenido(): Promise<Set<string>> {
   return conContenidoCache;
 }
 
-export async function getNovelas(idioma: Idioma = IDIOMA_BASE): Promise<Novela[]> {
-  const publicables = await obrasConContenido();
-  return (await catalogo())
-    .filter((n) => publicables.has(n.slug))
-    .map((n) => localizarNovela(n, idioma));
+/** UNA vez por idioma: getNovelas la llaman ~10.000 páginas, y localizar (hash
+ *  de cada párrafo de sinopsis, géneros) 10.000 obras en cada una no cabe en el
+ *  build. Todas las páginas reciben el mismo array: no se muta. */
+const novelasPorIdioma = new Map<Idioma, Promise<Novela[]>>();
+
+export function getNovelas(idioma: Idioma = IDIOMA_BASE): Promise<Novela[]> {
+  let lista = novelasPorIdioma.get(idioma);
+  if (!lista) {
+    lista = (async () => {
+      const publicables = await obrasConContenido();
+      return (await catalogo()).filter((n) => publicables.has(n.slug)).map((n) => localizarNovela(n, idioma));
+    })();
+    novelasPorIdioma.set(idioma, lista);
+  }
+  return lista;
 }
 
 export async function getNovela(slug: string, idioma: Idioma = IDIOMA_BASE) {
-  const n = (await catalogo()).find((x) => x.slug === slug);
-  return n && localizarNovela(n, idioma);
+  return (await getNovelas(idioma)).find((x) => x.slug === slug);
 }
 
 export async function getCapitulos(slug: string, idioma: Idioma = IDIOMA_BASE): Promise<Capitulo[]> {

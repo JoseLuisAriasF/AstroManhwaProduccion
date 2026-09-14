@@ -6,7 +6,6 @@ import SyncExplanationBanner from '@/components/SyncExplanationBanner.astro';
 import { formatos, getCapitulos, getCapitulosExternos, getEquivalenciasCombinadas, getNovelas } from '@/lib/api';
 import { IDIOMA_BASE, idiomaDeRuta, ruta, t } from '@/lib/i18n';
 import { idiomasDeObra, paramsDeIdioma } from '@/lib/publicables';
-import { rangos } from '@/lib/rangos';
 
 export function getStaticPaths() {
   return paramsDeIdioma().map(({ idioma }) => ({ params: { idioma } }));
@@ -28,7 +27,13 @@ const conTotales = await Promise.all(
       novela: n,
       total: caps.length,
       capsExternos: externos.length, // proxy de popularidad (sin datos de vistas)
-      rangos: rangos(externos.map((e) => e.numero)),
+      // El último capítulo de cada formato, que es lo que busca quien llega.
+      // Antes era la lista de rangos de los dos mezclados («cap. 3, 913»):
+      // un hueco de la scan parecía un error del sitio.
+      ultimos: {
+        manhwa: Math.max(0, ...externos.filter((e) => e.tipo === 'manhwa').map((e) => e.numero ?? 0)),
+        novela: Math.max(0, ...externos.filter((e) => e.tipo === 'novela').map((e) => e.numero ?? 0)),
+      },
       formatos: fmts,
       ambos: fmts.length === 2,
     };
@@ -252,8 +257,8 @@ const jsonLd = {
       {destacadas.length} obras con <strong class="text-acento-500">manhwa y novela</strong>. Busca arriba para ver todo el catálogo.
     </p>
     <div id="destacadas" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-      {destacadas.map(({ novela, total, rangos, formatos }) => (
-        <NovelaCard novela={novela} totalCapitulos={total} rangos={rangos} formatos={formatos} />
+      {destacadas.map(({ novela, total, ultimos, formatos }) => (
+        <NovelaCard novela={novela} totalCapitulos={total} ultimos={ultimos} formatos={formatos} />
       ))}
     </div>
     <div id="resultados" hidden class="grid grid-cols-1 sm:grid-cols-2 gap-4"></div>

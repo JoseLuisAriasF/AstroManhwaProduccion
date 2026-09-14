@@ -115,16 +115,30 @@ if (urlSb && claveSb) {
   // --tipo=ambos traduce solo las obras que tienen manhwa Y novela: son las que
   // llevan el contenido único (la equivalencia), las que valen en otro idioma.
   const tipo = args.find((a) => a.startsWith('--tipo='))?.split('=')[1];
+  // --nivel-a: solo las obras cuyo SEO completo está encendido (manhwa y novela
+  // de verdad, ver src/lib/indexacion.ts). Lee la lista del sitio publicado: es
+  // la misma que usan el sitemap y el edge. Mejor que --tipo=ambos, que mira
+  // `obras.tipo` y no los capítulos que existen.
+  const soloA = args.includes('--nivel-a')
+    ? new Set(
+        await fetch(`${(process.env.SITE_URL || 'https://www.manhwatonovel.com').replace(/\/$/, '')}/obras-nivel-a.json`)
+          .then((r) => r.json()),
+      )
+    : null;
   let leidas = 0;
   for (let desde = 0; leidas < tope; desde += TAM) {
-    let consulta = db.from('obras').select('titulo, sinopsis').eq('publicada', true);
+    // Orden total, o `range()` se salta filas en silencio (ver api.ts).
+    let consulta = db.from('obras').select('slug, titulo, sinopsis').eq('publicada', true).order('slug');
     if (tipo) consulta = consulta.eq('tipo', tipo);
     const { data, error } = await consulta.range(desde, desde + TAM - 1);
     if (error) throw new Error(`Supabase: ${error.message}`);
     if (!data?.length) break;
     for (const o of data) {
       if (leidas >= tope) break;
-      anadir(o.titulo);
+      if (soloA && !soloA.has(o.slug)) continue;
+      // El TÍTULO no se traduce: la gente busca la obra por su nombre original
+      // o el inglés oficial, que ya están en `titulos_alternativos`. Traducido
+      // por máquina («Return to the Mount Hua Sect») es un nombre que nadie busca.
       // Párrafo a párrafo, igual que lo consume `traducirTexto()` en el sitio:
       // si no, el hash del bloque entero no casaría con el que busca la web.
       for (const parr of String(o.sinopsis ?? '').split('\n\n')) anadir(parr);

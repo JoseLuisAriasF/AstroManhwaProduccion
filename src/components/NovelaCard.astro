@@ -1,18 +1,19 @@
 ---
 import { IDIOMA_BASE, idiomaDeRuta, ruta, t } from '@/lib/i18n';
 import { idiomasDeObra } from '@/lib/publicables';
+import { segundoNombre } from '@/lib/titulos';
 import type { Novela } from '@/types/novela';
 
 interface Props {
   novela: Novela;
   totalCapitulos?: number;
-  /** Ej: "1–1948" o "1–50, 53–67". Vacío = no se muestra. */
-  rangos?: string;
+  /** Último capítulo de cada formato; se pinta dentro de su etiqueta («Novela 2022»). */
+  ultimos?: Partial<Record<'manhwa' | 'novela', number>>;
   /** Formatos reales de la obra (según sus capítulos): 'manhwa', 'novela' o ambos. */
   formatos?: ('manhwa' | 'novela')[];
 }
 
-const { novela, totalCapitulos, rangos, formatos = [] } = Astro.props;
+const { novela, totalCapitulos, ultimos = {}, formatos = [] } = Astro.props;
 // Portadas alternativas (otras fuentes) por si la principal da link roto.
 const fb = (novela.portadas ?? []).filter((u) => u !== novela.portadaUrl);
 // Tags de formato: los reales si los hay; si no (obras solo con sinopsis), el
@@ -60,15 +61,14 @@ const href = ruta(idiomaFicha, `/novela/${novela.slug}`);
       {tags.map((f) => (
         <span
           class:list={[
-            'rounded-lg px-2 py-0.5 neu-inset capitalize',
+            'rounded-lg px-2 py-0.5 neu-inset',
             f === 'manhwa' ? 'text-emerald-500' : 'text-acento-500',
           ]}
         >
-          {dic.formato(f)}
+          {dic.formato(f)}{ultimos[f] ? <span class="tabular-nums"> {ultimos[f]}</span> : null}
         </span>
       ))}
       {totalCapitulos ? <span class="text-base-400 tabular-nums">{totalCapitulos} {dic.capitulosCorto}</span> : null}
-      {rangos ? <span class="text-base-400 tabular-nums truncate" title={`Capítulos ${rangos}`}>cap. {rangos}</span> : null}
     </div>
 
     <h3 class="mt-1.5 font-semibold leading-snug text-base-800 dark:text-base-100">
@@ -76,7 +76,7 @@ const href = ruta(idiomaFicha, `/novela/${novela.slug}`);
     </h3>
 
     {/* Título alterno visible: reconocimiento para quien viene del manhwa en inglés. */}
-    <p class="text-xs text-base-400 truncate">{novela.titulosAlternativos[0]}</p>
+    <p class="text-xs text-base-400 truncate">{segundoNombre(novela, idioma)}</p>
 
     <p class="mt-1.5 text-sm text-base-500 line-clamp-2">{novela.sinopsis}</p>
 

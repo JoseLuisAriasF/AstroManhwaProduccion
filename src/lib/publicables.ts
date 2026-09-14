@@ -67,16 +67,18 @@ export function paramsDeIdioma() {
  * obras, el build de Cloudflare no cabe en su límite de tiempo. Esas van solo
  * en el idioma base; las traducidas, en todos los publicados.
  */
-export function idiomasDeObra(novela: { sinopsis?: string }): Idioma[] {
-  const s = novela.sinopsis?.trim();
+export function idiomasDeObra(novela: { sinopsis?: string; sinopsisOriginal?: string }): Idioma[] {
+  const s = (novela.sinopsisOriginal ?? novela.sinopsis)?.trim();
   if (!s) return [IDIOMA_BASE];
   // Multi-idioma SOLO si la sinopsis está de verdad traducida (existe en el
   // caché para algún idioma no-base). Una sinopsis importada de AniList está en
   // inglés y sin traducir: la obra queda en `es` hasta que LibreTranslate la
   // llene —y entonces aparece sola—. Sin esto, enriquecer miles de obras las
   // publicaría en 7 idiomas con texto sin traducir y el build no cabría en CF.
-  const traducida = PUBLICADOS.some((c) => c !== IDIOMA_BASE && traducirTexto(s, c) !== s);
-  return traducida ? PUBLICADOS : [IDIOMA_BASE];
+  // Una sinopsis que ya viene en inglés (AniList) no tiene entrada «en» en el
+  // caché: la tiene «es». Esa obra también existe en inglés, con su texto original.
+  const enIngles = traducirTexto(s, IDIOMA_BASE) !== s;
+  return [IDIOMA_BASE, ...PUBLICADOS.filter((c) => c !== IDIOMA_BASE && (traducirTexto(s, c) !== s || (c === 'en' && enIngles)))];
 }
 
 /**

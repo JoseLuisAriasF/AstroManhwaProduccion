@@ -12,6 +12,8 @@ assert.equal(
   reparar('/novela/the-great-mage-returns-after-4000-years-capitulo-86'),
   '/novela/the-great-mage-returns-after-4000-years/capitulo-86',
 );
+assert.equal(reparar('/categoria/martial-arts/'), '/categoria/artes-marciales/', 'género con slug inglés viejo');
+assert.equal(reparar('/categoria/inventada/'), null);
 assert.equal(reparar('/novela/no-existe/'), null, 'un 404 sin arreglo se queda en 404');
 assert.equal(reparar('/entrevista/'), null, '"en" dentro de otra palabra no es un prefijo');
 

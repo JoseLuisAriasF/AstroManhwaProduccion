@@ -36,6 +36,7 @@ import { manhwaANovela } from '../../../src/lib/equivalencia.ts';
 // en un solo sitio (`src/lib/fuentes.ts`), no copiada aquí.
 import { esFuenteDelCatalogo, urlDeLectura } from '../../../src/lib/fuentes.ts';
 import { esProhibida } from '../../../src/lib/indexacion.ts';
+import { tituloIngles as tituloInglesDe } from '../../../src/lib/titulos.ts';
 
 /** Un día en el edge, una hora en el navegador: aparece un capítulo nuevo o una
  *  fuente nueva y la página se rehace sola al día siguiente. */
@@ -211,7 +212,9 @@ export const onRequest = async (context: {
   }
 
   const nombreFuente = new Map(fuentes.map((f: any) => [f.id, f.nombre]));
-  const [tituloIngles] = (obra.titulos_alternativos ?? []) as string[];
+  // El inglés de verdad (ver src/lib/titulos.ts): «| Stop Summoning Me! Chapter 6»,
+  // no «| Bie Zai Zhaohuan Wo La! Chapter 6».
+  const tituloIngles = tituloInglesDe({ titulo: obra.titulo, titulosAlternativos: obra.titulos_alternativos ?? [] });
   const alternos = ((obra.titulos_alternativos ?? []) as string[]).slice(0, 4);
 
   // El dato que solo tiene este sitio: por qué capítulo de la novela va la

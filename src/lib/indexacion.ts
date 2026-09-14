@@ -22,24 +22,26 @@
  * AdSense rechace el dominio entero. Esas fichas no deben llevar anuncios. Lo
  * PROHIBIDO (sexualización de menores) ni siquiera se publica: ver api.ts.
  *
- * Módulo puro, sin imports: lo usan el build, el sitemap y la función del edge.
+ * Módulo puro (solo importa la tabla de géneros): lo usan el build, el sitemap
+ * y la función del edge.
  */
+import { claveGenero } from './generos.ts';
 
 export type Nivel = 'A' | 'B' | 'C';
 
 /** Por debajo de esto una ficha de un solo formato es un título y dos enlaces. */
 export const MIN_CAPITULOS = 5;
 
-/** Géneros que MangaDex, AniList y las scans usan para lo explícito. Se
- *  comparan en minúsculas. `ecchi` y `mature` quedan fuera a propósito: son
+/** Géneros explícitos, por su clave canónica (ver generos.ts): «Adult», «adult» y
+ *  «Adulto» son el mismo. `ecchi` y `mature` quedan fuera a propósito: son
  *  contenido sugerente o violento, no explícito, y son ~550 obras normales. */
-const EXPLICITAS = new Set(['adult', 'hentai', 'smut', 'erotica', 'pornographic']);
+const EXPLICITAS = new Set(['adulto', 'hentai', 'smut', 'erotico']);
 const PROHIBIDAS = new Set(['lolicon', 'shotacon']);
 /** Hay scans que no etiquetan y lo dicen en el título («… - Uncensored»). */
 const TITULO_ADULTO = /\buncensored\b|\+18|\ber[oó]tic|\bhentai\b/i;
 
 const tiene = (categorias: string[], set: Set<string>) =>
-  categorias.some((c) => set.has(c.trim().toLowerCase()));
+  categorias.some((c) => set.has(claveGenero(c)));
 
 export const esProhibida = (categorias: string[]) => tiene(categorias, PROHIBIDAS);
 
