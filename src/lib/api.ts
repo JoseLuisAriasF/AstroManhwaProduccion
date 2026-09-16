@@ -1,6 +1,7 @@
 import type { Capitulo, CapituloExterno, EquivalenciaManhwa, Novela } from '@/types/novela';
 import { IDIOMA_BASE, type Idioma } from './i18n';
 import { generosEn } from './generos';
+import { limpiarSinopsis, limpiarTitulo } from './sinopsis';
 import { esProhibida } from './indexacion';
 import { tituloIngles } from './titulos';
 import { capitulosDe, equivalencias, novelas } from './mockData';
@@ -274,9 +275,11 @@ function catalogo(): Promise<Novela[]> {
           id: o.slug,
           slug: o.slug,
           tipo: o.tipo,
-          titulo: o.titulo,
+          titulo: limpiarTitulo(o.titulo),
           titulosAlternativos: o.titulos_alternativos ?? [],
-          sinopsis: o.sinopsis ?? '',
+          // Sin «(Source: WEBTOON)» ni la lista de enlaces que traen MangaDex y
+          // MangaUpdates (ver sinopsis.ts). Es también la clave del caché de traducción.
+          sinopsis: limpiarSinopsis(o.sinopsis),
           // La portada se sirve por NUESTRO dominio (ver functions/portada/):
           // así la indexa Google Imágenes a nuestro nombre y no al de la scan,
           // y el og:image deja de ser de un tercero. Se cambia AQUÍ, que es por
