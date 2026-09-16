@@ -68,4 +68,30 @@ dup.registrar('primera', ['Tower of God']);
 dup.registrar('segunda', ['Tower of God']);
 assert.equal(dup.buscar(['tower of god']), 'primera');
 
+// Parecido: la traducción de máquina frente a la ficha, sin clave común.
+const asesinos = new IndiceObras();
+asesinos.registrar('clan-asesinos', ['El hijo menor del clan de asesinos regresa con los poderes de cinco reyes demonio']);
+asesinos.registrar('otra', ['El hijo menor del clan de espadachines regresa']);
+const tradu = 'El hijo menor del clan Asesino regresa con el poder de los cinco reyes demonios';
+assert.equal(asesinos.buscar([tradu]), null, 'exacto no casa');
+assert.equal(asesinos.parecido([tradu])?.slug, 'clan-asesinos', 'por parecido sí');
+assert.equal(asesinos.parecido(['El hijo menor del clan de magos regresa']), null, 'una palabra de 4 cambia la obra');
+// El falso positivo visto con mgeko: una palabra de más es otra obra.
+const villana = new IndiceObras();
+villana.registrar('seisia', ["Don't Look for the Villainess Who Left"]);
+assert.equal(villana.parecido(["Don't Look for the Resurrected Villainess"], 0.9), null, 'el apóstrofo no infla el parecido');
+// "es" no cuenta: sin él quedan 3 palabras y no hay parecido que valga.
+const septimo = new IndiceObras();
+septimo.registrar('septimo', ['El séptimo héroe es el rey demonio']);
+assert.equal(septimo.parecido(['El Rey Demonio es un héroe'], 0.8), null, 'otra obra');
+// Títulos cortos: nunca por parecido.
+const cortos = new IndiceObras();
+cortos.registrar('mago-infinito', ['Mago infinito']);
+assert.equal(cortos.parecido(['Mago infinita']), null);
+// Empate entre dos obras distintas: no se elige.
+const empate = new IndiceObras();
+empate.registrar('a', ['uno dos tres cuatro cinco']);
+empate.registrar('b', ['uno dos tres cuatro seis']);
+assert.equal(empate.parecido(['uno dos tres cuatro cinco seis'], 0.6), null, 'empate, ninguna');
+
 console.log('ok');

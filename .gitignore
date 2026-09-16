@@ -6,3 +6,4 @@ dist/
 pinterest/
 .dev.vars
 .wrangler/
+scripts/.*-cache.json

@@ -198,6 +198,22 @@ assert.match(paginasAsura, /c\/186\/a\.webp\?v=1/, 'la página 0, con su query')
 assert.match(paginasAsura, /c\/186\/b\.webp\?v=1/, 'y la 1');
 assert.ok(!paginasAsura.includes('portada.webp'), 'la portada no es una página');
 
+// mgeko numera sus páginas por `id`; el logo y los créditos no llevan id.
+respuesta = html(
+  `<html><head><title>Obra Chapter 58</title></head><body>
+   <img src="/static/img/logo_200x200.png">
+   <img src="https://imgsrv5.com/sv2/comic/obra/chapter-58/img_001.jpg" onerror="tryAgain(this);" id="image-1">
+   <img src="https://imgsrv5.com/sv2/comic/obra/chapter-58/img_002.jpg" onerror="tryAgain(this);" id="image-2">
+   <img src="https://imgsrv5.com/credits-mgeko.png" onerror="tryAgain(this);"></body></html>`,
+  {},
+  'https://www.mgeko.cc/reader/en/obra-chapter-58-eng-li/',
+);
+const geko = await (await pedir('https://www.mgeko.cc/reader/en/obra-chapter-58-eng-li/')).text();
+assert.match(geko, /chapter-58\/img_001\.jpg/, 'la página 1');
+assert.match(geko, /chapter-58\/img_002\.jpg/, 'y la 2');
+assert.ok(!geko.includes('credits-mgeko'), 'los créditos no son una página');
+assert.ok(!geko.includes('tryAgain'), 'su JS no llega');
+
 // Si su anti-bot devuelve una página sin capítulo, se sigue por el camino
 // normal: su HTML es mejor que un lector vacío.
 respuesta = html('<html><head></head><body>sin capitulo</body></html>', {}, 'https://leemiau.com/x/');

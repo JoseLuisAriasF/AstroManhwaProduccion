@@ -230,7 +230,7 @@ function ajeno(src: string | null, base: string): boolean {
  * `CLASE_PAGINA`) y poner el dominio en esta lista. Si la extracción no
  * encuentra páginas, `onRequest` sigue por el proxy de siempre: nunca se rompe.
  */
-const CON_LECTOR = ['leemiau.com', 'imperiomanhua.com', 'asurascans.com'];
+const CON_LECTOR = ['leemiau.com', 'imperiomanhua.com', 'asurascans.com', 'mgeko.cc'];
 
 function tieneLectorPropio(url: string): boolean {
   try {
@@ -259,6 +259,10 @@ const CLASE_PAGINA = /(^|\s)(wp-manga-chapter-img|ts-main-image)(\s|$)/i;
  *  es el escudo de leemiau, que solo llevan las páginas. */
 const ATRIBUTOS_PAGINA = ['data-lm-orig-src', 'data-page-index'];
 
+/** mgeko no marca sus páginas con clase ni data-*: las numera por `id`
+ *  (`image-1`, `image-2`…). Su logo y la imagen de créditos no llevan id. */
+const ID_PAGINA = /^image-\d+$/;
+
 /** Dónde esconden la URL buena, por orden de preferencia: la primera que no sea
  *  un placeholder `data:` gana. El lazy-load de cada tema usa la suya. */
 const ATRIBUTOS_URL = ['data-lm-orig-src', 'data-src', 'data-lazy-src', 'data-original', 'src'];
@@ -279,7 +283,8 @@ function paginasDelCapitulo(html: string): Pagina[] {
     const tag = m[0];
     const esPagina =
       CLASE_PAGINA.test(attr(tag, 'class') ?? '') ||
-      ATRIBUTOS_PAGINA.some((a) => attr(tag, a) !== null);
+      ATRIBUTOS_PAGINA.some((a) => attr(tag, a) !== null) ||
+      ID_PAGINA.test(attr(tag, 'id') ?? '');
     if (!esPagina) continue;
     for (const a of ATRIBUTOS_URL) {
       const u = (attr(tag, a) ?? '').replace(/&amp;/gi, '&').trim();

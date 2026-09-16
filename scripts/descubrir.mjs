@@ -13,9 +13,11 @@
  *   node scripts/descubrir.mjs --probar=URL --plataforma=madara   # sin escribir
  *   node --env-file-if-exists=.env scripts/descubrir.mjs --seco   # qué haría
  *   node --env-file-if-exists=.env scripts/descubrir.mjs          # de verdad
+ *   npm run descubrir -- --sitio=mgeko --traducir   # empareja en/pt con el traductor local
  *
  * Necesita SUPABASE_SERVICE_KEY salvo en --probar.
  */
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { createClient } from '@supabase/supabase-js';
 import { PLATAFORMAS, espera, slugify, utiles } from './plataformas.mjs';
 import { IndiceObras } from './emparejar.mjs';
@@ -106,12 +108,89 @@ const aFuente = (sitio, serie, slug) => ({
 /** Todos los nombres por los que se conoce una serie, para emparejar. */
 const nombresDe = (s) => [s.titulo, s.slugBase, ...(s.titulosAlt ?? [])].filter(Boolean);
 
-async function descubrirSitio(db, sitio, indice, seco) {
+/**
+ * --traducir: fuentes en otro idioma contra un catálogo que en buena parte solo
+ * conoce el título en español. "The Greatest Estate Developer" no comparte ni
+ * una clave con una ficha que solo sabe "El mayor desarrollador de bienes
+ * raíces". Las series que no emparejaron se pasan por el traductor local
+ * (traductor/, API de LibreTranslate) y se vuelven a buscar en español.
+ *
+ * Solo sirve para BUSCAR: la traducción nunca se guarda como título de la obra,
+ * que un título de máquina no es un alternativo de verdad. Caché por título: la
+ * segunda corrida no traduce nada.
+ */
+const CACHE_ES = 'scripts/.titulos-es-cache.json';
+
+async function traducirAlEspanol(series, idioma) {
+  const LT = process.env.LIBRETRANSLATE_URL;
+  if (!LT) return console.log('    --traducir sin LIBRETRANSLATE_URL: se empareja sin traductor');
+  const cache = existsSync(CACHE_ES) ? JSON.parse(readFileSync(CACHE_ES, 'utf8')) : {};
+  const clave = (t) => `${idioma}:${t}`;
+  const faltan = [...new Set(series.map((s) => s.titulo))].filter((t) => !(clave(t) in cache));
+  console.log(`    traduciendo ${faltan.length} títulos sin emparejar (${series.length} sin match)`);
+  for (let i = 0; i < faltan.length; i += 16) {
+    const lote = faltan.slice(i, i + 16);
+    try {
+      const res = await fetch(`${LT}/translate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ q: lote, source: idioma, target: 'es', format: 'text' }),
+        signal: AbortSignal.timeout(600000),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const { translatedText } = await res.json();
+      lote.forEach((t, j) => (cache[clave(t)] = translatedText[j]));
+    } catch (e) {
+      console.log(`    traductor: ${e.message} — el resto se empareja sin traducir`);
+      break;
+    }
+    writeFileSync(CACHE_ES, JSON.stringify(cache));
+    console.log(`    ${Math.min(i + 16, faltan.length)}/${faltan.length}`);
+  }
+  for (const s of series) s.tituloEs = cache[clave(s.titulo)];
+}
+
+export async function descubrirSitio(db, sitio, indice, seco) {
   const series = await seriesDe(sitio, {
     limite: Number(args.limite) || Infinity,
     topePaginas: Number(args.paginas) || Infinity,
   });
   if (!series.length) return 0;
+
+  // Una serie que ya tiene fuente se queda con su obra, por URL. Sin esto, lo que
+  // emparejó por traducción en local volvería a salir SIN match en el workflow
+  // nocturno (allí no hay traductor) y crearía una ficha duplicada.
+  const { data: previas } = await db.from('fuentes').select('id, obra_slug, url_listado').eq('sitio_id', sitio.id);
+  const slugPorUrl = new Map((previas ?? []).map((f) => [f.url_listado, f.obra_slug]));
+
+  // Adaptadores cuyo listado se queda corto (títulos recortados, sin
+  // alternativos) completan la serie desde su página. Solo las que no tienen
+  // fuente todavía y no casan ya: tras el primer alta, el nocturno casi no pide nada.
+  const adaptador = PLATAFORMAS[sitio.plataforma];
+  if (adaptador.detalles) {
+    const faltan = series.filter(
+      (s) => !slugPorUrl.has(s.url) && (s.titulo.endsWith('…') || !indice.buscar(nombresDe(s))),
+    );
+    console.log(`    detalles de ${faltan.length} series`);
+    for (const [i, s] of faltan.entries()) {
+      try {
+        const d = await adaptador.detalles(s.url);
+        if (d.titulo) s.titulo = s.slugBase = d.titulo;
+        s.titulosAlt = [...new Set([...(s.titulosAlt ?? []), ...(d.titulosAlt ?? [])])];
+      } catch (e) {
+        console.log(`    ${s.url}: ${e.message}`);
+      }
+      if (i % 100 === 99) console.log(`    ${i + 1}/${faltan.length}`);
+      await espera(1000);
+    }
+  }
+
+  if (args.traducir && sitio.idioma !== 'es') {
+    await traducirAlEspanol(
+      series.filter((s) => !slugPorUrl.has(s.url) && !indice.buscar(nombresDe(s))),
+      sitio.idioma,
+    );
+  }
 
   const obras = [];
   const fuentes = [];
@@ -122,7 +201,23 @@ async function descubrirSitio(db, sitio, indice, seco) {
     // tiene como "Regreso de la Secta del Monte Hua" y MangaDex como "Return
     // of the Mount Hua Sect", ambas caen en el mismo slug y sus capítulos —
     // manhwa y novela, es y en— se juntan en una sola ficha.
-    const existente = indice.buscar(nombresDe(s));
+    let existente = slugPorUrl.get(s.url) ?? indice.buscar(nombresDe(s));
+    if (!existente && s.tituloEs && (existente = indice.buscar([s.tituloEs]))) {
+      console.log(`    ≈ "${s.titulo}" → "${s.tituloEs}" → ${existente}`);
+    }
+    // Por parecido, solo con --traducir: es la corrida en local que alguien
+    // revisa. El nocturno se queda con la igualdad exacta, que no se equivoca.
+    // Dos umbrales: la traducción de máquina mete ruido (artículos, plurales,
+    // sinónimos) y se le pasa 0,8; entre nombres originales una palabra de
+    // diferencia suele ser otra obra ("…the Villainess" ≠ "…the Resurrected
+    // Villainess"), así que ahí se pide 0,9.
+    if (!existente && args.traducir) {
+      const p = (s.tituloEs && indice.parecido([s.tituloEs], 0.8)) || indice.parecido(nombresDe(s), 0.9);
+      if (p) {
+        existente = p.slug;
+        console.log(`    ~${p.parecido.toFixed(2)} "${s.titulo}"${s.tituloEs ? ` → "${s.tituloEs}"` : ''} → ${p.slug}`);
+      }
+    }
     // solo_match: fuentes que NO crean obras, solo se enganchan a las que ya
     // existen. WTR-Lab son 91.000 web-novels chinas; casi ninguna tiene manhwa.
     // Meterlas todas serían 91.000 fichas de relleno. Con esto, solo se queda la
@@ -175,7 +270,6 @@ async function descubrirSitio(db, sitio, indice, seco) {
   // URL como clave, cada cambio creaba una fila nueva (Olympus además dejaba el
   // enlace viejo muerto). Se reusa el id de la fila existente para REFRESCAR su
   // URL en vez de duplicarla; `activa` no viaja en el objeto, así que se preserva.
-  const { data: previas } = await db.from('fuentes').select('id, obra_slug').eq('sitio_id', sitio.id);
   const idPorObra = new Map((previas ?? []).map((f) => [f.obra_slug, f.id]));
   for (const f of fuentes) {
     const id = idPorObra.get(f.obra_slug);

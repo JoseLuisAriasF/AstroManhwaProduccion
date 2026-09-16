@@ -63,6 +63,17 @@ values
   ('Asura Scans', 'asura', 'manhwa', 'en',
    'https://api.asurascans.com/api/series?page={page}', 20, true),
 
+  -- MangaGeko (mgeko.cc): manhwa en inglés. /browse-comics/ es JS, pero pide
+  -- /browse-comics/data/, un JSON con las tarjetas; índice de capítulos
+  -- completo en /manga/<slug>/all-chapters/. SIN filtro `type`: su
+  -- clasificación falla (El hijo menor del clan de los asesinos… figura como
+  -- "manga") y type=manhwa dejaba fuera 5.000 de sus ~7.000 series. 24 por
+  -- página × 300. El PRIMER descubrimiento va en local con el traductor:
+  --   npm run descubrir -- --sitio=mgeko --traducir
+  -- Lo que emparejó ahí queda atado por URL y el nocturno ya no lo duplica.
+  ('MangaGeko', 'mgeko', 'manhwa', 'en',
+   'https://www.mgeko.cc/browse-comics/data/?page={page}&sort=latest', 300, true),
+
   -- animeshoy12: blog de Blogger, un post por capítulo, etiqueta = serie. Son
   -- ~2.700 novelas en español con lista de capítulos completa (no link-out).
   ('Animeshoy', 'blogger', 'novela', 'es',

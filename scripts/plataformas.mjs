@@ -703,6 +703,74 @@ const asura = {
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
+ * mgeko: MangaGeko (mgeko.cc) — manhwa en inglés
+ * ─────────────────────────────────────────────────────────────────────────────
+ * /browse-comics/ se pinta con JS, pero lo que pide es `/browse-comics/data/`:
+ * un JSON con las tarjetas ya renderizadas en `results_html` (24 por página) y
+ * filtros por query (`type=manhwa`, `sort=latest`). robots.txt no prohíbe nada.
+ * Pasado el final devuelve otra vez la última página: descubrir.mjs corta por
+ * repetición.
+ *
+ * Los capítulos salen de `/manga/<slug>/all-chapters/`: el índice completo en
+ * HTML, cada uno con su `datetime`. La página de la serie solo trae los últimos.
+ */
+const MGEKO = 'https://www.mgeko.cc';
+
+const mgeko = {
+  async series(url) {
+    const $ = cheerio.load((await traerJson(url)).results_html ?? '');
+    return $('article.comic-card')
+      .map((_, el) => {
+        const titulo = $(el).find('.comic-card__title a').text().trim();
+        return {
+          titulo,
+          slugBase: titulo, // catálogo en inglés: el título ya es la identidad
+          url: abs($(el).find('.comic-card__title a').attr('href'), MGEKO),
+          portadaUrl: imagen($, $(el).find('.comic-card__cover')),
+        };
+      })
+      .get();
+  },
+  /**
+   * La tarjeta RECORTA los títulos largos ("…with the Power of the…") y no trae
+   * alternativos, así que casi nada largo casaba. La página de la serie sí trae
+   * el título entero y los alternativos (japonés, coreano, otras versiones en
+   * inglés), separados por "•". descubrir.mjs la pide solo cuando le hace falta.
+   */
+  async detalles(url) {
+    const $ = await traer(url);
+    const titulo = $('h1.novel-title').text().trim();
+    const titulosAlt = $('h2.alternative-title')
+      .text()
+      .split('•')
+      .map((t) => t.trim())
+      .filter((t) => t && t !== titulo && t.toLowerCase() !== 'updating');
+    return { titulo, titulosAlt: [...new Set(titulosAlt)].slice(0, 8) };
+  },
+  async capitulos(url) {
+    const $ = await traer(`${url.replace(/\/?$/, '/')}all-chapters/`);
+    return $('li[data-orderno] a[href*="/reader/"]')
+      .map((_, a) => {
+        // "58-eng-li", "12.5-eng-li": número + sufijo del grupo. El sufijo no
+        // le dice nada al lector; el número sí.
+        const bruto = $(a).find('.chapter-title').text().trim();
+        const n = bruto.match(/^\d+(?:\.\d+)?/)?.[0];
+        // Formato Django: "Sept. 15, 2026, 3:02 a.m." (o "noon"). Solo el día.
+        const dia = ($(a).find('time').attr('datetime') ?? '').split(',').slice(0, 2).join(',');
+        const fecha = new Date(`${dia.replace(/\./g, '')} UTC`);
+        return {
+          titulo: n ? `Chapter ${n}` : bruto,
+          url: abs($(a).attr('href'), MGEKO),
+          numero: numeroDe(n) ?? numeroDe($(a).attr('href')),
+          fecha_texto: Number.isNaN(fecha.getTime()) ? null : fecha.toISOString().slice(0, 10),
+        };
+      })
+      .get();
+  },
+};
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
  * wtr: WTR-Lab (wtr-lab.com) — novelas en inglés, indexadas por su SITEMAP
  * ─────────────────────────────────────────────────────────────────────────────
  * 91.000+ web-novels (sobre todo chinas). Su robots.txt PROHÍBE /api y las
@@ -832,7 +900,7 @@ const webtoon = {
   },
 };
 
-export const PLATAFORMAS = { madara, mangareader, css, mangadex, sheet, wetriedtls, olympus, blogger, manhwaweb, asura, wtr, webtoon };
+export const PLATAFORMAS = { madara, mangareader, css, mangadex, sheet, wetriedtls, olympus, blogger, manhwaweb, asura, mgeko, wtr, webtoon };
 
 /**
  * Plataformas "link-out": su capitulos() no hace ni una petición HTTP, solo lee

@@ -26,6 +26,7 @@ export const DOMINIOS = [
   'wetriedtls.com',
   'samurai.j5z.xyz',
   'asurascans.com',
+  'mgeko.cc',
   'legionscans.com',
   'manhwaweb.com',
   'webtoons.com',

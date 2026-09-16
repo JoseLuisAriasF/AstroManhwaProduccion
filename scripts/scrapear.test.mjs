@@ -284,6 +284,48 @@ assert.equal(
 );
 assert.equal(asCaps[0].fecha_texto, '2026-08-29');
 
+// ── mgeko: tarjetas en un JSON, índice completo en /all-chapters/ ───────────
+json['https://www.mgeko.cc/robots.txt'] = 'User-agent: *\nDisallow:';
+json['https://www.mgeko.cc/browse-comics/data/?page=1&type=manhwa'] = {
+  results_html: `<article class="comic-card"><div class="comic-card__cover">
+      <a href="/manga/obra-geko/"><img src="https://imgsrv5.com/tapa.jpg" alt="Obra Geko"></a></div>
+    <div class="comic-card__content"><h3 class="comic-card__title">
+      <a href="/manga/obra-geko/">
+          Obra Geko
+      </a></h3></div></article>`,
+};
+paginas['https://www.mgeko.cc/manga/obra-geko/all-chapters/'] = `<ul>
+    <li data-chapterno="1" data-orderno="9"><a href="/reader/en/obra-geko-chapter-12.5-eng-li/">
+      <strong class="chapter-title">12.5-eng-li </strong>
+      <time class="chapter-update" datetime="Sept. 15, 2026, 3:02 a.m.">1 hour</time></a></li>
+    <li data-chapterno="1" data-orderno="8"><a href="/reader/en/obra-geko-chapter-1-eng-li/">
+      <strong class="chapter-title">1-eng-li </strong>
+      <time class="chapter-update" datetime="May 3, 2026, noon">4 months</time></a></li>
+  </ul>`;
+
+const gkSeries = await PLATAFORMAS.mgeko.series('https://www.mgeko.cc/browse-comics/data/?page=1&type=manhwa');
+assert.equal(gkSeries.length, 1);
+assert.equal(gkSeries[0].titulo, 'Obra Geko', 'título sin los espacios del template');
+assert.equal(gkSeries[0].url, 'https://www.mgeko.cc/manga/obra-geko/');
+assert.equal(gkSeries[0].portadaUrl, 'https://imgsrv5.com/tapa.jpg');
+
+paginas['https://www.mgeko.cc/manga/obra-geko/'] = `<h1 itemprop="name" class="novel-title text2row">
+    Obra Geko con un Título Muy Largo</h1>
+  <h2 class="alternative-title text1row">
+  兇手一族 • Obra Geko con un Título Muy Largo • Otra Versión del Título
+  </h2>`;
+const gkDet = await PLATAFORMAS.mgeko.detalles(gkSeries[0].url);
+assert.equal(gkDet.titulo, 'Obra Geko con un Título Muy Largo', 'el título entero, no el de la tarjeta');
+assert.deepEqual(gkDet.titulosAlt, ['兇手一族', 'Otra Versión del Título'], 'alternativos sin repetir el título');
+
+const gkCaps = await PLATAFORMAS.mgeko.capitulos(gkSeries[0].url);
+assert.equal(gkCaps.length, 2);
+assert.equal(gkCaps[0].titulo, 'Chapter 12.5', 'sin el sufijo del grupo');
+assert.equal(gkCaps[0].numero, 12, 'el .5 trunca');
+assert.equal(gkCaps[0].url, 'https://www.mgeko.cc/reader/en/obra-geko-chapter-12.5-eng-li/');
+assert.equal(gkCaps[0].fecha_texto, '2026-09-15');
+assert.equal(gkCaps[1].fecha_texto, '2026-05-03', '"noon" no rompe la fecha');
+
 // ── wtr: enumera por el SITEMAP, saca el título del slug, link-out ──────────
 paginas['https://wtr-lab.com/robots.txt'] = 'User-agent: *\nDisallow: /api';
 paginas['https://wtr-lab.com/novels/index.xml'] = `<sitemapindex>

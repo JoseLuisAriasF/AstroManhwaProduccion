@@ -77,6 +77,7 @@ y esa noche entra solo.
 | `madara` | El tema de WordPress más común en scans. Capítulos por AJAX. Cubre también sus temas **hijos**, que reescriben la rejilla a `a.acard` (imperiomanhua). | Solo la URL del listado. |
 | `mangareader` | El otro tema grande (leemiau, legionscans…). | Solo la URL del listado. |
 | `asura` | Asura Scans. La web es React, pero su backend `api.asurascans.com` es JSON público con índice de capítulos y metadata. | Solo la URL del endpoint. |
+| `mgeko` | MangaGeko, manhwa en inglés. El catálogo es un JSON con las tarjetas en HTML. | Solo la URL del endpoint. |
 | `css` | Sitios sueltos con HTML propio. | Los selectores, en la fila de `sitios`. |
 
 Un sitio nuevo de las cuatro primeras familias es **una URL**: sin selectores, sin
@@ -125,6 +126,13 @@ de MangaBaka y se trae sus títulos en inglés y coreano, y con el inglés ya
 guardado la novela de DaoTranslate cae en el mismo manhwa en vez de abrir una
 ficha aparte. `enriquecer.mjs --reintentar` repasa las que en su día quedaron
 sin ficha; el workflow nocturno lo corre solo.
+
+Una fuente en inglés contra fichas que solo conocen el español (*Children of
+the Rune* / *Hijos de la runa*) no comparte ni una clave. `descubrir.mjs
+--traducir` pasa los títulos que no casaron por el traductor local
+(`traductor/`) y los vuelve a buscar en español. La traducción solo sirve para
+buscar, nunca se guarda como título. Lo que casó así queda atado por la URL de
+su fuente, así que el workflow nocturno —sin traductor— no lo vuelve a crear.
 
 > ⚠ Usa el dominio real, no el de marca. `samuraiscan.com/son/page/2/` redirige
 > a su host actual **pero se come la ruta** y acaba en la portada: el descubridor
