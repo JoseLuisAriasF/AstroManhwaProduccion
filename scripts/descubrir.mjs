@@ -262,7 +262,13 @@ export async function descubrirSitio(db, sitio, indice, seco) {
 
   // ignoreDuplicates: lo que el admin ya editó (portada, sinopsis, título) no
   // se pisa en cada corrida. Una obra se descubre una vez y luego es suya.
-  const r1 = await db.from('obras').upsert(obras, { onConflict: 'slug', ignoreDuplicates: true });
+  // defaultToNull: false — en un lote, PostgREST manda la UNIÓN de columnas y
+  // rellena con NULL las que una fila no trae. mgeko mezcla obras con y sin
+  // alternativos, y el NULL violaba el NOT NULL de titulos_alternativos. Así
+  // la columna que falta toma su default ('{}').
+  const r1 = await db
+    .from('obras')
+    .upsert(obras, { onConflict: 'slug', ignoreDuplicates: true, defaultToNull: false });
   if (r1.error) throw new Error(`obras: ${r1.error.message}`);
   // La identidad de una fuente es (sitio_id, obra_slug) —"la fuente de ESTE sitio
   // para ESTA obra"—, no su URL. Las fuentes link-out (olympus, manhwaweb) meten
