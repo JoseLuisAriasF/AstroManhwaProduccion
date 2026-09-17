@@ -36,6 +36,7 @@ import { manhwaANovela } from '../../../src/lib/equivalencia.ts';
 // en un solo sitio (`src/lib/fuentes.ts`), no copiada aquí.
 import { esFuenteDelCatalogo, urlDeLectura } from '../../../src/lib/fuentes.ts';
 import { esProhibida } from '../../../src/lib/indexacion.ts';
+import { limpiarTitulo } from '../../../src/lib/sinopsis.ts';
 import { tituloIngles as tituloInglesDe } from '../../../src/lib/titulos.ts';
 
 /** Un día en el edge, una hora en el navegador: aparece un capítulo nuevo o una
@@ -187,7 +188,8 @@ export const onRequest = async (context: {
   ]);
 
   // Lo prohibido no existe en el sitio (el build no genera su ficha): tampoco aquí.
-  const obra = obras.find((o: any) => !esProhibida(o.categorias ?? []));
+  const cruda = obras.find((o: any) => !esProhibida(o.categorias ?? []));
+  const obra = cruda && { ...cruda, titulo: limpiarTitulo(cruda.titulo) };
   // Con barra final: es la URL canónica de la ficha. Sin ella, cada enlace de
   // esta página hacia la ficha costaba un 308.
   const ficha = `${url.origin}/novela/${slug}/`;
