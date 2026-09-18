@@ -7,3 +7,4 @@ pinterest/
 .dev.vars
 .wrangler/
 scripts/.*-cache.json
+capitulos.json.br

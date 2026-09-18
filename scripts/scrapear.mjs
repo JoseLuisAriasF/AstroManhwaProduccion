@@ -94,10 +94,11 @@ export async function scrapearFuente(db, f) {
   }
 
   if (encontrados.length) {
-    // onConflict sobre (fuente_id, url): re-scrapear no duplica ni pisa `aprobado`.
-    const { error } = await db
-      .from('capitulos_externos')
-      .upsert(encontrados, { onConflict: 'fuente_id,url', ignoreDuplicates: true });
+    // ON CONFLICT DO NOTHING contra el único (fuente_id, md5(url)): re-scrapear
+    // no duplica ni pisa `aprobado`. Va por RPC porque PostgREST solo sabe
+    // apuntar `onConflict` a columnas, no a un índice por expresión (ver
+    // supabase/schema-snapshot.sql: el hash ahorra ~40 MB de índice).
+    const { error } = await db.rpc('insertar_capitulos', { filas: encontrados });
     if (error) throw new Error(error.message);
   }
   // Las fuentes link-out llevan en la URL un token que caduca: Olympus le pega
@@ -147,7 +148,10 @@ if (import.meta.main) {
   for (let desde = 0; fuentes.length < max; desde += 1000) {
     let q = db
       .from('fuentes')
-      .select('*')
+      // Solo lo que usan scrapearFuente y los adaptadores: `*` bajaba 2× más.
+      .select(
+        'id, nombre, obra_slug, plataforma, url_listado, paginas, titulo_prefijo, idioma, tipo, n_caps, ultimo_scrape, ultimo_cambio, sel_item, sel_titulo, sel_enlace, sel_fecha',
+      )
       .eq('activa', true)
       .order('ultimo_scrape', { ascending: true, nullsFirst: true })
       .range(desde, desde + 999);
