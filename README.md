@@ -752,7 +752,7 @@ schema.sql  →  schema-fuentes.sql  →  schema-catalogo.sql  →  seed-sitios.
 Después, una vez:
 
 ```sql
-insert into public.admins values ('joseluisariasflores01@gmail.com');
+insert into public.admins values ('test@gmail.com');
 ```
 
 Y ya en local, para ver qué haría antes de tocar la BD:
