@@ -1,7 +1,7 @@
 ---
 import Base from '@/layouts/Base.astro';
 import ManhwaToNovelBridge from '@/components/ManhwaToNovelBridge.astro';
-import { formatos, getCapitulosExternos, getEquivalencias, getNovelas } from '@/lib/api';
+import { getCapitulosExternos, getEquivalencias, getNovelas } from '@/lib/api';
 import { brechaDe } from '@/lib/brecha';
 import { niveles } from '@/lib/catalogo';
 import { segundoNombre } from '@/lib/titulos';
@@ -35,7 +35,10 @@ export async function getStaticPaths() {
   const paramDe = new Map(paramsDeIdioma().map((p) => [p.codigo, p.idioma]));
   const rutas = [];
   for (const novela of await getNovelas()) {
-    if (formatos(await getCapitulosExternos(novela.slug)).length !== 2) continue;
+    // La misma condición que la página usa abajo (`brechaDe(externos)!`): los
+    // dos formatos con algún capítulo NUMERADO. Con solo `formatos`, una obra
+    // cuyo manhwa no trae números generaba la ruta y reventaba el build.
+    if (!brechaDe(await getCapitulosExternos(novela.slug))) continue;
     for (const codigo of idiomasDeObra(novela)) {
       if (paramDe.has(codigo)) rutas.push({ params: { idioma: paramDe.get(codigo), slug: novela.slug } });
     }

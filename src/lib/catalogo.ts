@@ -1,4 +1,5 @@
-import { formatos, fuentesDe, getCapitulosExternos, getNovelas } from './api';
+import { fuentesDe, getCapitulosExternos, getNovelas } from './api';
+import { brechaDe } from './brecha';
 import { esAdulta, nivelDe, type Nivel } from './indexacion';
 import conTrafico from './con-trafico.json';
 import type { Novela } from '@/types/novela';
@@ -21,7 +22,9 @@ export function niveles(): Promise<Map<string, Nivel>> {
         n.slug,
         nivelDe({
           adulta: esAdulta(n),
-          ambos: formatos(externos).length === 2,
+          // Igual que el getStaticPaths de /equivalencia: el sitemap mete esa
+          // URL para las A, así que "ambos" tiene que significar que existe.
+          ambos: brechaDe(externos) !== null,
           ultimo: Math.max(0, ...fuentesDe(externos).map((f) => f.total)),
           conTrafico: trafico.has(n.slug),
         }),
