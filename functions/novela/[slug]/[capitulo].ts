@@ -11,8 +11,8 @@
  * admite 20.000 archivos por despliegue y el sitio ya usa la mitad: generarlas
  * estáticas no es "lento", es imposible. Aquí no se genera ningún archivo: la
  * función arma el HTML al recibir la primera petición y la respuesta se queda en
- * la caché del edge un día. Las siguientes visitas —y los siguientes rastreos—
- * ni ejecutan la función.
+ * la caché del edge un día (`caches.default`, ver `onRequest`). Las siguientes
+ * visitas —y los siguientes rastreos— ni ejecutan la función ni tocan Supabase.
  *
  * **Y no son páginas calcadas.** Cada una lleva lo que solo se sabe de ESE
  * capítulo: qué fuentes lo tienen (no todas llegan al 1200), y por qué capítulo
@@ -42,14 +42,14 @@ import { tituloIngles as tituloInglesDe } from '../../../src/lib/titulos.ts';
 /** Un día en el edge, una hora en el navegador: aparece un capítulo nuevo o una
  *  fuente nueva y la página se rehace sola al día siguiente. */
 const CACHE = {
-  'Cache-Control': 'public, max-age=3600',
+  'Cache-Control': 'public, max-age=3600, s-maxage=86400',
   'CDN-Cache-Control': 'public, s-maxage=86400, stale-while-revalidate=86400',
 };
 
 /** El 404 vive mucho menos: un capítulo aparece cada noche, y guardar un día
  *  el "todavía no está" retrasaría justo el momento que más tráfico trae. */
 const CACHE_404 = {
-  'Cache-Control': 'public, max-age=300',
+  'Cache-Control': 'public, max-age=300, s-maxage=1800',
   'CDN-Cache-Control': 'public, s-maxage=1800',
 };
 
@@ -110,12 +110,40 @@ interface Env {
   PUBLIC_SUPABASE_ANON_KEY?: string;
 }
 
-export const onRequest = async (context: {
+interface Contexto {
   request: Request;
   params: { slug: string | string[]; capitulo: string | string[] };
   env: Env;
   next: () => Promise<Response>;
-}): Promise<Response> => {
+  waitUntil?: (p: Promise<unknown>) => void;
+}
+
+/**
+ * Pages NO cachea en el edge lo que devuelve una Function, diga lo que diga su
+ * Cache-Control: sin esto, cada visita y cada rastreo de Googlebot eran 6
+ * consultas a Supabase. Aquí se guarda a mano en la caché del colo, con la
+ * vida que marca `s-maxage` (un día la página, 30 min el 404).
+ *
+ * La clave ignora la query: `?utm=…` o `?x=1` no pueden forzar otra consulta.
+ * Solo se guarda lo que genera esta función (lleva CDN-Cache-Control); el 301
+ * y lo que cae a `next()` pasan tal cual.
+ */
+export const onRequest = async (context: Contexto): Promise<Response> => {
+  const cache = (globalThis as any).caches?.default as Cache | undefined;
+  if (!cache || context.request.method !== 'GET') return generar(context);
+  const url = new URL(context.request.url);
+  const clave = new Request(url.origin + url.pathname);
+  const guardada = await cache.match(clave);
+  if (guardada) return guardada;
+  const res = await generar(context);
+  if (res.headers.has('CDN-Cache-Control')) {
+    const guardar = cache.put(clave, res.clone());
+    context.waitUntil ? context.waitUntil(guardar) : await guardar;
+  }
+  return res;
+};
+
+const generar = async (context: Contexto): Promise<Response> => {
   const uno = (v: string | string[]) => (Array.isArray(v) ? v[0] : v);
   const url = new URL(context.request.url);
   const slug = uno(context.params.slug);

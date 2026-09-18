@@ -376,8 +376,8 @@ assert.deepEqual(utiles([{ titulo: '', url: 'u' }, { titulo: 't', url: null }, {
 
   let escrito = null;
   const db = {
+    rpc: async (_nombre, { filas }) => ((escrito = filas), { error: null }),
     from: () => ({
-      upsert: async (filas) => ((escrito = filas), { error: null }),
       update: () => ({ eq: async () => ({ error: null }) }),
     }),
   };

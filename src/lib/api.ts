@@ -7,6 +7,7 @@ import { tituloIngles } from './titulos';
 import { capitulosDe, equivalencias, novelas } from './mockData';
 import { supabase } from './supabaseClient';
 import { traducir, traducirTexto } from './traducir';
+import { brotliDecompressSync } from 'node:zlib';
 
 /**
  * Única puerta de acceso a datos. Hoy lee de mockData.ts; mañana, de Supabase.
@@ -474,6 +475,32 @@ async function cargarNombresFuente(): Promise<Map<string, string>> {
   return new Map((await cargarFuentes()).map((f) => [f.id, f.nombre]));
 }
 
+/**
+ * La tabla entera desde el release `snapshot` de GitHub (ver scripts/snapshot.mjs).
+ * Leerla de Supabase eran ~60 MB de egress por build, 3 builds al día: el plan
+ * gratis entero. null si no hay token o el snapshot falla/está viejo → Supabase.
+ */
+async function filasSnapshot(): Promise<any[] | null> {
+  const token = process.env.GH_SNAPSHOT_TOKEN;
+  if (!token) return null;
+  const repo = process.env.GH_SNAPSHOT_REPO || 'JoseLuisAriasF/AstroManhwaProduccion';
+  const h = { Authorization: `Bearer ${token}`, 'X-GitHub-Api-Version': '2022-11-28' };
+  try {
+    const rel = await (await fetch(`https://api.github.com/repos/${repo}/releases/tags/snapshot`, { headers: h })).json();
+    const asset = rel.assets?.find((a: any) => a.name === 'capitulos.json.br');
+    if (!asset) throw new Error('el release no tiene capitulos.json.br');
+    const r = await fetch(asset.url, { headers: { ...h, Accept: 'application/octet-stream' } });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const { hasta, cols, filas } = JSON.parse(brotliDecompressSync(Buffer.from(await r.arrayBuffer())).toString());
+    if (Date.now() - Date.parse(hasta) > 3 * 86_400_000) throw new Error(`está viejo (${hasta})`);
+    console.log(`[externos] snapshot de ${hasta}`);
+    return filas.map((f: unknown[]) => Object.fromEntries(cols.map((c: string, i: number) => [c, f[i]])));
+  } catch (e) {
+    console.warn(`[externos] snapshot no disponible, se lee Supabase: ${(e as Error).message}`);
+    return null;
+  }
+}
+
 let externosCache: Promise<Map<string, CapituloExterno[]>> | null = null;
 
 function cargarExternos(): Promise<Map<string, CapituloExterno[]>> {
@@ -485,7 +512,7 @@ function cargarExternos(): Promise<Map<string, CapituloExterno[]>> {
     }
     try {
       const nombres = await cargarNombresFuente();
-      const filas = await todasLasFilas<any>(
+      const filas = (await filasSnapshot()) ?? await todasLasFilas<any>(
         'capitulos_externos',
         // `id` va en el select porque es la clave por la que se pagina: sin
         // ella no hay por dónde avanzar. Lo grita `todasLasFilas`, no se cuelga.
