@@ -171,7 +171,7 @@ servidor ni una segunda app. Lo que impide que cualquiera edite el catálogo no 
 la página, **es RLS**: solo los correos de la tabla `admins` pueden escribir.
 
 ```sql
-insert into public.admins values ('joseluisariasflores01@gmail.com');
+insert into public.admins values ('test@gmail.com');
 ```
 
 Desde ahí se cambia la portada de una obra (con vista previa antes de guardar),
