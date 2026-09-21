@@ -24,16 +24,24 @@ const db = createClient(url, key, { auth: { persistSession: false } });
 
 // Cuántos capítulos aporta cada dominio: el peso es lo que dice si merece la
 // pena mantener un sitio o si su ausencia se nota.
+// Se pagina por el ÚLTIMO id visto, no con `range`. `range` es OFFSET/LIMIT y
+// con 642.000 filas la página 600 obliga a recorrer y tirar 600.000 filas antes
+// de devolver 1.000: la capa gratis corta con `statement timeout`. Con
+// `gt('id', ultimo)` cada página entra por el índice de la PK y cuesta igual la
+// primera que la última. El orden total por id sigue evitando filas perdidas.
 const dominios = new Map();
-for (let desde = 0; ; desde += 1000) {
+let ultimo = '00000000-0000-0000-0000-000000000000';
+for (;;) {
   const { data, error } = await db
     .from('capitulos_externos')
-    .select('url')
+    .select('id, url')
     .eq('aprobado', true)
-    .order('id') // orden total, o `range` se salta filas (ver api.ts)
-    .range(desde, desde + 999);
+    .gt('id', ultimo)
+    .order('id')
+    .limit(1000);
   if (error) throw new Error(error.message);
   if (!data?.length) break;
+  ultimo = data[data.length - 1].id;
   for (const c of data) {
     try {
       const host = new URL(c.url).hostname.replace(/^www\./, '');
