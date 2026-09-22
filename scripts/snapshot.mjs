@@ -38,7 +38,7 @@ async function paginar(tabla, columnas, filtrar) {
     let q = filtrar(db.from(tabla).select(columnas)).order('id').limit(1000);
     if (ultima) q = q.gt('id', ultima);
     const { data, error } = await q;
-    if (error) throw new Error(`${tabla}: ${error.message}`);
+    if (error) throw new Error(`${tabla}: ${error.message || JSON.stringify(error)}`);
     todas.push(...data);
     if (data.length < 1000) return todas;
     ultima = data.at(-1).id;
@@ -73,14 +73,19 @@ if (previo) {
 
   // Red de seguridad: un HEAD con el conteo cuesta cero egress. Si no cuadra,
   // algo se coló (un cambio sin trigger, un reloj raro) → se rehace entero.
-  const { count, error } = await db
-    .from('capitulos_externos')
-    .select('id', { count: 'exact', head: true })
-    .eq('aprobado', true);
-  if (error) throw new Error(error.message);
-  if (count !== mapa.size) {
-    console.warn(`[snapshot] el conteo no cuadra (base ${count}, snapshot ${mapa.size}): se rehace entero`);
-    mapa = null;
+  try {
+    const { count, error } = await db
+      .from('capitulos_externos')
+      .select('id', { count: 'exact', head: true })
+      .eq('aprobado', true);
+    if (error) {
+      console.warn(`[snapshot] aviso al verificar conteo (${error.message || JSON.stringify(error)}): se continua incremental`);
+    } else if (count !== mapa.size) {
+      console.warn(`[snapshot] el conteo no cuadra (base ${count}, snapshot ${mapa.size}): se rehace entero`);
+      mapa = null;
+    }
+  } catch (e) {
+    console.warn(`[snapshot] error al verificar conteo (${e?.message || e}): se continua incremental`);
   }
 }
 if (!mapa) {
@@ -98,4 +103,10 @@ console.log(`[snapshot] ${mapa.size} filas → ${ARCHIVO}`);
 
 // Las lápidas solo hacen falta hasta el próximo incremental; con 14 días de
 // margen sobre el tope de 7 del completo, nunca se purga una que se necesite.
-await db.from('capitulos_borrados').delete().lt('borrado_en', new Date(Date.now() - 14 * DIA).toISOString());
+const { error: errPurga } = await db
+  .from('capitulos_borrados')
+  .delete()
+  .lt('borrado_en', new Date(Date.now() - 14 * DIA).toISOString());
+if (errPurga) {
+  console.warn(`[snapshot] aviso al purgar capitulos_borrados: ${errPurga.message || JSON.stringify(errPurga)}`);
+}
