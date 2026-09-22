@@ -3,6 +3,7 @@ import { IDIOMA_BASE, type Idioma } from './i18n';
 import { generosEn } from './generos';
 import { limpiarSinopsis, limpiarTitulo } from './sinopsis';
 import { esProhibida } from './indexacion';
+import { esRetirada } from './dmca';
 import { tituloIngles } from './titulos';
 import { capitulosDe, equivalencias, novelas } from './mockData';
 import { supabase } from './supabaseClient';
@@ -254,9 +255,10 @@ function catalogo(): Promise<Novela[]> {
         portadasPorObra(),
       ]);
       if (!todas.length) return novelas;
-      // Sexualización de menores: no se publica, ni con noindex. El descubridor
-      // las vuelve a traer cada noche, así que el filtro vive aquí y no en la BD.
-      const filas = todas.filter((o) => !esProhibida(o.categorias ?? []));
+      // Sexualización de menores: no se publica, ni con noindex. Y las retiradas
+      // por DMCA (ver dmca.ts). El descubridor las trae cada noche, así que el
+      // filtro vive aquí y no en la BD —donde el siguiente scrapeo lo desharía—.
+      const filas = todas.filter((o) => !esProhibida(o.categorias ?? []) && !esRetirada(o.slug));
       // Destacadas primero y luego por título: el orden que espera la portada.
       // Antes lo pedía la base; ahora la base solo pagina por clave primaria.
       filas.sort(

@@ -36,6 +36,7 @@ import { manhwaANovela } from '../../../src/lib/equivalencia.ts';
 // en un solo sitio (`src/lib/fuentes.ts`), no copiada aquí.
 import { esFuenteDelCatalogo, urlDeLectura } from '../../../src/lib/fuentes.ts';
 import { esProhibida } from '../../../src/lib/indexacion.ts';
+import { esRetirada } from '../../../src/lib/dmca.ts';
 import { limpiarTitulo } from '../../../src/lib/sinopsis.ts';
 import { tituloIngles as tituloInglesDe } from '../../../src/lib/titulos.ts';
 
@@ -155,6 +156,15 @@ const generar = async (context: Contexto): Promise<Response> => {
   // El techo evita que `/capitulo-99999999999` gaste cuatro consultas para
   // acabar en el mismo 404: ninguna obra pasa de cinco cifras.
   if (!numero || !Number.isFinite(numero) || numero > 99_999) return context.next();
+
+  // Retirada por DMCA (ver src/lib/dmca.ts): no existe en el sitio. 410 Gone —no
+  // 404— le dice al buscador que la quite del índice y no la vuelva a rastrear.
+  if (esRetirada(slug)) {
+    return new Response('Obra retirada.', {
+      status: 410,
+      headers: { 'Content-Type': 'text/plain; charset=utf-8', ...CACHE_404 },
+    });
+  }
 
   // `capitulo-007` y `capitulo-7` son la misma página. Sin este 301 serían dos
   // URLs con el mismo contenido, que es contenido duplicado multiplicado por

@@ -1,0 +1,58 @@
+---
+import Base from '@/layouts/Base.astro';
+
+/**
+ * Aviso legal / DMCA. Fuera de [...idioma] a propósito: es una sola página en
+ * español enlazada desde el pie de todo el sitio. Deja por escrito lo que el
+ * sitio hace de verdad —indexar y enlazar, no alojar— y cómo pedir una retirada.
+ */
+const correo = 'joseluisariasflores01@gmail.com';
+---
+
+<Base
+  titulo="Aviso legal y DMCA · ManhwaToNovel"
+  descripcion="ManhwaToNovel es un índice: no alojamos ni almacenamos obras. Cómo solicitar la retirada de un contenido (DMCA)."
+  noindex
+>
+  <section class="prose prose-sm sm:prose-base dark:prose-invert max-w-2xl mx-auto py-10">
+    <h1>Aviso legal y política de retirada (DMCA)</h1>
+
+    <h2>Qué es este sitio</h2>
+    <p>
+      ManhwaToNovel es un <strong>índice y directorio</strong> de manhwas y novelas ligeras.
+      Reunimos metadatos —título, sinopsis, géneros, portada y la lista de capítulos— y
+      enlazamos a las fuentes (scans) que sí publican esas obras. Es un buscador temático,
+      no una biblioteca de lectura.
+    </p>
+
+    <h2>No alojamos ni almacenamos obras</h2>
+    <p>
+      <strong>No guardamos, subimos ni alojamos el contenido de ninguna obra</strong> —ni
+      páginas de manhwa ni texto de novelas— en nuestros servidores. No existe copia en
+      nuestra infraestructura. Cuando abres un capítulo, la petición se dirige al sitio de
+      la fuente original y el contenido llega desde ahí; al cerrarlo no queda ningún dato
+      guardado por nuestra parte. Toda obra pertenece a sus autores y editoriales.
+    </p>
+
+    <h2>Solicitar la retirada de un contenido</h2>
+    <p>
+      Si eres el titular de los derechos (o su representante) y quieres que dejemos de
+      indexar y enlazar una obra, escríbenos a
+      <a href={`mailto:${correo}`}>{correo}</a> con:
+    </p>
+    <ul>
+      <li>La URL de la ficha en este sitio (por ejemplo <code>/novela/&lt;slug&gt;/</code>).</li>
+      <li>El título de la obra y una referencia a la obra original.</li>
+      <li>Confirmación de que eres el titular de los derechos o su representante autorizado.</li>
+    </ul>
+    <p>
+      Retiramos las obras verificadas <strong>de forma permanente</strong>: una vez en
+      nuestra lista de retiradas dejan de aparecer aunque nuestro rastreador las vuelva a
+      encontrar. Atendemos las solicitudes con la mayor rapidez posible.
+    </p>
+
+    <p class="text-sm text-base-500">
+      <a href="/">← Volver al inicio</a>
+    </p>
+  </section>
+</Base>

@@ -1,0 +1,41 @@
+name: Retirar obra (DMCA)
+
+# Cloudflare NO expone una API pública para leer sus informes de abuso, así que
+# esto no puede ser 100% automático. Es lo más cerca que se llega gratis y fiable:
+# pegas la URL (o el slug) del informe DMCA, un clic, y el workflow añade la obra
+# a la lista de retiradas (src/lib/dmca.ts) y hace commit. Cloudflare reconstruye
+# el sitio sin la obra —ficha, catálogo, sitemap y páginas de capítulo—.
+on:
+  workflow_dispatch:
+    inputs:
+      objetivo:
+        description: 'URL del informe o slug (p.ej. https://.../novela/pasion/  ó  pasion)'
+        type: string
+        required: true
+
+permissions:
+  contents: write # commitear la obra retirada
+
+jobs:
+  retirar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Añadir la obra a la lista de retiradas
+        run: node scripts/retirar-dmca.mjs "${{ inputs.objetivo }}"
+
+      - name: Commitear si hubo cambio
+        run: |
+          if git diff --quiet -- src/lib/dmca.ts; then
+            echo "La obra ya estaba retirada. Nada que commitear."
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add src/lib/dmca.ts
+          git commit -m "dmca: retirar '${{ inputs.objetivo }}'"
+          git push

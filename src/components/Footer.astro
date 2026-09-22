@@ -8,7 +8,13 @@ const anio = new Date().getFullYear();
 
 <footer class="border-t border-base-300/40 dark:border-base-700/40 mt-12">
   <div class="max-w-6xl mx-auto px-4 sm:px-6 py-8 text-sm text-base-500 flex flex-col sm:flex-row gap-3 justify-between">
-    <p>© {anio} ManhwaToNovel · {dic.piePie}</p>
+    <p>
+      © {anio} ManhwaToNovel · {dic.piePie}
+      <span class="block mt-1 text-xs text-base-400">
+        Índice de obras: no alojamos ni almacenamos contenido.
+        <a class="hover:text-acento-500 transition-colors underline" href="/aviso-legal">Aviso legal y DMCA</a>
+      </span>
+    </p>
     <nav class="flex flex-wrap gap-x-4 gap-y-2">
       <a class="hover:text-acento-500 transition-colors" href={ruta(idioma, '/novelas')}>{dic.navCatalogo}</a>
       <a class="hover:text-acento-500 transition-colors" href={ruta(idioma, '/biblioteca')}>{dic.navBiblioteca}</a>
