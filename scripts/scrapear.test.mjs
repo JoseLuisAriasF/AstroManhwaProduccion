@@ -326,6 +326,47 @@ assert.equal(gkCaps[0].url, 'https://www.mgeko.cc/reader/en/obra-geko-chapter-12
 assert.equal(gkCaps[0].fecha_texto, '2026-09-15');
 assert.equal(gkCaps[1].fecha_texto, '2026-05-03', '"noon" no rompe la fecha');
 
+// ── nyx: listado por tipo, capítulos desde los chapter-sitemap ──────────────
+paginas['https://nyxscans.com/robots.txt'] = 'User-agent: *\nAllow: /\nDisallow: /api/*';
+paginas['https://nyxscans.com/series-sitemap.xml'] = `<urlset>
+    <url><loc>https://nyxscans.com/series/obra-nyx</loc></url>
+    <url><loc>https://nyxscans.com/series/obra-nyx-novel</loc></url>
+    <url><loc>https://nyxscans.com/series/i&apos;m-obra</loc></url>
+    <url><loc>https://nyxscans.com/series/ficha-muerta</loc></url>
+  </urlset>`;
+paginas['https://nyxscans.com/series/obra-nyx'] = `<div><div>
+    <div aria-hidden="true"><div>이세계 오브라</div></div>
+    <h1 itemprop="name">Obra Nyx</h1></div></div>`;
+paginas['https://nyxscans.com/sitemap.xml'] = `<sitemapindex>
+    <sitemap><loc>https://nyxscans.com/series-sitemap.xml</loc></sitemap>
+    <sitemap><loc>https://nyxscans.com/chapter-sitemap-01.xml</loc></sitemap>
+  </sitemapindex>`;
+paginas['https://nyxscans.com/chapter-sitemap-01.xml'] = `<urlset>
+    <url><loc>https://nyxscans.com/series/obra-nyx/chapter-2</loc><lastmod>2026-09-21T17:10:21.961Z</lastmod></url>
+    <url><loc>https://nyxscans.com/series/obra-nyx/chapter-1</loc><lastmod>2026-08-01T10:00:00.000Z</lastmod></url>
+    <url><loc>https://nyxscans.com/series/obra-nyx-novel/chapter-9</loc><lastmod>2026-09-01T10:00:00.000Z</lastmod></url>
+    <url><loc>https://nyxscans.com/series/i&apos;m-obra/chapter-3</loc><lastmod>2026-09-02T10:00:00.000Z</lastmod></url>
+  </urlset>`;
+
+const SITEMAP_NYX = 'https://nyxscans.com/series-sitemap.xml';
+const nySeries = await PLATAFORMAS.nyx.series(SITEMAP_NYX, { tipo: 'manhwa' });
+assert.deepEqual(
+  nySeries.map((s) => s.url),
+  ['https://nyxscans.com/series/obra-nyx', "https://nyxscans.com/series/i'm-obra"],
+  'las de tipo manhwa; la -novel fuera y la ficha sin capítulos también',
+);
+assert.equal(nySeries[1].url.includes('&apos;'), false, 'el apóstrofo del XML se desescapa');
+const nyNovelas = await PLATAFORMAS.nyx.series(SITEMAP_NYX, { tipo: 'novela' });
+assert.deepEqual(nyNovelas.map((s) => s.url), ['https://nyxscans.com/series/obra-nyx-novel']);
+
+const nyDet = await PLATAFORMAS.nyx.detalles(nySeries[0].url);
+assert.deepEqual(nyDet.titulosAlt, ['이세계 오브라'], 'el coreano, que es lo que casa con MangaDex');
+
+const nyCaps = await PLATAFORMAS.nyx.capitulos(nySeries[0].url);
+assert.equal(nyCaps.length, 2, 'solo los de ESTA serie: el sitemap las trae todas juntas');
+assert.equal(nyCaps[0].numero, 2);
+assert.equal(nyCaps[0].fecha_texto, '2026-09-21');
+
 // ── wtr: enumera por el SITEMAP, saca el título del slug, link-out ──────────
 paginas['https://wtr-lab.com/robots.txt'] = 'User-agent: *\nDisallow: /api';
 paginas['https://wtr-lab.com/novels/index.xml'] = `<sitemapindex>

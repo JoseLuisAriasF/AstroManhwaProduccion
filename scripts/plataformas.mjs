@@ -771,6 +771,109 @@ const mgeko = {
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
+ * nyx: Nyx Scans (nyxscans.com) — manhwa y novelas, en inglés
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Todo sale de sus SITEMAPS, y no de `/comics` y `/novels`: esas dos páginas
+ * pintan la rejilla con JavaScript pidiéndosela a `/api/`, que su robots.txt
+ * prohíbe. El HTML que sirve el servidor devuelve lo mismo en `?page=20` que en
+ * `?page=1` —solo los carruseles—, así que por ahí se veían 64 series de 752.
+ *
+ * · `series-sitemap.xml` → las 752 series. El tipo sale del slug: las novelas
+ *   llevan `-novel` al final (182 de 752; su listado lo confirma, 51 de 52).
+ * · `chapter-sitemap-NN.xml` → los capítulos de todas, agrupados por serie. La
+ *   página de la serie solo pinta los ~25 últimos, así que tampoco vale.
+ *
+ * Solo se quedan las series que tienen capítulos en el sitemap: el de series
+ * arrastra fichas muertas que no llevan a ningún sitio.
+ *
+ * La página de cada serie trae su título de verdad y el coreano —el que
+ * engancha con MangaDex—, y por eso `detalles()` existe: `descubrir.mjs` la pide
+ * solo para las que no emparejan, no para las 752.
+ */
+const NYX = 'https://nyxscans.com';
+
+/** slug de serie → sus capítulos. Los 49 sitemaps se leen UNA vez por corrida. */
+let nyxIndice;
+function capitulosDeNyx() {
+  nyxIndice ??= (async () => {
+    const idx = await traerTexto(`${NYX}/sitemap.xml`);
+    const subs = [...idx.matchAll(/<loc>([^<]*chapter-sitemap-\d+\.xml)<\/loc>/g)].map((m) => m[1]);
+    const mapa = new Map();
+    for (const sub of subs) {
+      let xml;
+      try {
+        xml = await traerTexto(sub);
+      } catch {
+        continue; // un sub-sitemap caído no tumba el resto
+      }
+      for (const m of xml.matchAll(
+        /<loc>[^<]*\/series\/([^/<]+)\/chapter-([\d.]+)<\/loc>\s*<lastmod>([^<]*)<\/lastmod>/g,
+      )) {
+        const [, crudo, n, fecha] = m;
+        const slug = desescapar(crudo); // el XML escapa los apóstrofos del slug
+        const caps = mapa.get(slug) ?? mapa.set(slug, []).get(slug);
+        caps.push({
+          numero: numeroDe(n),
+          titulo: `Chapter ${n}`,
+          url: `${NYX}/series/${slug}/chapter-${n}`,
+          fecha_texto: fecha.slice(0, 10) || null,
+        });
+      }
+      await espera(400); // cortesía entre sub-sitemaps
+    }
+    return mapa;
+  })();
+  return nyxIndice;
+}
+
+/** El XML escapa los apóstrofos de los slugs (`i&apos;m-…`); la URL los lleva tal cual. */
+const desescapar = (s) =>
+  s
+    .replace(/&apos;|&#x27;|&#39;/g, "'")
+    .replace(/&quot;|&#34;/g, '"')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
+
+const nyx = {
+  async series(url, sitio) {
+    // url = el sitemap de series. El tipo lo decide el sufijo del slug.
+    const xml = await traerTexto(url);
+    const conCapitulos = await capitulosDeNyx();
+    const quiereNovela = sitio?.tipo === 'novela';
+    const vistos = new Set();
+    const out = [];
+    for (const m of xml.matchAll(/<loc>[^<]*\/series\/([^/<]+)<\/loc>/g)) {
+      const slug = desescapar(m[1]);
+      if (vistos.has(slug)) continue;
+      vistos.add(slug);
+      if (/-novel$/.test(slug) !== quiereNovela) continue;
+      if (!conCapitulos.has(slug)) continue; // ficha muerta: sin un solo capítulo
+      // Título provisional, del slug: `detalles()` trae el de verdad cuando hace
+      // falta. Así descubrir no pide 752 páginas para saber cómo se llaman.
+      out.push({
+        titulo: desescapar(slug).replace(/-/g, ' ').replace(/\s+/g, ' ').trim(),
+        url: `${NYX}/series/${slug}`,
+        portadaUrl: '',
+      });
+    }
+    return out;
+  },
+  /** El título coreano vive junto al <h1>: es el que casa con MangaDex. */
+  async detalles(url) {
+    const $ = await traer(url);
+    const h1 = $('h1[itemprop="name"]').first();
+    const alt = h1.parent().find('div[aria-hidden="true"]').first().text().trim();
+    return { titulo: h1.text().trim(), titulosAlt: alt ? [alt] : [] };
+  },
+  async capitulos(url) {
+    const slug = url.replace(/\/+$/, '').split('/').pop();
+    return (await capitulosDeNyx()).get(slug) ?? [];
+  },
+};
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
  * wtr: WTR-Lab (wtr-lab.com) — novelas en inglés, indexadas por su SITEMAP
  * ─────────────────────────────────────────────────────────────────────────────
  * 91.000+ web-novels (sobre todo chinas). Su robots.txt PROHÍBE /api y las
@@ -900,7 +1003,7 @@ const webtoon = {
   },
 };
 
-export const PLATAFORMAS = { madara, mangareader, css, mangadex, sheet, wetriedtls, olympus, blogger, manhwaweb, asura, mgeko, wtr, webtoon };
+export const PLATAFORMAS = { madara, mangareader, css, mangadex, sheet, wetriedtls, olympus, blogger, manhwaweb, asura, mgeko, nyx, wtr, webtoon };
 
 /**
  * Plataformas "link-out": su capitulos() no hace ni una petición HTTP, solo lee

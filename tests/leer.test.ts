@@ -214,6 +214,24 @@ assert.match(geko, /chapter-58\/img_002\.jpg/, 'y la 2');
 assert.ok(!geko.includes('credits-mgeko'), 'los créditos no son una página');
 assert.ok(!geko.includes('tryAgain'), 'su JS no llega');
 
+// nyxscans no marca sus <img> de ninguna manera: lo que dice que son páginas es
+// su ruta (`…/page-0001_01_….webp`), que la portada de la serie no lleva.
+respuesta = html(
+  `<html><head><title>Obra Chapter 1</title></head><body>
+   <img src="https://storage.nyxscans.com/public/upload/series/featured/abc/tapa.jpg" class="h-10 w-10">
+   <img src="https://storage.nyxscans.com/public/upload/series/obra/xY/page-0001_01_177.webp" width="690" height="5000" alt="Obra">
+   <img src="https://storage.nyxscans.com/public/upload/series/obra/xY/page-0002_01_178.webp" width="690" height="4000" alt="Obra">
+   </body></html>`,
+  {},
+  'https://nyxscans.com/series/obra/chapter-1',
+);
+const nyxCap = await pedir('https://nyxscans.com/series/obra/chapter-1');
+const paginasNyx = await nyxCap.text();
+assert.match(paginasNyx, /page-0001_01_177\.webp/, 'la página 1');
+assert.match(paginasNyx, /page-0002_01_178\.webp/, 'y la 2');
+assert.ok(!paginasNyx.includes('tapa.jpg'), 'la portada de la serie no es una página');
+assert.match(paginasNyx, /width="690" height="5000"/, 'con sus medidas: sin saltos al cargar');
+
 // Si su anti-bot devuelve una página sin capítulo, se sigue por el camino
 // normal: su HTML es mejor que un lector vacío.
 respuesta = html('<html><head></head><body>sin capitulo</body></html>', {}, 'https://leemiau.com/x/');

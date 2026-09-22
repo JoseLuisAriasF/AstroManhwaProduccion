@@ -74,6 +74,15 @@ values
   ('MangaGeko', 'mgeko', 'manhwa', 'en',
    'https://www.mgeko.cc/browse-comics/data/?page={page}&sort=latest', 300, true),
 
+  -- Nyx Scans: manhwa y novelas en inglés, una fila por tipo. Las DOS usan el
+  -- mismo sitemap de series (752): el tipo lo decide el sufijo `-novel` del
+  -- slug. No se usan /comics ni /novels porque su rejilla la pinta el navegador
+  -- pidiéndola a /api/, que robots prohíbe, y el HTML del servidor devuelve lo
+  -- mismo en ?page=20 que en ?page=1 — por ahí solo se veían 64 de 556.
+  -- Medido: 556 manhwa + 177 novelas con capítulos.
+  ('Nyx Scans', 'nyx', 'manhwa', 'en', 'https://nyxscans.com/series-sitemap.xml', 1, true),
+  ('Nyx Scans (novelas)', 'nyx', 'novela', 'en', 'https://nyxscans.com/series-sitemap.xml', 1, true),
+
   -- animeshoy12: blog de Blogger, un post por capítulo, etiqueta = serie. Son
   -- ~2.700 novelas en español con lista de capítulos completa (no link-out).
   ('Animeshoy', 'blogger', 'novela', 'es',

@@ -56,11 +56,11 @@ create table if not exists public.obras (
 create table if not exists public.sitios (
   id uuid primary key default gen_random_uuid(),
   nombre text not null,
-  plataforma text not null default 'css' check (plataforma in ('madara','mangareader','css','mangadex','sheet','wetriedtls','olympus','blogger','manhwaweb','asura','mgeko','wtr','webtoon')),
+  plataforma text not null default 'css' check (plataforma in ('madara','mangareader','css','mangadex','sheet','wetriedtls','olympus','blogger','manhwaweb','asura','mgeko','nyx','wtr','webtoon')),
   tipo text not null default 'manhwa' check (tipo in ('manhwa','novela')),
   idioma text not null default 'es',
   -- Listado de series con {page} como marcador de paginación.
-  url_series text not null unique,
+  url_series text not null,
   paginas int not null default 5,   -- techo de seguridad; corta antes si se vacía
   -- Solo para plataforma 'css'. Los adaptadores traen los suyos.
   sel_serie text, sel_serie_titulo text, sel_serie_enlace text, sel_serie_portada text,
@@ -69,7 +69,11 @@ create table if not exists public.sitios (
   -- solo_match: la fuente NO crea obras nuevas, solo se engancha a las que ya
   -- existen (WTR-Lab: 91.000 novelas, casi ninguna con manhwa). Ver descubrir.mjs.
   solo_match boolean not null default false,
-  ultimo_descubrimiento timestamptz
+  ultimo_descubrimiento timestamptz,
+  -- Por URL **y tipo**: un mismo catálogo sirve manhwa y novelas, y se indexa
+  -- con una fila por tipo (Olympus, ManhwaWeb, Nyx). Con el único solo sobre
+  -- url_series, la segunda fila —la de novelas— no entraba y el fallo era mudo.
+  unique (url_series, tipo)
 );
 
 -- ── 4. fuentes: idioma, tipo y plataforma ────────────────────────────────────
@@ -203,8 +207,25 @@ do $$
 begin
   alter table public.sitios drop constraint if exists sitios_plataforma_check;
   alter table public.sitios add constraint sitios_plataforma_check
-    check (plataforma in ('madara','mangareader','css','mangadex','sheet','wetriedtls','olympus','blogger','manhwaweb','asura','mgeko','wtr','webtoon'));
+    check (plataforma in ('madara','mangareader','css','mangadex','sheet','wetriedtls','olympus','blogger','manhwaweb','asura','mgeko','nyx','wtr','webtoon'));
 end $$;
+
+-- El único de `url_series` pasa a ser (url_series, tipo) en una tabla ya creada.
+-- Sin esto, la fila de novelas de un catálogo mixto (Olympus, ManhwaWeb, Nyx)
+-- chocaba con la de manhwa y no se insertaba nunca. Idempotente.
+do $$
+declare c text;
+begin
+  select conname into c from pg_constraint
+  where conrelid = 'public.sitios'::regclass and contype = 'u'
+    and conkey = array[(select attnum from pg_attribute
+      where attrelid = 'public.sitios'::regclass and attname = 'url_series')]::int2[];
+  if c is not null then
+    execute format('alter table public.sitios drop constraint %I', c);
+  end if;
+end $$;
+alter table public.sitios drop constraint if exists sitios_url_series_tipo_key;
+alter table public.sitios add constraint sitios_url_series_tipo_key unique (url_series, tipo);
 
 -- solo_match en una tabla ya creada (el CREATE con `if not exists` no la añade).
 alter table public.sitios add column if not exists solo_match boolean not null default false;

@@ -230,7 +230,7 @@ function ajeno(src: string | null, base: string): boolean {
  * `CLASE_PAGINA`) y poner el dominio en esta lista. Si la extracción no
  * encuentra páginas, `onRequest` sigue por el proxy de siempre: nunca se rompe.
  */
-const CON_LECTOR = ['leemiau.com', 'imperiomanhua.com', 'asurascans.com', 'mgeko.cc'];
+const CON_LECTOR = ['leemiau.com', 'imperiomanhua.com', 'asurascans.com', 'mgeko.cc', 'nyxscans.com'];
 
 function tieneLectorPropio(url: string): boolean {
   try {
@@ -263,6 +263,11 @@ const ATRIBUTOS_PAGINA = ['data-lm-orig-src', 'data-page-index'];
  *  (`image-1`, `image-2`…). Su logo y la imagen de créditos no llevan id. */
 const ID_PAGINA = /^image-\d+$/;
 
+/** nyxscans no marca nada: ni clase útil, ni data-*, ni id. Lo que distingue una
+ *  página del resto es su RUTA —`…/page-0007_01_…webp`—, que la portada y los
+ *  avatares no llevan. Se mira sobre la URL, no sobre la etiqueta. */
+const URL_PAGINA = /\/page-\d{2,5}[_.-]/i;
+
 /** Dónde esconden la URL buena, por orden de preferencia: la primera que no sea
  *  un placeholder `data:` gana. El lazy-load de cada tema usa la suya. */
 const ATRIBUTOS_URL = ['data-lm-orig-src', 'data-src', 'data-lazy-src', 'data-original', 'src'];
@@ -284,7 +289,8 @@ function paginasDelCapitulo(html: string): Pagina[] {
     const esPagina =
       CLASE_PAGINA.test(attr(tag, 'class') ?? '') ||
       ATRIBUTOS_PAGINA.some((a) => attr(tag, a) !== null) ||
-      ID_PAGINA.test(attr(tag, 'id') ?? '');
+      ID_PAGINA.test(attr(tag, 'id') ?? '') ||
+      ATRIBUTOS_URL.some((a) => URL_PAGINA.test(attr(tag, a) ?? ''));
     if (!esPagina) continue;
     for (const a of ATRIBUTOS_URL) {
       const u = (attr(tag, a) ?? '').replace(/&amp;/gi, '&').trim();

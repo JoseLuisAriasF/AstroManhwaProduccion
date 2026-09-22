@@ -68,7 +68,22 @@ export function clavesDe(nombre) {
 // Palabras que no distinguen una obra de otra: fuera antes de comparar.
 const VACIAS = new Set(
   // `t` y `s` son lo que queda de "don't" o "duke's" tras quitar el apóstrofo.
-'el la los las lo de del y e o a al en con un una por para su sus se que mi tu the of an and or to in on with his her my your is was as at by for from t s es soy son am are be i m'.split(' '),
+// Las funcionales largas (como, when, where…) entran porque una traducción las
+// pone y otra no: "Cómo me convertí en…" y "Me convertí en…" son la misma obra.
+(
+  'el la los las lo de del y e o a al en con un una por para su sus se que mi tu ' +
+  'the of an and or to in on with his her my your is was as at by for from t s ' +
+  'es soy son am are be i m como cuando donde porque aunque mientras si ya muy mas ' +
+  'sobre entre hasta desde contra sin tras how what when where who why which than then this that'
+).split(' '),
+);
+
+/**
+ * Etiquetas que una fuente pega al título y otra no: "(Promo)", "✨ESPECIALES✨",
+ * "(Oficial)". No distinguen una obra de otra, distinguen una SUBIDA de otra.
+ */
+const RELLENO = new Set(
+  'promo promocion descubrir especial especiales oficial official raw color colored recolor remake reboot uncensored censura sincensura fanmade novela novel manhwa manhua manga webtoon comic espanol latino ingles english'.split(' '),
 );
 
 /**
@@ -80,7 +95,7 @@ export function palabrasDe(nombre) {
   return new Set(
     normalizar(nombre)
       .split(' ')
-      .filter((p) => p && !VACIAS.has(p))
+      .filter((p) => p && !VACIAS.has(p) && !RELLENO.has(p))
       .map((p) => (p.length > 3 ? p.replace(/(es|s)$/, '') : p)),
   );
 }

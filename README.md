@@ -77,6 +77,7 @@ y esa noche entra solo.
 | `madara` | El tema de WordPress más común en scans. Capítulos por AJAX. Cubre también sus temas **hijos**, que reescriben la rejilla a `a.acard` (imperiomanhua). | Solo la URL del listado. |
 | `mangareader` | El otro tema grande (leemiau, legionscans…). | Solo la URL del listado. |
 | `asura` | Asura Scans. La web es React, pero su backend `api.asurascans.com` es JSON público con índice de capítulos y metadata. | Solo la URL del endpoint. |
+| `nyx` | Nyx Scans, manhwa y novelas en inglés. Listado en HTML; los capítulos, de su sitemap. | Solo la URL del listado, una fila por tipo. |
 | `mgeko` | MangaGeko, manhwa en inglés. El catálogo es un JSON con las tarjetas en HTML. | Solo la URL del endpoint. |
 | `css` | Sitios sueltos con HTML propio. | Los selectores, en la fila de `sitios`. |
 
