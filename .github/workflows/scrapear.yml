@@ -18,7 +18,7 @@ on:
       max:
         description: 'Cuántas fuentes atender en la corrida'
         type: string
-        default: '12000'
+        default: '4000'
 
 permissions:
   contents: write # subir el snapshot al release
@@ -26,7 +26,7 @@ permissions:
 jobs:
   indexar:
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -48,11 +48,10 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
 
       # Capítulos nuevos. Con la cortesía por dominio (y los link-out sin espera)
-      # las ~11.000 fuentes entran en una corrida. --max es el tope por si crece;
-      # se atienden por antigüedad (las nunca vistas primero). A mano se puede
-      # pasar --obra=<slug> para priorizar una obra concreta.
+      # las fuentes entran en lotes manejables. --max es el tope por corrida.
+      # A mano se puede pasar --obra=<slug> para priorizar una obra concreta.
       - name: Indexar capítulos
-        run: node scripts/scrapear.mjs --max=${{ github.event.inputs.max || '12000' }} ${{ github.event.inputs.obra && format('--obra={0}', github.event.inputs.obra) || '' }}
+        run: node scripts/scrapear.mjs --max=${{ github.event.inputs.max || '4000' }} ${{ github.event.inputs.obra && format('--obra={0}', github.event.inputs.obra) || '' }}
         env:
           PUBLIC_SUPABASE_URL: ${{ secrets.PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
@@ -60,18 +59,15 @@ jobs:
       # Metadata (sinopsis, títulos alternos, géneros) desde AniList/MangaUpdates/
       # MangaBaka/MAL. Cada obra se enriquece una vez; solo entran las nuevas.
       - name: Enriquecer metadatos
-        run: node scripts/enriquecer.mjs --max=700 ${{ github.event.inputs.obra && format('--obra={0}', github.event.inputs.obra) || '' }}
+        run: node scripts/enriquecer.mjs --max=150 ${{ github.event.inputs.obra && format('--obra={0}', github.event.inputs.obra) || '' }}
         env:
           PUBLIC_SUPABASE_URL: ${{ secrets.PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
 
       # Segunda pasada sobre las obras que se enriquecieron pero no casaron con
-      # ninguna ficha. Ahora que el emparejado acepta las mismas palabras en
-      # otro orden, muchas de esas sí casan — y son las que traen los títulos en
-      # inglés que unen el manhwa en español con su novela. Tope bajo: cada obra
-      # son ~4 s de cortesía repartida entre las cuatro bases.
+      # ninguna ficha. Tope bajo: cada obra son ~4 s de cortesía repartida.
       - name: Reintentar las obras sin ficha
-        run: node scripts/enriquecer.mjs --reintentar --max=150
+        run: node scripts/enriquecer.mjs --reintentar --max=50
         env:
           PUBLIC_SUPABASE_URL: ${{ secrets.PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
