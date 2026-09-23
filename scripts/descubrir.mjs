@@ -21,6 +21,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { createClient } from '@supabase/supabase-js';
 import { PLATAFORMAS, espera, slugify, utiles } from './plataformas.mjs';
 import { IndiceObras } from './emparejar.mjs';
+import { esRetirada } from '../src/lib/dmca.ts';
 
 // Solo se parte en el PRIMER '=': las URLs de listado traen query string
 // (?m_orderby=latest) y partir en todos se comía medio parámetro.
@@ -227,7 +228,7 @@ export async function descubrirSitio(db, sitio, indice, seco) {
     // `slugBase` es la identidad de la obra, igual en todos los idiomas; el
     // título visible sí es el localizado. Las scans no lo traen y caen al título.
     const slug = existente ?? slugify(s.slugBase ?? s.titulo);
-    if (!slug || slugs.has(slug)) continue; // dos entradas al mismo título en este sitio
+    if (!slug || slugs.has(slug) || esRetirada(slug)) continue; // dos entradas al mismo título en este sitio o DMCA
     slugs.add(slug);
 
     if (existente) {
