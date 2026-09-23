@@ -24,6 +24,9 @@ const pedir = (ruta: string, status: number) =>
   });
 
 assert.equal((await pedir('/en/novela/x/', 200)).status, 200, 'lo que existe no se toca');
+assert.equal((await pedir('/novela/pasion/', 200)).status, 410, 'obra retirada devuelve 410');
+assert.equal((await pedir('/en/novela/pasion/capitulo-1', 200)).status, 410, 'capítulo de obra retirada devuelve 410');
+assert.equal((await pedir('/portada/pasion.jpg', 200)).status, 410, 'portada de obra retirada devuelve 410');
 const r = await pedir('/pt/novela/x/?a=1', 404);
 assert.equal(r.status, 301);
 assert.equal(r.headers.get('location'), 'https://www.manhwatonovel.com/novela/x/?a=1');

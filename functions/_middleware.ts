@@ -20,6 +20,7 @@
  */
 import { slugGeneroCanonico } from '../src/lib/generos.ts';
 import { CODIGOS, IDIOMA_BASE } from '../src/lib/i18n.ts';
+import { esRetirada } from '../src/lib/dmca.ts';
 
 const CANONICO = 'www.manhwatonovel.com';
 const APEX = 'manhwatonovel.com';
@@ -61,8 +62,27 @@ export const onRequest = async (context: {
     url.hostname = CANONICO;
     return Response.redirect(url.toString(), 301);
   }
+
+  // Interceptar cualquier ruta perteneciente a una obra retirada por DMCA (410 Gone)
+  const matchSlug =
+    url.pathname.match(/^(?:\/[a-z]{2})?\/novela\/([^/]+)/) ||
+    url.pathname.match(/^\/portada\/([^/.]+)/);
+  if (matchSlug) {
+    const slug = decodeURIComponent(matchSlug[1]);
+    if (esRetirada(slug)) {
+      return new Response('410 Gone - Esta obra ha sido retirada por DMCA', {
+        status: 410,
+        headers: {
+          'Content-Type': 'text/plain; charset=utf-8',
+          'Cache-Control': 'public, max-age=3600, s-maxage=86400',
+        },
+      });
+    }
+  }
+
   const res = await context.next();
   if (res.status !== 404 || context.request.method !== 'GET') return res;
   const destino = reparar(url.pathname);
   return destino ? Response.redirect(new URL(destino + url.search, url).toString(), 301) : res;
 };
+
