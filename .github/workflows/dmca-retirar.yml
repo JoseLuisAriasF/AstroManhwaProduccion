@@ -5,6 +5,7 @@ name: Retirar obra (DMCA)
 # pegas la URL (o el slug) del informe DMCA, un clic, y el workflow añade la obra
 # a la lista de retiradas (src/lib/dmca.ts) y hace commit. Cloudflare reconstruye
 # el sitio sin la obra —ficha, catálogo, sitemap y páginas de capítulo—.
+
 on:
   workflow_dispatch:
     inputs:
@@ -24,6 +25,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+
+      # --- AÑADE ESTE PASO PARA INSTALAR LAS DEPENDENCIAS ---
+      - name: Instalar dependencias
+        run: npm install
 
       - name: Añadir la obra a la lista de retiradas
         run: node scripts/retirar-dmca.mjs "${{ inputs.objetivo }}"
