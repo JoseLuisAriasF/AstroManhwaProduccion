@@ -23,6 +23,7 @@ import { createClient } from '@supabase/supabase-js';
 import { clavesDe, normalizar } from './emparejar.mjs';
 import { espera } from './plataformas.mjs';
 import { limpiarSinopsis } from '../src/lib/sinopsis.ts';
+import { esRetirada } from '../src/lib/dmca.ts';
 
 const args = Object.fromEntries(
   process.argv.slice(2).map((a) => {
@@ -321,6 +322,7 @@ if (import.meta.main) {
 
   let casadas = 0;
   for (const obra of obras ?? []) {
+    if (esRetirada(obra.slug)) continue;
     const res = await enriquecerObra(obra);
     const parche = parcheDe(obra, res);
     const { error: e } = await db.from('obras').update(parche).eq('slug', obra.slug);

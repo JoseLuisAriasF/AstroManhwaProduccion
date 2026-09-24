@@ -5,6 +5,7 @@ name: Retirar obra (DMCA)
 # pegas la URL (o el slug) del informe DMCA, un clic, y el workflow añade la obra
 # a la lista de retiradas (src/lib/dmca.ts) y hace commit. Cloudflare reconstruye
 # el sitio sin la obra —ficha, catálogo, sitemap y páginas de capítulo—.
+
 on:
   workflow_dispatch:
     inputs:
@@ -25,17 +26,25 @@ jobs:
         with:
           node-version: 22
 
+      # --- AÑADE ESTE PASO PARA INSTALAR LAS DEPENDENCIAS ---
+      - name: Instalar dependencias
+        run: npm install
+
       - name: Añadir la obra a la lista de retiradas
         run: node scripts/retirar-dmca.mjs "${{ inputs.objetivo }}"
+        env:
+          PUBLIC_SUPABASE_URL: ${{ secrets.PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          CF_DEPLOY_HOOK: ${{ secrets.CF_DEPLOY_HOOK }}
 
       - name: Commitear si hubo cambio
         run: |
-          if git diff --quiet -- src/lib/dmca.ts; then
+          if git diff --quiet -- src/lib/dmca.ts src/lib/con-trafico.json; then
             echo "La obra ya estaba retirada. Nada que commitear."
             exit 0
           fi
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add src/lib/dmca.ts
+          git add src/lib/dmca.ts src/lib/con-trafico.json
           git commit -m "dmca: retirar '${{ inputs.objetivo }}'"
           git push

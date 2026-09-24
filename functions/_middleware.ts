@@ -20,7 +20,7 @@
  */
 import { slugGeneroCanonico } from '../src/lib/generos.ts';
 import { CODIGOS, IDIOMA_BASE } from '../src/lib/i18n.ts';
-import { esRetirada } from '../src/lib/dmca.ts';
+import { esRetirada, extraerSlugDeRuta } from '../src/lib/dmca.ts';
 
 const CANONICO = 'www.manhwatonovel.com';
 const APEX = 'manhwatonovel.com';
@@ -63,21 +63,42 @@ export const onRequest = async (context: {
     return Response.redirect(url.toString(), 301);
   }
 
-  // Interceptar cualquier ruta perteneciente a una obra retirada por DMCA (410 Gone)
-  const matchSlug =
-    url.pathname.match(/^(?:\/[a-z]{2})?\/novela\/([^/]+)/) ||
-    url.pathname.match(/^\/portada\/([^/.]+)/);
-  if (matchSlug) {
-    const slug = decodeURIComponent(matchSlug[1]);
-    if (esRetirada(slug)) {
-      return new Response('410 Gone - Esta obra ha sido retirada por DMCA', {
+  // Intercepción Edge DMCA: 410 Gone inmediato para obras retiradas (ver src/lib/dmca.ts)
+  let slug = extraerSlugDeRuta(url.pathname);
+  if (!slug) {
+    const matchPortada = url.pathname.match(/^\/portada\/([^/.]+)/);
+    if (matchPortada) slug = decodeURIComponent(matchPortada[1]).trim().toLowerCase();
+  }
+  if (slug && esRetirada(slug)) {
+    const esHtml = !url.pathname.startsWith('/portada/');
+    return new Response(
+      esHtml
+        ? `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="robots" content="noindex, nofollow, noarchive">
+  <title>410 Contenido Retirado por DMCA</title>
+</head>
+<body style="font-family: system-ui, sans-serif; background:#121316; color:#e2e8f0; display:flex; align-items:center; justify-content:center; min-height:100vh; margin:0; text-align:center; padding:1rem;">
+  <div style="max-width:500px; background:#1e2025; padding:2rem; border-radius:1rem; box-shadow:0 10px 25px rgba(0,0,0,0.5);">
+    <h1 style="color:#ef4444; font-size:1.5rem; margin-top:0;">410 — Contenido Retirado (DMCA)</h1>
+    <p style="color:#94a3b8; font-size:0.95rem; line-height:1.6;">Esta obra ha sido retirada permanentemente de nuestro servicio en cumplimiento con una solicitud por derechos de autor (DMCA).</p>
+    <a href="/" style="display:inline-block; margin-top:1rem; padding:0.5rem 1.25rem; background:#3b82f6; color:#fff; text-decoration:none; border-radius:0.5rem; font-weight:500;">Volver al Inicio</a>
+  </div>
+</body>
+</html>`
+        : '',
+      {
         status: 410,
+        statusText: 'Gone',
         headers: {
-          'Content-Type': 'text/plain; charset=utf-8',
-          'Cache-Control': 'public, max-age=3600, s-maxage=86400',
+          'Content-Type': esHtml ? 'text/html; charset=utf-8' : 'text/plain; charset=utf-8',
+          'X-Robots-Tag': 'noindex, nofollow, noarchive',
+          'Cache-Control': 'public, max-age=3600',
         },
-      });
-    }
+      },
+    );
   }
 
   const res = await context.next();

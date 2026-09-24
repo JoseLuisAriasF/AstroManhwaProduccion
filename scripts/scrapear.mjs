@@ -18,6 +18,7 @@
  */
 import { createClient } from '@supabase/supabase-js';
 import { PLATAFORMAS, esEnlace, espera, numeroDe, utiles } from './plataformas.mjs';
+import { esRetirada } from '../src/lib/dmca.ts';
 
 export { numeroDe };
 
@@ -177,6 +178,7 @@ if (import.meta.main) {
   const DIA = 86400000;
   const ahora = Date.now();
   const debeScrapear = (f) => {
+    if (esRetirada(f.obra_slug)) return false;
     if (!f.ultimo_scrape || args.obra || args.plataforma) return true;
     const desdeScrape = ahora - Date.parse(f.ultimo_scrape);
     const desdeCambio = f.ultimo_cambio ? ahora - Date.parse(f.ultimo_cambio) : Infinity;

@@ -19,4 +19,13 @@ export const RETIRADAS = new Set<string>([
 ]);
 
 /** true si la obra fue retirada por DMCA y no debe existir en ninguna parte. */
-export const esRetirada = (slug: string): boolean => RETIRADAS.has(slug);
+export const esRetirada = (slug: string): boolean => !!slug && RETIRADAS.has(slug.trim().toLowerCase());
+
+const RUTA_NOVELA = /^(?:\/(?:en|pt|de|fr|it|br))?\/novela\/([^/]+)/i;
+
+/** Extrae el slug de obra de cualquier ruta /novela/slug/ o /en/novela/slug/capitulo-1 */
+export function extraerSlugDeRuta(pathname: string): string | null {
+  const match = RUTA_NOVELA.exec(pathname);
+  if (!match) return null;
+  return decodeURIComponent(match[1]).trim().toLowerCase();
+}
