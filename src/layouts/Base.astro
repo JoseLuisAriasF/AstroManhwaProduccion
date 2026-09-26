@@ -82,6 +82,7 @@ const PINTEREST =
     <meta name="description" content={descripcion} />
     {GSC && <meta name="google-site-verification" content={GSC} />}
     {PINTEREST && <meta name="p:domain_verify" content={PINTEREST} />}
+    <meta name="monetag" content="2d7c8741306679e3a1391daaa33cf5a6" />
     {noindex && <meta name="robots" content="noindex, follow" />}
     <link rel="canonical" href={canonical} />
     <link rel="sitemap" href="/sitemap-index.xml" />
@@ -311,23 +312,6 @@ const PINTEREST =
       import { init } from '@/lib/progress';
       init();
     </script>
-
-    {
-      import.meta.env.PROD && (
-        <>
-          <script
-            is:inline
-            async
-            src="https://pl31512481.profitableratecpmnetwork.com/a8/6f/32/a86f3210b2e65517152604cf83070d28.js"
-          />
-          <script
-            is:inline
-            async
-            src="https://pl31512482.profitableratecpmnetwork.com/f9/be/d6/f9bed68e3d380ab7e2b2a4a49be77d7e.js"
-          />
-        </>
-      )
-    }
 
   </body>
 </html>
