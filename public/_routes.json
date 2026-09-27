@@ -1,6 +1,8 @@
 {
   "version": 1,
-  "include": ["/*"],
+  "include": [
+    "/*"
+  ],
   "exclude": [
     "/_astro/*",
     "/portadas/*",
@@ -16,6 +18,8 @@
     "/portadas.json",
     "/fuentes-enlace.json",
     "/obras-nivel-a.json",
+    "/redirecciones.json",
+    "/sw.js",
     "/sitemap-obras.xml",
     "/sitemap-index.xml",
     "/sitemap-0.xml",
