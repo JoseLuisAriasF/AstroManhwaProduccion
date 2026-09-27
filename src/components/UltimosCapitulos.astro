@@ -21,20 +21,24 @@ export interface ItemUltimo {
   portadas: string[];
   href: string;
   formatos: ('manhwa' | 'novela')[];
-  cuando: string;
-  capitulos: { numero: number; href: string }[];
+  /** Cuándo creció. Sin él (catálogo) no hay hora ni «Nuevo». */
+  cuando?: string;
+  /** `texto` sustituye a «Cap. N» (el catálogo pone «Manhwa 23» / «Novela 912»). */
+  capitulos: { numero: number; href: string; texto?: string }[];
 }
 
 interface Props {
   items: ItemUltimo[];
   idioma: Idioma;
+  porPagina?: number;
 }
 
-const POR_PAGINA = 12;
-const { items, idioma } = Astro.props;
+const { items, idioma, porPagina: POR_PAGINA = 12 } = Astro.props;
 const dic = t(idioma);
 const fecha = new Intl.DateTimeFormat(idioma, { day: 'numeric', month: 'short' });
 const paginas = Math.ceil(items.length / POR_PAGINA);
+/** Con muchas páginas, «‹ 3 / 10 ›»: diez botones no caben en un móvil. */
+const numerados = paginas <= 7;
 ---
 
 <div data-ultimos data-por-pagina={POR_PAGINA}>
@@ -81,8 +85,8 @@ const paginas = Math.ceil(items.length / POR_PAGINA);
                 href={c.href}
                 class="neu-inset rounded-lg px-1 py-1.5 text-center leading-tight transition-colors hover:text-acento-500 min-h-11 flex flex-col justify-center"
               >
-                <span class="block text-xs font-medium text-base-700 dark:text-base-200 tabular-nums">{dic.capAbrev(c.numero)}</span>
-                {j === 0 && (
+                <span class="block text-xs font-medium text-base-700 dark:text-base-200 tabular-nums truncate">{c.texto ?? dic.capAbrev(c.numero)}</span>
+                {j === 0 && it.cuando && (
                   <time data-rel datetime={it.cuando} class="block text-[10px] text-base-400">
                     {fecha.format(new Date(it.cuando))}
                   </time>
@@ -99,14 +103,18 @@ const paginas = Math.ceil(items.length / POR_PAGINA);
     paginas > 1 && (
       <nav data-paginador aria-label={dic.pagina} class="mt-5 flex items-center justify-center gap-1 flex-wrap">
         <button data-ir="-1" aria-label={dic.anterior} class="size-9 rounded-xl neu-sm neu-press text-lg leading-none disabled:opacity-30">‹</button>
-        {Array.from({ length: paginas }, (_, i) => (
-          <button
-            data-pagina={i}
-            aria-label={`${dic.pagina} ${i + 1}`}
-            aria-current={i === 0 ? 'page' : undefined}
-            class="size-9 rounded-xl neu-sm neu-press text-sm font-medium tabular-nums aria-[current=page]:bg-acento-500 aria-[current=page]:text-white"
-          >{i + 1}</button>
-        ))}
+        {numerados &&
+          Array.from({ length: paginas }, (_, i) => (
+            <button
+              data-pagina={i}
+              aria-label={`${dic.pagina} ${i + 1}`}
+              aria-current={i === 0 ? 'page' : undefined}
+              class="size-9 rounded-xl neu-sm neu-press text-sm font-medium tabular-nums aria-[current=page]:bg-acento-500 aria-[current=page]:text-white"
+            >{i + 1}</button>
+          ))}
+        {!numerados && (
+          <span data-estado data-total={paginas} class="min-w-20 text-center text-sm font-medium tabular-nums">1 / {paginas}</span>
+        )}
         <button data-ir="1" aria-label={dic.siguiente} class="size-9 rounded-xl neu-sm neu-press text-lg leading-none disabled:opacity-30">›</button>
       </nav>
     )
@@ -150,14 +158,17 @@ const paginas = Math.ceil(items.length / POR_PAGINA);
     const por = Number(raiz.dataset.porPagina);
     const tarjetas = [...raiz.querySelectorAll<HTMLElement>('ul > li')];
     const botones = [...nav.querySelectorAll<HTMLButtonElement>('[data-pagina]')];
+    const estado = nav.querySelector<HTMLElement>('[data-estado]');
+    const total = estado ? Number(estado.dataset.total) : botones.length;
     const [prev, next] = [nav.querySelector<HTMLButtonElement>('[data-ir="-1"]')!, nav.querySelector<HTMLButtonElement>('[data-ir="1"]')!];
     let actual = 0;
     const ir = (p: number, desplazar = true) => {
-      actual = Math.max(0, Math.min(botones.length - 1, p));
+      actual = Math.max(0, Math.min(total - 1, p));
       tarjetas.forEach((li, i) => (li.hidden = Math.floor(i / por) !== actual));
       botones.forEach((b, i) => (i === actual ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current')));
+      if (estado) estado.textContent = `${actual + 1} / ${total}`;
       prev.disabled = actual === 0;
-      next.disabled = actual === botones.length - 1;
+      next.disabled = actual === total - 1;
       // Al cambiar de página, volver al principio de la rejilla si quedó arriba.
       const arriba = raiz.getBoundingClientRect().top;
       if (desplazar && arriba < 0) raiz.scrollIntoView({ behavior: 'smooth', block: 'start' });

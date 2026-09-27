@@ -259,7 +259,7 @@ export async function enriquecerObra(obra, { todas = false } = {}) {
     // géneros, títulos y demografía. La sinopsis/portada siguen siendo de la
     // primera (la más fiable).
     const suma = { generos: [], titulos: [], demografia: null, fuentes: [] };
-    for (const fuente of ORDEN) {
+    const consultar = async (fuente) => {
       let res;
       try {
         res = await FUENTES[fuente](query);
@@ -267,6 +267,14 @@ export async function enriquecerObra(obra, { todas = false } = {}) {
         res = null; // una fuente caída (p.ej. Jikan 504) no rompe la cascada
       }
       await espera(CORTESIA[fuente]);
+      return res;
+    };
+    // Con `todas` se preguntan las cuatro A LA VEZ: cada base tiene su propio
+    // límite, así que en serie se esperaba la suma de las cuatro cortesías por
+    // obra (~8 s) para nada. En paralelo es la más lenta (~2-3 s).
+    const respuestas = todas ? await Promise.all(ORDEN.map(consultar)) : null;
+    for (const [i, fuente] of ORDEN.entries()) {
+      const res = respuestas ? respuestas[i] : await consultar(fuente);
       if (res && casa(validos, res)) {
         base ??= { fuente, ...res };
         suma.generos.push(...generosDe(res));
@@ -289,7 +297,7 @@ export async function enriquecerObra(obra, { todas = false } = {}) {
     // MangaBaka trae los nombres en más idiomas; se suma para el match cruzado.
     // Si ya fue la base, no se repite.
     const titulos = new Set(base.titulos);
-    if (!base.fuente.includes('mangabaka')) {
+    if (!todas && !base.fuente.includes('mangabaka')) {
       try {
         const mb = await FUENTES.mangabaka(query);
         await espera(CORTESIA.mangabaka);
@@ -472,18 +480,28 @@ if (import.meta.main) {
   }
 
   let casadas = 0;
-  for (const obra of obras ?? []) {
-    if (esRetirada(obra.slug)) continue;
+  const procesar = async (obra) => {
+    if (esRetirada(obra.slug)) return;
     const res = await enriquecerObra(obra, { todas: Boolean(args.categorias) });
     const parche = parcheDe(obra, res);
     if (args.categorias) parche.categorias_fusionadas = true;
     const { error: e } = await db.from('obras').update(parche).eq('slug', obra.slug);
     if (e) {
       console.error(`  ${obra.slug}: ${e.message}`);
-      continue;
+      return;
     }
     if (res) casadas++;
     console.log(`${res ? '✓ ' + res.fuente : '·  sin match'}  ${obra.titulo}`);
-  }
+  };
+  // --categorias: dos obras a la vez. Con las cuatro bases ya en paralelo, dos
+  // hilos quedan por debajo de los límites (AniList 90/min, Jikan 60/min).
+  // ponytail: hilos fijos; si alguna base empieza a dar 429, bajar a 1.
+  const hilos = args.categorias ? Number(args.hilos) || 2 : 1;
+  let siguiente = 0;
+  await Promise.all(
+    Array.from({ length: hilos }, async () => {
+      while (siguiente < obras.length) await procesar(obras[siguiente++]);
+    }),
+  );
   console.log(`\n${casadas}/${obras?.length ?? 0} obras enriquecidas`);
 }

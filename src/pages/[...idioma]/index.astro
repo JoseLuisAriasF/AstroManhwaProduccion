@@ -14,6 +14,8 @@ import {
   getNovelas,
 } from '@/lib/api';
 import { IDIOMA_BASE, idiomaDeRuta, ruta, t } from '@/lib/i18n';
+import { generosDestacados } from '@/lib/categorias';
+import { nombreGenero } from '@/lib/generos';
 import { idiomasDeObra, paramsDeIdioma } from '@/lib/publicables';
 
 export function getStaticPaths() {
@@ -129,6 +131,37 @@ for (const a of await getActividad()) {
   });
 }
 
+// Catálogo: la rejilla de portadas de «últimos», con lo que hace único al
+// sitio en los dos botones —hasta dónde va el manhwa y hasta dónde la novela—.
+// Por popularidad (nº de capítulos indexados), no alfabético: lo primero que se
+// ve tiene que ser lo que más gente lee. 120 = 10 páginas; el resto en /novelas.
+const catalogo: ItemUltimo[] = [...destacadas]
+  .filter((o) => !o.novela.portadaUrl.includes('sin-portada'))
+  .sort((a, b) => b.capsExternos - a.capsExternos)
+  .slice(0, 120)
+  .map((o) => {
+    const ficha = fichaHref(o.novela);
+    return {
+      slug: o.novela.slug,
+      titulo: o.novela.titulo,
+      portada: o.novela.portadaUrl,
+      portadas: o.novela.portadas ?? [],
+      href: ficha,
+      formatos: o.formatos,
+      capitulos: (['manhwa', 'novela'] as const)
+        .filter((f) => o.ultimos[f] > 0)
+        .map((f) => ({ numero: o.ultimos[f], href: `${ficha}#capitulo-${o.ultimos[f]}`, texto: `${dic.formato(f)} ${o.ultimos[f]}` })),
+    };
+  });
+
+// Categorías: los géneros con más obras, como atajos. Son hubs indexables
+// (/categoria/isekai/…): enlazarlos desde la portada les pasa autoridad.
+const categorias = (await generosDestacados(8)).slice(0, 24).map((g) => ({
+  href: ruta(IDIOMA_BASE, `/categoria/${g.slug}`),
+  nombre: nombreGenero(g.nombre, idioma),
+  n: g.obras.length,
+}));
+
 const jsonLd = {
   '@context': 'https://schema.org',
   '@type': 'CollectionPage',
@@ -243,6 +276,32 @@ const jsonLd = {
     </section>
   )}
 
+  <!-- Catálogo -->
+  <section class="mb-10">
+    <h2 id="titulo-catalogo" class="font-semibold text-base-800 dark:text-base-100">
+      {dic.catalogo}
+    </h2>
+    <p class="mt-1 mb-4 text-sm text-base-500" data-sub>
+      {dic.catalogoSub(destacadas.length)}
+    </p>
+    {/* Rejilla compacta y paginada, no las ~560 tarjetas grandes: pintarlas
+        todas eran 1,2 MB de HTML en la página más visitada. El resto está en
+        /novelas y en el buscador. */}
+    <div id="destacadas">
+      <UltimosCapitulos items={catalogo} idioma={idioma} porPagina={12} />
+      {destacadas.length > catalogo.length && (
+        <a
+          href={ruta(idioma, '/novelas')}
+          class="mt-6 mx-auto block w-fit neu-sm neu-press rounded-xl px-5 py-2.5 text-sm font-medium text-acento-500"
+        >{dic.verTodos} ({destacadas.length}) →</a>
+      )}
+    </div>
+    <div id="resultados" hidden class="grid grid-cols-1 sm:grid-cols-2 gap-4"></div>
+    <p id="sin-resultados" hidden class="neu-inset rounded-2xl p-8 text-center text-base-500 mt-2">
+      {dic.sinResultados}
+    </p>
+  </section>
+
   <!-- Continuar leyendo (solo si hay progreso guardado) -->
   <section id="continuar" hidden class="mb-10">
     <h2 class="font-semibold text-base-800 dark:text-base-100 mb-4">{dic.continuarLeyendo}</h2>
@@ -257,39 +316,31 @@ const jsonLd = {
     >{dic.verMas}</button>
   </section>
 
+
+  {categorias.length > 0 && (
+    <section id="categorias" class="mb-10" aria-labelledby="titulo-categorias">
+      <h2 id="titulo-categorias" class="font-semibold text-lg text-base-800 dark:text-base-100 mb-3">{dic.categoriasTitulo}</h2>
+      <ul class="flex flex-wrap gap-2">
+        {categorias.map((c) => (
+          <li>
+            <a
+              href={c.href}
+              hreflang="es"
+              class="inline-flex items-center gap-1.5 neu-sm neu-press rounded-xl px-3 py-2 text-sm font-medium text-base-700 dark:text-base-200 hover:text-acento-500"
+            >
+              {c.nombre}<span class="text-xs text-base-400 tabular-nums">{c.n}</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )}
+
+
   <div id="destacados" class="mb-10">
     <Carrusel items={carrusel} titulo={dic.destacados} />
   </div>
 
-  <!-- Catálogo -->
-  <section class="mb-10">
-    <h2 id="titulo-catalogo" class="font-semibold text-base-800 dark:text-base-100">
-      {dic.catalogo}
-    </h2>
-    <p class="mt-1 mb-4 text-sm text-base-500" data-sub>
-      {dic.catalogoSub(destacadas.length)}
-    </p>
-    {/* 60, no las ~560: pintarlas todas eran 1,2 MB de HTML en la página más
-        visitada (lento en móvil y peor para los anuncios, que cargan después).
-        El resto está en /novelas y en el buscador. */}
-    <div id="destacadas">
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {destacadas.slice(0, 60).map(({ novela, total, ultimos, formatos }) => (
-          <NovelaCard novela={novela} totalCapitulos={total} ultimos={ultimos} formatos={formatos} />
-        ))}
-      </div>
-      {destacadas.length > 60 && (
-        <a
-          href={ruta(idioma, '/novelas')}
-          class="mt-6 mx-auto block w-fit neu-sm neu-press rounded-xl px-5 py-2.5 text-sm font-medium text-acento-500"
-        >{dic.verTodos} ({destacadas.length}) →</a>
-      )}
-    </div>
-    <div id="resultados" hidden class="grid grid-cols-1 sm:grid-cols-2 gap-4"></div>
-    <p id="sin-resultados" hidden class="neu-inset rounded-2xl p-8 text-center text-base-500 mt-2">
-      {dic.sinResultados}
-    </p>
-  </section>
 
   {/* Las tres páginas que solo este sitio puede tener. Van en la portada
       porque es de donde sale la autoridad que necesitan para posicionar: una
@@ -476,7 +527,7 @@ const jsonLd = {
   const sub = document.querySelector<HTMLElement>('[data-sub]');
   const vacio = document.getElementById('sin-resultados') as HTMLElement;
   const titulo = document.getElementById('titulo-catalogo') as HTMLElement;
-  const secciones = ['ultimos', 'continuar', 'destacados', 'nuevos']
+  const secciones = ['ultimos', 'continuar', 'categorias', 'destacados', 'nuevos']
     .map((id) => document.getElementById(id))
     .filter((s): s is HTMLElement => s !== null);
   const visiblePrevio = new Map(secciones.map((s) => [s, !s.hidden]));
