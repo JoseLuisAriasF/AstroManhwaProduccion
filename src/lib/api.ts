@@ -170,6 +170,8 @@ function cargarFuentes(): Promise<FilaFuente[]> {
   fuentesCache ??= (async () => {
     if (!supabase) return [];
     try {
+      const snap = await snapshotCatalogo();
+      if (snap) return snap.fuentes;
       return await todasLasFilas<FilaFuente>(
         'fuentes',
         'id, obra_slug, nombre, portada_vista, ultimo_cambio, tipo, idioma',
@@ -251,7 +253,9 @@ function catalogo(): Promise<Novela[]> {
       const [todas, portadasFuente] = await Promise.all([
         // `slug` es la clave primaria de `obras`. El orden de presentación
         // (destacadas primero, luego por título) se pone abajo, en memoria.
-        todasLasFilas<any>('obras', '*', (q) => q.eq('publicada', true), 'slug'),
+        (async (): Promise<any[]> =>
+          (await snapshotCatalogo())?.obras ??
+          todasLasFilas<any>('obras', '*', (q) => q.eq('publicada', true), 'slug'))(),
         portadasPorObra(),
       ]);
       if (!todas.length) return novelas;
@@ -299,6 +303,7 @@ function catalogo(): Promise<Novela[]> {
           estado: o.estado,
           categorias: o.categorias ?? [],
           creadaEn: o.creada_en,
+          slugsAntiguos: o.slugs_antiguos ?? [],
         };
       }) as Novela[];
     } catch (e) {
@@ -482,26 +487,36 @@ async function cargarNombresFuente(): Promise<Map<string, string>> {
  * Leerla de Supabase eran ~60 MB de egress por build, 3 builds al día: el plan
  * gratis entero. null si no hay token o el snapshot falla/está viejo → Supabase.
  */
-async function filasSnapshot(): Promise<any[] | null> {
+async function assetSnapshot(nombre: string): Promise<any | null> {
   const token = process.env.GH_SNAPSHOT_TOKEN;
   if (!token) return null;
   const repo = process.env.GH_SNAPSHOT_REPO || 'JoseLuisAriasF/AstroManhwaProduccion';
   const h = { Authorization: `Bearer ${token}`, 'X-GitHub-Api-Version': '2022-11-28' };
   try {
     const rel = await (await fetch(`https://api.github.com/repos/${repo}/releases/tags/snapshot`, { headers: h })).json();
-    const asset = rel.assets?.find((a: any) => a.name === 'capitulos.json.br');
-    if (!asset) throw new Error('el release no tiene capitulos.json.br');
+    const asset = rel.assets?.find((a: any) => a.name === nombre);
+    if (!asset) throw new Error(`el release no tiene ${nombre}`);
     const r = await fetch(asset.url, { headers: { ...h, Accept: 'application/octet-stream' } });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    const { hasta, cols, filas } = JSON.parse(brotliDecompressSync(Buffer.from(await r.arrayBuffer())).toString());
-    if (Date.now() - Date.parse(hasta) > 3 * 86_400_000) throw new Error(`está viejo (${hasta})`);
-    console.log(`[externos] snapshot de ${hasta}`);
-    return filas.map((f: unknown[]) => Object.fromEntries(cols.map((c: string, i: number) => [c, f[i]])));
+    const datos = JSON.parse(brotliDecompressSync(Buffer.from(await r.arrayBuffer())).toString());
+    if (Date.now() - Date.parse(datos.hasta) > 3 * 86_400_000) throw new Error(`está viejo (${datos.hasta})`);
+    console.log(`[snapshot] ${nombre} de ${datos.hasta}`);
+    return datos;
   } catch (e) {
-    console.warn(`[externos] snapshot no disponible, se lee Supabase: ${(e as Error).message}`);
+    console.warn(`[snapshot] ${nombre} no disponible, se lee Supabase: ${(e as Error).message}`);
     return null;
   }
 }
+
+async function filasSnapshot(): Promise<any[] | null> {
+  const d = await assetSnapshot('capitulos.json.br');
+  return d && d.filas.map((f: unknown[]) => Object.fromEntries(d.cols.map((c: string, i: number) => [c, f[i]])));
+}
+
+/** `obras` y `fuentes` del release (ver scripts/snapshot-catalogo.mjs): ~15 MB
+ *  de egress de Supabase menos en CADA build. Una sola descarga para las dos. */
+let catalogoSnapshot: Promise<{ obras: any[]; fuentes: FilaFuente[] } | null> | null = null;
+const snapshotCatalogo = () => (catalogoSnapshot ??= assetSnapshot('catalogo.json.br'));
 
 let externosCache: Promise<Map<string, CapituloExterno[]>> | null = null;
 

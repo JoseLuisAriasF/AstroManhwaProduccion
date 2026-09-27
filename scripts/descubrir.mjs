@@ -22,6 +22,7 @@ import { createClient } from '@supabase/supabase-js';
 import { PLATAFORMAS, espera, slugify, utiles } from './plataformas.mjs';
 import { IndiceObras } from './emparejar.mjs';
 import { esRetirada } from '../src/lib/dmca.ts';
+import { fusionarGeneros } from '../src/lib/generos.ts';
 
 // Solo se parte en el PRIMER '=': las URLs de listado traen query string
 // (?m_orderby=latest) y partir en todos se comía medio parámetro.
@@ -195,6 +196,8 @@ export async function descubrirSitio(db, sitio, indice, seco) {
 
   const obras = [];
   const fuentes = [];
+  /** Géneros que trae ESTA scan para obras que ya existían: se suman abajo. */
+  const generosScan = new Map();
   const slugs = new Set();
   let emparejadas = 0;
   for (const s of series) {
@@ -233,6 +236,7 @@ export async function descubrirSitio(db, sitio, indice, seco) {
 
     if (existente) {
       emparejadas++; // la obra ya existe: solo se añade la fuente, no se recrea
+      if (s.categorias?.length) generosScan.set(slug, s.categorias);
     } else {
       obras.push({
         slug,
@@ -294,6 +298,22 @@ export async function descubrirSitio(db, sitio, indice, seco) {
   if (sinId.length) {
     const r = await db.from('fuentes').insert(sinId);
     if (r.error) throw new Error(`fuentes (nuevas): ${r.error.message}`);
+  }
+
+  // Cada scan etiqueta distinto (una pone «Isekai», otra «Murim», otra nada):
+  // la ficha se queda con la unión. Antes solo contaban los géneros de la
+  // primera scan que la descubrió.
+  const slugsGen = [...generosScan.keys()];
+  for (let i = 0; i < slugsGen.length; i += 100) {
+    const { data, error } = await db.from('obras').select('slug, categorias').in('slug', slugsGen.slice(i, i + 100));
+    if (error) throw new Error(`géneros: ${error.message}`);
+    for (const o of data) {
+      const antes = o.categorias ?? [];
+      const unidas = fusionarGeneros([antes, generosScan.get(o.slug)]);
+      if (unidas.length === antes.length) continue;
+      const r = await db.from('obras').update({ categorias: unidas }).eq('slug', o.slug);
+      if (r.error) console.error(`    géneros ${o.slug}: ${r.error.message}`);
+    }
   }
 
   await db.from('sitios').update({ ultimo_descubrimiento: new Date().toISOString() }).eq('id', sitio.id);

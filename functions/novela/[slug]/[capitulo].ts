@@ -179,11 +179,43 @@ const generar = async (context: Contexto): Promise<Response> => {
   const clave = context.env.PUBLIC_SUPABASE_ANON_KEY;
   if (!base || !clave) return context.next();
 
-  const rest = async <T>(consulta: string): Promise<T[]> => {
+  const rest = async <T>(consulta: string, rango?: string): Promise<T[]> => {
     const r = await fetch(`${base}/rest/v1/${consulta}`, {
-      headers: { apikey: clave, Authorization: `Bearer ${clave}` },
+      headers: { apikey: clave, Authorization: `Bearer ${clave}`, ...(rango ? { Range: rango } : {}) },
     });
     return r.ok ? ((await r.json()) as T[]) : [];
+  };
+
+  /**
+   * Lo que es de la OBRA (no del capítulo) se guarda 6 h en la caché del colo.
+   * Un bot que recorre 80 capítulos de la misma obra hacía 80 × 5 consultas a
+   * Supabase —medido: 34.000 peticiones en una hora y el egress del plan
+   * gratis agotado—. Ahora la obra, sus fuentes, sus equivalencias y la lista
+   * de números se piden una vez; cada capítulo nuevo solo pide sus enlaces.
+   */
+  const cache = (globalThis as any).caches?.default as Cache | undefined;
+  const deObra = async <T>(consulta: string, todas = false): Promise<T[]> => {
+    const claveCache = new Request(`${url.origin}/__obra/${encodeURIComponent(consulta)}`);
+    const hit = cache && (await cache.match(claveCache));
+    if (hit) return (await hit.json()) as T[];
+    let datos: T[] = [];
+    if (!todas) datos = await rest<T>(consulta);
+    // PostgREST corta en 1.000 filas: las obras largas se piden por tramos.
+    else for (let desde = 0; ; desde += 1000) {
+      const tramo = await rest<T>(consulta, `${desde}-${desde + 999}`);
+      datos.push(...tramo);
+      if (tramo.length < 1000) break;
+    }
+    if (cache) {
+      const guardar = cache.put(
+        claveCache,
+        new Response(JSON.stringify(datos), {
+          headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, s-maxage=21600' },
+        }),
+      );
+      context.waitUntil ? context.waitUntil(guardar) : await guardar;
+    }
+    return datos;
   };
 
   const s = encodeURIComponent(slug);
@@ -205,25 +237,29 @@ const generar = async (context: Contexto): Promise<Response> => {
   const soloEnlace = numero > 1 ? await sinLista(url.origin) : new Set<string>();
 
   const [fuentes, obras, indexables] = await Promise.all([
-    rest<any>(`fuentes?obra_slug=eq.${s}&select=id,nombre`),
-    rest<any>(`obras?slug=eq.${s}&publicada=eq.true&select=titulo,titulos_alternativos,tipo,categorias&limit=1`),
+    deObra<any>(`fuentes?obra_slug=eq.${s}&select=id,nombre`),
+    deObra<any>(`obras?slug=eq.${s}&publicada=eq.true&select=titulo,titulos_alternativos,tipo,categorias&limit=1`),
     obrasA(url.origin),
   ]);
   const excluidas = fuentes.filter((f: any) => soloEnlace.has(f.id)).map((f: any) => f.id);
   const reales = excluidas.length ? `&fuente_id=not.in.(${excluidas.join(',')})` : '';
 
-  const [caps, anclas, previos, siguientes] = await Promise.all([
+  const [caps, anclas, numeros] = await Promise.all([
     rest<any>(
       `capitulos_externos?obra_slug=eq.${s}&numero=eq.${numero}&aprobado=eq.true${reales}&select=titulo,url,tipo,idioma,fuente_id`,
     ),
-    rest<any>(`equivalencias?novela_slug=eq.${s}&select=capitulo_manhwa,capitulo_novela`),
-    rest<any>(
-      `capitulos_externos?obra_slug=eq.${s}&numero=lt.${numero}&aprobado=eq.true${reales}&select=numero&order=numero.desc&limit=1`,
-    ),
-    rest<any>(
-      `capitulos_externos?obra_slug=eq.${s}&numero=gt.${numero}&aprobado=eq.true${reales}&select=numero&order=numero.asc&limit=1`,
+    deObra<any>(`equivalencias?novela_slug=eq.${s}&select=capitulo_manhwa,capitulo_novela`),
+    // Solo número y fuente (~40 bytes por fila): de aquí salen anterior y siguiente.
+    deObra<{ numero: number; fuente_id: string }>(
+      `capitulos_externos?obra_slug=eq.${s}&aprobado=eq.true&select=numero,fuente_id&order=id`,
+      true,
     ),
   ]);
+  const validos = numeros.filter((c) => typeof c.numero === 'number' && !excluidas.includes(c.fuente_id));
+  const menores = validos.filter((c) => c.numero < numero).map((c) => c.numero);
+  const mayores = validos.filter((c) => c.numero > numero).map((c) => c.numero);
+  const previos = menores.length ? [{ numero: Math.max(...menores) }] : [];
+  const siguientes = mayores.length ? [{ numero: Math.min(...mayores) }] : [];
 
   // Lo prohibido no existe en el sitio (el build no genera su ficha): tampoco aquí.
   const cruda = obras.find((o: any) => !esProhibida(o.categorias ?? []));
@@ -450,6 +486,8 @@ ${o.imagen ? `<meta property="og:image" content="${esc(o.imagen)}">
 ${o.canonical ? `<meta property="og:url" content="${esc(o.canonical)}">` : ''}
 <meta name="theme-color" content="#171b24">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="monetag" content="62d9babbfc5d166206a80624f263052b">
+<script src="https://quge5.com/88/tag.min.js" data-zone="287424" async data-cfasync="false"></script>
 <style>
 :root{color-scheme:light dark;--bg:#eef1f6;--card:#fff;--tx:#2b3140;--sub:#6b7280;--ac:#5b6cff}
 @media(prefers-color-scheme:dark){:root{--bg:#171b24;--card:#1e2431;--tx:#e7eaf0;--sub:#9aa2b1}}

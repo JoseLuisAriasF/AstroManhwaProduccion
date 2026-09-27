@@ -39,7 +39,7 @@ const href = ruta(idiomaFicha, `/novela/${novela.slug}`);
     <img
       src={novela.portadaUrl}
       data-fb={JSON.stringify(fb)}
-      alt={`Portada de ${novela.titulo}`}
+      alt={dic.portadaDe(novela.titulo)}
       width="112"
       height="160"
       loading="lazy"

@@ -57,8 +57,9 @@ jobs:
         run: |
           gh release download snapshot -p capitulos.json.br || echo "sin snapshot previo: va completo"
           node scripts/snapshot.mjs
+          node scripts/snapshot-catalogo.mjs
           gh release view snapshot >/dev/null 2>&1 || gh release create snapshot --title snapshot --notes "Datos del build. Lo reescribe scripts/snapshot.mjs; no borrar."
-          gh release upload snapshot capitulos.json.br --clobber
+          gh release upload snapshot capitulos.json.br catalogo.json.br --clobber
         env:
           GH_TOKEN: ${{ github.token }}
           PUBLIC_SUPABASE_URL: ${{ secrets.PUBLIC_SUPABASE_URL }}

@@ -124,7 +124,7 @@ export function rutaCanonica(pathname: string): string {
 
 const es = {
   sitioDescripcion:
-    'Novelas ligeras adaptadas de manhwa, completas y gratis. Te decimos el capítulo exacto de la novela donde se quedó el manhwa.',
+    'ManhwaToNovel: los últimos capítulos de manhwa y novelas ligeras en un solo lugar, con la equivalencia manhwa → novela que aporta la comunidad.',
 
   // Navegación
   navNovelas: 'Novelas',
@@ -167,10 +167,10 @@ const es = {
   bannerInvitado: 'Seguir como invitado',
 
   // Portada
-  heroBadge: 'Manhwa → Novela',
-  heroTitulo: 'Sigue la historia donde el manhwa se detuvo',
+  heroBadge: 'Equivalencias hechas por lectores',
+  heroTitulo: 'Del manhwa a la novela, sin perderte un capítulo',
   heroSub:
-    'Te decimos el capítulo exacto de la novela que corresponde al último capítulo del manhwa que leíste. Sin releer, sin spoilers, sin adivinar.',
+    'Los últimos capítulos de cada scan en un solo lugar y, gracias a los lectores, qué capítulo de la novela corresponde a cada capítulo del manhwa. ¿Ya lo sabes para tu obra? Apórtalo: cada equivalencia le ahorra la búsqueda al siguiente.',
   buscarPlaceholder: 'Busca por título en cualquier idioma…',
   buscarEtiqueta: 'Buscar novelas',
   statNovelas: 'novelas',
@@ -180,6 +180,18 @@ const es = {
   destacados: 'Destacados: manhwa + novela',
   nuevosLanzamientos: 'Nuevos lanzamientos',
   nuevosLanzamientosSub: 'Novelas con su manhwa (y viceversa), recién añadidas.',
+  ultimosCapitulosSub: 'Lo que acaban de publicar las scans, manhwa y novela.',
+  verTodos: 'Ver todos',
+  avisoIndice: 'Índice de obras: no alojamos ni almacenamos contenido.',
+  portadaDe: (t: string) => `Portada de ${t}`,
+  capAbrev: (n: number) => `Cap. ${n}`,
+  seccionAdelanto: 'La novela va por delante',
+  seccionAdelantoSub: 'Dónde queda más historia sin dibujar',
+  seccionNovedades: 'Capítulos nuevos',
+  seccionNovedadesSub: 'Lo que se movió en los últimos días',
+  seccionTitulos: 'Todos los títulos',
+  seccionTitulosSub: 'La misma obra, con sus otros nombres',
+  catalogoSub: (n: number) => `${n} obras con manhwa y novela. Busca arriba para ver todo el catálogo.`,
   equivalenciaComunidad:
     'La equivalencia la pone la comunidad: entra a una obra y aporta qué capítulo del manhwa corresponde al de la novela.',
   aportaEquivalencia: '¿Sabes la equivalencia? Apórtala',
@@ -275,7 +287,7 @@ const es = {
   continuarEnCapitulo: (n: number) => `Continuar en el capítulo ${n}`,
 
   // SEO
-  seoInicio: 'Lee la novela donde dejaste el manhwa',
+  seoInicio: 'Últimos capítulos de manhwa y novela, con su equivalencia',
   seoNovelaTitulo: (titulo: string, alterno: string) =>
     `${titulo} (${alterno}) — Novela completa en español`,
   seoNovelaDesc: (titulo: string, alternos: string, n: number) =>
@@ -292,7 +304,7 @@ export type Diccionario = typeof es;
 
 const en: Diccionario = {
   sitioDescripcion:
-    'Light novels adapted from manhwa, complete and free. We tell you the exact novel chapter where the manhwa left off.',
+    'ManhwaToNovel: the latest manhwa and light novel chapters in one place, with community-sourced manhwa → novel chapter matches.',
 
   navNovelas: 'Novels',
   navBiblioteca: 'My library',
@@ -329,10 +341,10 @@ const en: Diccionario = {
   bannerSincronizar: 'Sync with Google',
   bannerInvitado: 'Continue as guest',
 
-  heroBadge: 'Manhwa → Novel',
-  heroTitulo: 'Pick the story up where the manhwa stopped',
+  heroBadge: 'Chapter matches made by readers',
+  heroTitulo: 'From manhwa to novel, without missing a chapter',
   heroSub:
-    'We tell you the exact novel chapter matching the last manhwa chapter you read. No re-reading, no spoilers, no guessing.',
+    'The latest chapters from every scan in one place and, thanks to readers, which novel chapter matches each manhwa chapter. Know the match for your series? Add it: every contribution saves the next reader the search.',
   buscarPlaceholder: 'Search by title in any language…',
   buscarEtiqueta: 'Search novels',
   statNovelas: 'novels',
@@ -342,6 +354,18 @@ const en: Diccionario = {
   destacados: 'Featured: manhwa + novel',
   nuevosLanzamientos: 'New releases',
   nuevosLanzamientosSub: 'Novels with their manhwa (and vice versa), just added.',
+  ultimosCapitulosSub: 'Just released by the scans, manhwa and novel.',
+  verTodos: 'See all',
+  avisoIndice: 'A series index: we do not host or store any content.',
+  portadaDe: (t) => `Cover of ${t}`,
+  capAbrev: (n) => `Ch. ${n}`,
+  seccionAdelanto: 'The novel is ahead',
+  seccionAdelantoSub: 'Where the most story is still undrawn',
+  seccionNovedades: 'New chapters',
+  seccionNovedadesSub: 'What moved in the last few days',
+  seccionTitulos: 'All titles',
+  seccionTitulosSub: 'Every series, with its other names',
+  catalogoSub: (n) => `${n} series with both manhwa and novel. Search above to see the full catalog.`,
   equivalenciaComunidad:
     'The community sets the match: open a series and add which manhwa chapter matches which novel chapter.',
   aportaEquivalencia: 'Know the match? Add it',
@@ -424,7 +448,7 @@ const en: Diccionario = {
   vasPorCap: (n: number) => `You are on ch. ${n}`,
   continuarEnCapitulo: (n: number) => `Continue at chapter ${n}`,
 
-  seoInicio: 'Read the novel where the manhwa left off',
+  seoInicio: 'Latest manhwa & novel chapters, matched',
   seoNovelaTitulo: (titulo: string, alterno: string) => `${titulo} (${alterno}) — Full novel online`,
   seoNovelaDesc: (titulo: string, alternos: string, n: number) =>
     `Read ${titulo} — also known as ${alternos} — in full. ${n} chapters and the exact manhwa-to-novel chapter match.`,
@@ -438,7 +462,7 @@ const en: Diccionario = {
 
 const pt: Diccionario = {
   sitioDescripcion:
-    'Novels leves adaptadas de manhwa, completas e grátis. Dizemos o capítulo exato da novel onde o manhwa parou.',
+    'ManhwaToNovel: os últimos capítulos de manhwa e light novels num só lugar, com a equivalência manhwa → novel feita pela comunidade.',
 
   navNovelas: 'Novels',
   navBiblioteca: 'Minha biblioteca',
@@ -475,10 +499,10 @@ const pt: Diccionario = {
   bannerSincronizar: 'Sincronizar com Google',
   bannerInvitado: 'Continuar como visitante',
 
-  heroBadge: 'Manhwa → Novel',
-  heroTitulo: 'Continue a história de onde o manhwa parou',
+  heroBadge: 'Equivalências feitas por leitores',
+  heroTitulo: 'Do manhwa à novel, sem perder um capítulo',
   heroSub:
-    'Dizemos o capítulo exato da novel que corresponde ao último capítulo do manhwa que você leu. Sem reler, sem spoilers, sem adivinhar.',
+    'Os últimos capítulos de cada scan num só lugar e, graças aos leitores, qual capítulo da novel corresponde a cada capítulo do manhwa. Já sabe o da sua obra? Contribua: cada equivalência poupa a busca do próximo leitor.',
   buscarPlaceholder: 'Busque pelo título em qualquer idioma…',
   buscarEtiqueta: 'Buscar novels',
   statNovelas: 'novels',
@@ -488,6 +512,18 @@ const pt: Diccionario = {
   destacados: 'Destaques: manhwa + novela',
   nuevosLanzamientos: 'Novos lançamentos',
   nuevosLanzamientosSub: 'Novelas com seu manhwa (e vice-versa), recém-adicionadas.',
+  ultimosCapitulosSub: 'O que as scans acabaram de publicar, manhwa e novel.',
+  verTodos: 'Ver todos',
+  avisoIndice: 'Índice de obras: não hospedamos nem armazenamos conteúdo.',
+  portadaDe: (t) => `Capa de ${t}`,
+  capAbrev: (n) => `Cap. ${n}`,
+  seccionAdelanto: 'A novel está à frente',
+  seccionAdelantoSub: 'Onde há mais história ainda sem desenho',
+  seccionNovedades: 'Capítulos novos',
+  seccionNovedadesSub: 'O que mudou nos últimos dias',
+  seccionTitulos: 'Todos os títulos',
+  seccionTitulosSub: 'A mesma obra, com seus outros nomes',
+  catalogoSub: (n) => `${n} obras com manhwa e novel. Busque acima para ver o catálogo completo.`,
   equivalenciaComunidad:
     'A equivalência é feita pela comunidade: entre numa obra e informe qual capítulo do manhwa corresponde ao da novela.',
   aportaEquivalencia: 'Sabe a equivalência? Contribua',
@@ -571,7 +607,7 @@ const pt: Diccionario = {
   vasPorCap: (n: number) => `Você está no cap. ${n}`,
   continuarEnCapitulo: (n: number) => `Continuar no capítulo ${n}`,
 
-  seoInicio: 'Leia a novel de onde o manhwa parou',
+  seoInicio: 'Últimos capítulos de manhwa e novel, com equivalência',
   seoNovelaTitulo: (titulo: string, alterno: string) => `${titulo} (${alterno}) — Novel completa`,
   seoNovelaDesc: (titulo: string, alternos: string, n: number) =>
     `Leia ${titulo} — também conhecida como ${alternos} — completa. ${n} capítulos e a equivalência exata com o manhwa.`,
@@ -585,7 +621,7 @@ const pt: Diccionario = {
 
 const id: Diccionario = {
   sitioDescripcion:
-    'Novel ringan adaptasi manhwa, lengkap dan gratis. Kami tunjukkan bab novel yang tepat di mana manhwa-nya berhenti.',
+    'ManhwaToNovel: bab terbaru manhwa dan light novel di satu tempat, dengan padanan bab manhwa → novel dari komunitas.',
 
   navNovelas: 'Novel',
   navBiblioteca: 'Perpustakaan saya',
@@ -622,10 +658,10 @@ const id: Diccionario = {
   bannerSincronizar: 'Sinkronkan dengan Google',
   bannerInvitado: 'Lanjut sebagai tamu',
 
-  heroBadge: 'Manhwa → Novel',
-  heroTitulo: 'Lanjutkan cerita dari tempat manhwa berhenti',
+  heroBadge: 'Padanan bab dari pembaca',
+  heroTitulo: 'Dari manhwa ke novel, tanpa melewatkan satu bab',
   heroSub:
-    'Kami tunjukkan bab novel yang cocok dengan bab manhwa terakhir yang kamu baca. Tanpa mengulang, tanpa spoiler, tanpa menebak.',
+    'Bab terbaru dari setiap scan di satu tempat dan, berkat pembaca, bab novel mana yang cocok dengan tiap bab manhwa. Sudah tahu padanannya? Tambahkan: setiap kontribusi menghemat pencarian pembaca berikutnya.',
   buscarPlaceholder: 'Cari judul dalam bahasa apa pun…',
   buscarEtiqueta: 'Cari novel',
   statNovelas: 'novel',
@@ -635,6 +671,18 @@ const id: Diccionario = {
   destacados: 'Unggulan: manhwa + novel',
   nuevosLanzamientos: 'Rilisan baru',
   nuevosLanzamientosSub: 'Novel dengan manhwa-nya (dan sebaliknya), baru ditambahkan.',
+  ultimosCapitulosSub: 'Baru dirilis oleh para scan, manhwa dan novel.',
+  verTodos: 'Lihat semua',
+  avisoIndice: 'Indeks karya: kami tidak meng-host atau menyimpan konten.',
+  portadaDe: (t) => `Sampul ${t}`,
+  capAbrev: (n) => `Bab ${n}`,
+  seccionAdelanto: 'Novelnya lebih maju',
+  seccionAdelantoSub: 'Di mana cerita paling banyak belum digambar',
+  seccionNovedades: 'Bab baru',
+  seccionNovedadesSub: 'Yang berubah beberapa hari terakhir',
+  seccionTitulos: 'Semua judul',
+  seccionTitulosSub: 'Karya yang sama, dengan nama lainnya',
+  catalogoSub: (n) => `${n} judul dengan manhwa dan novel. Cari di atas untuk melihat seluruh katalog.`,
   equivalenciaComunidad:
     'Kecocokan diisi oleh komunitas: buka sebuah judul dan tambahkan bab manhwa mana yang cocok dengan bab novel.',
   aportaEquivalencia: 'Tahu kecocokannya? Tambahkan',
@@ -719,7 +767,7 @@ const id: Diccionario = {
   vasPorCap: (n: number) => `Kamu di bab ${n}`,
   continuarEnCapitulo: (n: number) => `Lanjut ke bab ${n}`,
 
-  seoInicio: 'Baca novelnya dari tempat manhwa berhenti',
+  seoInicio: 'Bab terbaru manhwa & novel, lengkap dengan padanannya',
   seoNovelaTitulo: (titulo: string, alterno: string) =>
     `${titulo} (${alterno}) — Novel lengkap online`,
   seoNovelaDesc: (titulo: string, alternos: string, n: number) =>
@@ -734,7 +782,7 @@ const id: Diccionario = {
 
 const fr: Diccionario = {
   sitioDescripcion:
-    'Light novels adaptés de manhwa, complets et gratuits. Nous vous indiquons le chapitre exact du roman où le manhwa s’est arrêté.',
+    'ManhwaToNovel : les derniers chapitres de manhwa et de light novels au même endroit, avec la correspondance manhwa → roman apportée par la communauté.',
 
   navNovelas: 'Romans',
   navBiblioteca: 'Ma bibliothèque',
@@ -771,10 +819,10 @@ const fr: Diccionario = {
   bannerSincronizar: 'Synchroniser avec Google',
   bannerInvitado: 'Continuer en invité',
 
-  heroBadge: 'Manhwa → Roman',
-  heroTitulo: 'Reprenez l’histoire là où le manhwa s’est arrêté',
+  heroBadge: 'Correspondances faites par les lecteurs',
+  heroTitulo: 'Du manhwa au roman, sans rater un chapitre',
   heroSub:
-    'Nous vous indiquons le chapitre du roman qui correspond au dernier chapitre du manhwa que vous avez lu. Sans relire, sans spoilers, sans deviner.',
+    'Les derniers chapitres de chaque scan au même endroit et, grâce aux lecteurs, le chapitre du roman qui correspond à chaque chapitre du manhwa. Vous le connaissez pour votre série ? Ajoutez-le : chaque contribution évite la recherche au lecteur suivant.',
   buscarPlaceholder: 'Chercher un titre dans n’importe quelle langue…',
   buscarEtiqueta: 'Chercher des romans',
   statNovelas: 'romans',
@@ -784,6 +832,18 @@ const fr: Diccionario = {
   destacados: 'À la une : manhwa + roman',
   nuevosLanzamientos: 'Nouveautés',
   nuevosLanzamientosSub: 'Des romans avec leur manhwa (et vice-versa), tout juste ajoutés.',
+  ultimosCapitulosSub: 'Tout juste publiés par les scans, manhwa et roman.',
+  verTodos: 'Tout voir',
+  avisoIndice: 'Index d’œuvres : nous n’hébergeons ni ne stockons aucun contenu.',
+  portadaDe: (t) => `Couverture de ${t}`,
+  capAbrev: (n) => `Ch. ${n}`,
+  seccionAdelanto: 'Le roman a de l’avance',
+  seccionAdelantoSub: 'Là où il reste le plus d’histoire à dessiner',
+  seccionNovedades: 'Nouveaux chapitres',
+  seccionNovedadesSub: 'Ce qui a bougé ces derniers jours',
+  seccionTitulos: 'Tous les titres',
+  seccionTitulosSub: 'La même œuvre, sous ses autres noms',
+  catalogoSub: (n) => `${n} œuvres avec manhwa et roman. Cherchez ci-dessus pour voir tout le catalogue.`,
   equivalenciaComunidad:
     'La correspondance vient de la communauté : ouvrez une œuvre et indiquez quel chapitre du manhwa correspond à celui du roman.',
   aportaEquivalencia: 'Vous connaissez la correspondance ? Ajoutez-la',
@@ -869,7 +929,7 @@ const fr: Diccionario = {
   vasPorCap: (n: number) => `Vous en êtes au ch. ${n}`,
   continuarEnCapitulo: (n: number) => `Reprendre au chapitre ${n}`,
 
-  seoInicio: 'Lisez le roman là où le manhwa s’est arrêté',
+  seoInicio: 'Derniers chapitres de manhwa et de roman, avec correspondance',
   seoNovelaTitulo: (titulo: string, alterno: string) =>
     `${titulo} (${alterno}) — Roman complet en ligne`,
   seoNovelaDesc: (titulo: string, alternos: string, n: number) =>
@@ -885,7 +945,7 @@ const fr: Diccionario = {
 
 const de: Diccionario = {
   sitioDescripcion:
-    'Light Novels nach Manhwa-Vorlage, vollständig und kostenlos. Wir nennen dir das Romankapitel, an dem der Manhwa aufgehört hat.',
+    'ManhwaToNovel: die neuesten Manhwa- und Light-Novel-Kapitel an einem Ort, mit Kapitel-Zuordnungen Manhwa → Roman aus der Community.',
 
   navNovelas: 'Romane',
   navBiblioteca: 'Meine Bibliothek',
@@ -922,10 +982,10 @@ const de: Diccionario = {
   bannerSincronizar: 'Mit Google synchronisieren',
   bannerInvitado: 'Als Gast fortfahren',
 
-  heroBadge: 'Manhwa → Roman',
-  heroTitulo: 'Lies weiter, wo der Manhwa aufgehört hat',
+  heroBadge: 'Zuordnungen von Lesern',
+  heroTitulo: 'Vom Manhwa zum Roman, ohne ein Kapitel zu verpassen',
   heroSub:
-    'Wir nennen dir das Romankapitel, das dem letzten von dir gelesenen Manhwa-Kapitel entspricht. Kein Nachlesen, keine Spoiler, kein Raten.',
+    'Die neuesten Kapitel jeder Scan-Gruppe an einem Ort und, dank der Leser, welches Romankapitel zu jedem Manhwa-Kapitel passt. Du kennst es für deine Serie? Trag es ein: jeder Beitrag erspart dem nächsten Leser die Suche.',
   buscarPlaceholder: 'Titel in beliebiger Sprache suchen…',
   buscarEtiqueta: 'Romane suchen',
   statNovelas: 'Romane',
@@ -935,6 +995,18 @@ const de: Diccionario = {
   destacados: 'Empfohlen: Manhwa + Novel',
   nuevosLanzamientos: 'Neuerscheinungen',
   nuevosLanzamientosSub: 'Novels mit ihrem Manhwa (und umgekehrt), neu hinzugefügt.',
+  ultimosCapitulosSub: 'Gerade von den Scans veröffentlicht, Manhwa und Roman.',
+  verTodos: 'Alle ansehen',
+  avisoIndice: 'Werkverzeichnis: Wir hosten oder speichern keine Inhalte.',
+  portadaDe: (t) => `Cover von ${t}`,
+  capAbrev: (n) => `Kap. ${n}`,
+  seccionAdelanto: 'Der Roman ist voraus',
+  seccionAdelantoSub: 'Wo die meiste Geschichte noch nicht gezeichnet ist',
+  seccionNovedades: 'Neue Kapitel',
+  seccionNovedadesSub: 'Was sich in den letzten Tagen bewegt hat',
+  seccionTitulos: 'Alle Titel',
+  seccionTitulosSub: 'Dasselbe Werk, mit seinen anderen Namen',
+  catalogoSub: (n) => `${n} Werke mit Manhwa und Roman. Oben suchen, um den ganzen Katalog zu sehen.`,
   equivalenciaComunidad:
     'Die Zuordnung kommt von der Community: Öffne ein Werk und trage ein, welches Manhwa-Kapitel welchem Novel-Kapitel entspricht.',
   aportaEquivalencia: 'Kennst du die Zuordnung? Trag sie ein',
@@ -1020,7 +1092,7 @@ const de: Diccionario = {
   vasPorCap: (n: number) => `Du bist bei Kap. ${n}`,
   continuarEnCapitulo: (n: number) => `Weiter bei Kapitel ${n}`,
 
-  seoInicio: 'Lies den Roman dort, wo der Manhwa aufgehört hat',
+  seoInicio: 'Neueste Manhwa- und Romankapitel, zugeordnet',
   seoNovelaTitulo: (titulo: string, alterno: string) =>
     `${titulo} (${alterno}) — Kompletter Roman online`,
   seoNovelaDesc: (titulo: string, alternos: string, n: number) =>
@@ -1035,7 +1107,7 @@ const de: Diccionario = {
 
 const vi: Diccionario = {
   sitioDescripcion:
-    'Light novel chuyển thể từ manhwa, đầy đủ và miễn phí. Chúng tôi chỉ cho bạn đúng chương tiểu thuyết nơi manhwa dừng lại.',
+    'ManhwaToNovel: chương mới nhất của manhwa và light novel ở một nơi, kèm tương ứng chương manhwa → tiểu thuyết do cộng đồng đóng góp.',
 
   navNovelas: 'Tiểu thuyết',
   navBiblioteca: 'Thư viện của tôi',
@@ -1072,10 +1144,10 @@ const vi: Diccionario = {
   bannerSincronizar: 'Đồng bộ với Google',
   bannerInvitado: 'Tiếp tục với tư cách khách',
 
-  heroBadge: 'Manhwa → Tiểu thuyết',
-  heroTitulo: 'Đọc tiếp từ nơi manhwa dừng lại',
+  heroBadge: 'Tương ứng chương do độc giả làm',
+  heroTitulo: 'Từ manhwa sang tiểu thuyết, không bỏ lỡ chương nào',
   heroSub:
-    'Chúng tôi chỉ ra chương tiểu thuyết tương ứng với chương manhwa cuối bạn đã đọc. Không đọc lại, không spoil, không đoán mò.',
+    'Chương mới nhất của mọi nhóm dịch ở một nơi và, nhờ độc giả, chương tiểu thuyết nào tương ứng với từng chương manhwa. Bạn biết cho bộ của mình? Hãy đóng góp: mỗi đóng góp giúp người đọc sau khỏi phải tìm.',
   buscarPlaceholder: 'Tìm theo tên bằng bất kỳ ngôn ngữ nào…',
   buscarEtiqueta: 'Tìm tiểu thuyết',
   statNovelas: 'tiểu thuyết',
@@ -1085,6 +1157,18 @@ const vi: Diccionario = {
   destacados: 'Nổi bật: manhwa + tiểu thuyết',
   nuevosLanzamientos: 'Mới ra mắt',
   nuevosLanzamientosSub: 'Tiểu thuyết cùng manhwa của nó (và ngược lại), vừa được thêm.',
+  ultimosCapitulosSub: 'Vừa được các nhóm dịch đăng, manhwa và tiểu thuyết.',
+  verTodos: 'Xem tất cả',
+  avisoIndice: 'Chỉ mục truyện: chúng tôi không lưu trữ nội dung.',
+  portadaDe: (t) => `Bìa ${t}`,
+  capAbrev: (n) => `Ch. ${n}`,
+  seccionAdelanto: 'Tiểu thuyết đi trước',
+  seccionAdelantoSub: 'Nơi còn nhiều truyện nhất chưa được vẽ',
+  seccionNovedades: 'Chương mới',
+  seccionNovedadesSub: 'Những gì thay đổi mấy ngày qua',
+  seccionTitulos: 'Tất cả tên truyện',
+  seccionTitulosSub: 'Cùng một bộ, với các tên khác',
+  catalogoSub: (n) => `${n} bộ có cả manhwa và tiểu thuyết. Tìm ở trên để xem toàn bộ danh mục.`,
   equivalenciaComunidad:
     'Sự tương ứng do cộng đồng đóng góp: mở một tác phẩm và cho biết chương manhwa nào khớp với chương tiểu thuyết.',
   aportaEquivalencia: 'Biết sự tương ứng? Đóng góp',
@@ -1170,7 +1254,7 @@ const vi: Diccionario = {
   vasPorCap: (n: number) => `Bạn đang ở ch. ${n}`,
   continuarEnCapitulo: (n: number) => `Đọc tiếp chương ${n}`,
 
-  seoInicio: 'Đọc tiểu thuyết từ nơi manhwa dừng lại',
+  seoInicio: 'Chương mới nhất của manhwa và tiểu thuyết, kèm tương ứng',
   seoNovelaTitulo: (titulo: string, alterno: string) =>
     `${titulo} (${alterno}) — Tiểu thuyết đầy đủ online`,
   seoNovelaDesc: (titulo: string, alternos: string, n: number) =>

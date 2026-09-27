@@ -81,6 +81,10 @@ export async function fusionar(db, dst, src, { seco = false } = {}) {
     const r = await db.from(t).update({ [col]: dst }).eq(col, src);
     if (r.error) throw new Error(`${t}: ${r.error.message}`);
   }
+  // El slug que desaparece sigue en Google (y en enlaces de fuera): se guarda
+  // para que el middleware lo mande con 301 a `dst` en vez de dar 404. Se
+  // heredan también los que `src` ya arrastraba de fusiones anteriores.
+  campos.slugs_antiguos = [...new Set([...(oDst.slugs_antiguos ?? []), src, ...(oSrc.slugs_antiguos ?? [])])];
   const r1 = await db.from('obras').update(campos).eq('slug', dst);
   if (r1.error) throw new Error(`obras dst: ${r1.error.message}`);
   const r2 = await db.from('obras').delete().eq('slug', src);

@@ -51,7 +51,7 @@ const GENEROS: Genero[] = [
   { es: 'Videojuegos', en: 'Game', alias: ['games', 'video games'] },
   { es: 'Chicas mágicas', en: 'Magical Girls', alias: ['mahou shoujo'] },
   { es: 'Cambio de género', en: 'Gender Bender' },
-  { es: 'Isekai', en: 'Isekai' },
+  { es: 'Isekai', en: 'Isekai', alias: ['transported to another world', 'another world', 'otro mundo'] },
   { es: 'Harem', en: 'Harem' },
   { es: 'Ecchi', en: 'Ecchi' },
   { es: 'Seinen', en: 'Seinen' },
@@ -60,8 +60,24 @@ const GENEROS: Genero[] = [
   { es: 'Josei', en: 'Josei' },
   { es: 'Wuxia', en: 'Wuxia' },
   { es: 'Murim', en: 'Murim' },
-  { es: 'Regresión', en: 'Regression' },
-  { es: 'Reencarnación', en: 'Reincarnation' },
+  { es: 'Regresión', en: 'Regression', alias: ['regressor', 'returner', 'regresion'] },
+  { es: 'Reencarnación', en: 'Reincarnation', alias: ['reincarnated', 'rebirth', 'renacimiento'] },
+  { es: 'Viaje en el tiempo', en: 'Time Travel', alias: ['time manipulation'] },
+  { es: 'Magia', en: 'Magic', alias: ['magic school', 'mages'] },
+  { es: 'Cultivo', en: 'Cultivation', alias: ['xianxia', 'xuanhuan'] },
+  { es: 'Sistema', en: 'System', alias: ['game system', 'status window', 'game elements'] },
+  { es: 'Mazmorras', en: 'Dungeon', alias: ['dungeons'] },
+  { es: 'Supervivencia', en: 'Survival' },
+  { es: 'Postapocalíptico', en: 'Post-Apocalyptic', alias: ['apocalypse', 'apocalyptic', 'post apocalyptic'] },
+  { es: 'Monstruos', en: 'Monsters', alias: ['monster', 'monster girls'] },
+  { es: 'Villana', en: 'Villainess' },
+  { es: 'Nobleza', en: 'Nobility', alias: ['aristocracy', 'royalty', 'realeza'] },
+  { es: 'Academia', en: 'Academy' },
+  { es: 'Militar', en: 'Military' },
+  { es: 'Cocina', en: 'Cooking', alias: ['gourmet'] },
+  { es: 'Vampiros', en: 'Vampire', alias: ['vampires'] },
+  { es: 'Zombis', en: 'Zombie', alias: ['zombies'] },
+  { es: 'Protagonista OP', en: 'Overpowered MC', alias: ['op mc', 'overpowered protagonist', 'overpowered main character'] },
   { es: 'Venganza', en: 'Revenge' },
   { es: 'Torres', en: 'Tower' },
   { es: 'Demonios', en: 'Demons', alias: ['demon'] },
@@ -130,6 +146,28 @@ export function generosEn(categorias: string[], idioma: string = 'es'): string[]
     salida.push(nombreGenero(c, idioma));
   }
   return salida;
+}
+
+/** ¿Está en la tabla? Filtra los tags de AniList/MangaUpdates/MAL, que son
+ *  cientos («Male Protagonist», «Full Color»…): solo entran los que son género. */
+export const esGeneroConocido = (c: string) => buscar(c) !== undefined;
+
+/**
+ * Une los géneros de varias fuentes (scans, AniList, MangaUpdates, MAL…) sin
+ * repetir: «Action», «Acción» y «action» son uno. Gana la primera grafía, así
+ * que lo que la obra ya tenía va primero. `tope` evita fichas con 30 etiquetas.
+ */
+export function fusionarGeneros(listas: (string[] | null | undefined)[], tope = 15): string[] {
+  const vistos = new Set<string>();
+  const salida: string[] = [];
+  for (const c of listas.flat()) {
+    if (!c?.trim()) continue;
+    const clave = claveGenero(c);
+    if (vistos.has(clave)) continue;
+    vistos.add(clave);
+    salida.push(c.trim());
+  }
+  return salida.slice(0, tope);
 }
 
 /**

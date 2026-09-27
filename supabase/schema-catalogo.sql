@@ -98,6 +98,11 @@ create index if not exists fuentes_obra_idx on public.fuentes (obra_slug);
 alter table public.obras add column if not exists enriquecida boolean not null default false;
 alter table public.obras add column if not exists metadatos_fuente text;
 create index if not exists obras_enriquecida_idx on public.obras (enriquecida);
+-- Slugs de fichas absorbidas por scripts/fusionar.mjs. El middleware los manda
+-- con 301 a esta obra (vía /redirecciones.json) en vez de dejarlos en 404.
+alter table public.obras add column if not exists slugs_antiguos text[] not null default '{}';
+-- Ya se le fusionaron los géneros de TODAS las bases de fichas (enriquecer.mjs --categorias).
+alter table public.obras add column if not exists categorias_fusionadas boolean not null default false;
 
 -- ── 6. Equivalencias manhwa↔novela aportadas por la comunidad ─────────────────
 -- El admin pone las oficiales en `equivalencias` y esas MANDAN. Estas las aporta

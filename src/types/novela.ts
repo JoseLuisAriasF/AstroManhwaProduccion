@@ -29,6 +29,8 @@ export interface Novela {
   categorias: string[];
   /** Cuándo se descubrió la obra. Para ordenar "nuevos lanzamientos". */
   creadaEn?: string;
+  /** Slugs de fichas fusionadas en esta (ver scripts/fusionar.mjs): 301 hacia aquí. */
+  slugsAntiguos?: string[];
 }
 
 export interface EquivalenciaManhwa {

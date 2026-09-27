@@ -51,6 +51,24 @@ export function reparar(pathname: string): string | null {
   return null;
 }
 
+/**
+ * Fichas absorbidas por `scripts/fusionar.mjs`: { slugViejo: slugNuevo }. Se baja
+ * una vez por isolate y solo cuando hay un 404. Si falla, vacío: el 404 sigue
+ * siendo 404, que es lo que había antes.
+ */
+let fusiones: Promise<Record<string, string>> | null = null;
+const mapaFusiones = (origen: string) =>
+  (fusiones ??= fetch(new URL('/redirecciones.json', origen).toString())
+    .then((r) => (r.ok ? r.json() : {}))
+    .catch(() => ({})));
+
+/** `/novela/<viejo>/…` → `/novela/<nuevo>/…` si `<viejo>` se fusionó en otra ficha. */
+export function rutaFusionada(pathname: string, mapa: Record<string, string>): string | null {
+  const m = /^(\/(?:[a-z]{2}\/)?novela\/)([^/]+)(\/.*)?$/.exec(pathname);
+  const nuevo = m && mapa[m[2]];
+  return nuevo ? `${m[1]}${nuevo}${m[3] ?? '/'}` : null;
+}
+
 export const onRequest = async (context: {
   request: Request;
   next: () => Promise<Response>;
@@ -103,7 +121,14 @@ export const onRequest = async (context: {
 
   const res = await context.next();
   if (res.status !== 404 || context.request.method !== 'GET') return res;
-  const destino = reparar(url.pathname);
-  return destino ? Response.redirect(new URL(destino + url.search, url).toString(), 301) : res;
+  const reparada = reparar(url.pathname) ?? url.pathname;
+  const destino = rutaFusionada(reparada, await mapaFusiones(url.origin)) ?? (reparada !== url.pathname ? reparada : null);
+  if (!destino) return res;
+  // Solo se redirige a lo que EXISTE, y al final de la cadena. Search Console
+  // listaba 301 → 404 (una ficha fusionada, un género adulto que no se publica):
+  // Google lo cuenta como 404 y además gasta dos rastreos en averiguarlo.
+  const prueba = await fetch(new URL(destino + url.search, url).toString(), { redirect: 'follow' });
+  await prueba.body?.cancel();
+  return prueba.ok && prueba.url !== url.toString() ? Response.redirect(prueba.url, 301) : res;
 };
 

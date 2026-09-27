@@ -3,7 +3,16 @@ import Base from '@/layouts/Base.astro';
 import NovelaCard from '@/components/NovelaCard.astro';
 import Carrusel from '@/components/Carrusel.astro';
 import SyncExplanationBanner from '@/components/SyncExplanationBanner.astro';
-import { formatos, getCapitulos, getCapitulosExternos, getEquivalenciasCombinadas, getNovelas } from '@/lib/api';
+import UltimosCapitulos, { type ItemUltimo } from '@/components/UltimosCapitulos.astro';
+import {
+  formatos,
+  fuentesDe,
+  getActividad,
+  getCapitulos,
+  getCapitulosExternos,
+  getEquivalenciasCombinadas,
+  getNovelas,
+} from '@/lib/api';
 import { IDIOMA_BASE, idiomaDeRuta, ruta, t } from '@/lib/i18n';
 import { idiomasDeObra, paramsDeIdioma } from '@/lib/publicables';
 
@@ -81,6 +90,42 @@ const nuevos = [...conTotales]
   .sort((a, b) => (a.novela.creadaEn! < b.novela.creadaEn! ? 1 : -1))
   .slice(0, 12);
 
+// Últimos capítulos (estilo Olympus): las obras que acaban de crecer, con sus
+// dos capítulos más nuevos. Las fuentes link-out (Olympus) traen el total en
+// una sola fila, así que sus dos «capítulos» enlazan a la ficha, que es donde
+// está el enlace a la serie. Sin portada no entran: una rejilla de carteles
+// vacíos espanta más de lo que informa (siguen en /novedades).
+const porSlug = new Map(conTotales.map((o) => [o.novela.slug, o]));
+const ultimos: ItemUltimo[] = [];
+for (const a of await getActividad()) {
+  if (ultimos.length >= 18) break;
+  const o = porSlug.get(a.slug);
+  if (!o || o.novela.portadaUrl.includes('sin-portada')) continue;
+  const fuentes = fuentesDe(await getCapitulosExternos(a.slug));
+  const listados = [
+    ...new Set(fuentes.filter((f) => !f.soloEnlace).flatMap((f) => f.capitulos.map((c) => c.numero ?? 0))),
+  ]
+    .filter((n) => n > 0)
+    .sort((x, y) => y - x)
+    .slice(0, 2);
+  const ficha = fichaHref(o.novela);
+  const tope = Math.max(0, ...fuentes.map((f) => f.ultimo));
+  const capitulos = listados.length
+    ? listados.map((n) => ({ numero: n, href: ruta(IDIOMA_BASE, `/novela/${a.slug}/capitulo-${n}`) }))
+    : [tope, tope - 1].filter((n) => n > 0).map((n) => ({ numero: n, href: ficha }));
+  if (!capitulos.length) continue;
+  ultimos.push({
+    slug: a.slug,
+    titulo: o.novela.titulo,
+    portada: o.novela.portadaUrl,
+    portadas: o.novela.portadas ?? [],
+    href: ficha,
+    formatos: o.formatos.length ? o.formatos : [o.novela.tipo === 'novela' ? 'novela' : 'manhwa'],
+    cuando: a.cuando,
+    capitulos,
+  });
+}
+
 const jsonLd = {
   '@context': 'https://schema.org',
   '@type': 'CollectionPage',
@@ -113,14 +158,10 @@ const jsonLd = {
     [data-colapsable="6"]:not([data-expandido]) > :nth-child(n + 7) { display: none; }
     [data-colapsable="4"]:not([data-expandido]) > :nth-child(n + 5) { display: none; }
   </style>
-  {/* Carrusel como PORTADA: lo primero que se ve, en grande. El texto de héroe
-      va debajo. */}
-  <div id="destacados" class="mb-8">
-    <Carrusel items={carrusel} titulo={dic.destacados} />
-  </div>
-
-  <!-- Hero -->
-  <section class="relative text-center py-10 sm:py-16 overflow-hidden">
+  {/* Hero compacto: el eslogan (h1, con la marca para quien busca
+      «manhwatonovel») y el buscador. Corto a propósito: en móvil los últimos
+      capítulos tienen que asomar sin hacer scroll. */}
+  <section class="relative text-center pt-4 pb-8 sm:pt-8 sm:pb-10 overflow-hidden">
     <div
       aria-hidden="true"
       class="pointer-events-none absolute inset-x-0 -top-24 h-72 opacity-60 blur-3xl
@@ -134,13 +175,13 @@ const jsonLd = {
         {dic.heroBadge}
       </span>
       <h1
-        class="mt-5 text-4xl sm:text-6xl font-bold tracking-tight text-base-800 dark:text-base-50 text-balance leading-[1.05]"
+        class="mt-4 text-3xl sm:text-5xl font-bold tracking-tight text-base-800 dark:text-base-50 text-balance leading-[1.1]"
       >
-        {dic.heroTitulo}
+        <span class="sr-only">ManhwaToNovel: </span>{dic.heroTitulo}
       </h1>
-      <p class="mt-5 text-base-500 max-w-xl mx-auto text-pretty">{dic.heroSub}</p>
+      <p class="mt-4 text-sm sm:text-base text-base-500 max-w-2xl mx-auto text-pretty">{dic.heroSub}</p>
 
-      <div class="mt-8 max-w-lg mx-auto">
+      <div class="mt-6 max-w-lg mx-auto">
         <label class="neu-inset rounded-2xl flex items-center gap-3 px-4 py-3.5">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" class="size-5 text-base-400 shrink-0">
             <circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" stroke-linecap="round" />
@@ -156,7 +197,7 @@ const jsonLd = {
         </label>
       </div>
 
-      <dl class="mt-8 flex justify-center gap-3 flex-wrap text-sm">
+      <dl class="mt-6 flex justify-center gap-3 flex-wrap text-sm">
         {
           (
             [
@@ -178,6 +219,23 @@ const jsonLd = {
     </div>
   </section>
 
+  {ultimos.length > 0 && (
+    <section id="ultimos" class="mb-10" aria-labelledby="titulo-ultimos">
+      <div class="flex items-end justify-between gap-4 mb-4">
+        <div>
+          <h2 id="titulo-ultimos" class="font-semibold text-lg text-base-800 dark:text-base-100">{dic.ultimosCapitulos}</h2>
+          <p class="text-sm text-base-500">{dic.ultimosCapitulosSub}</p>
+        </div>
+        <a
+          href={ruta(IDIOMA_BASE, '/novedades')}
+          hreflang="es"
+          class="shrink-0 neu-sm neu-press rounded-xl px-3 py-2 text-sm font-medium text-acento-500"
+        >{dic.verTodos} →</a>
+      </div>
+      <UltimosCapitulos items={ultimos} idioma={idioma} />
+    </section>
+  )}
+
   <!-- Continuar leyendo (solo si hay progreso guardado) -->
   <section id="continuar" hidden class="mb-10">
     <h2 class="font-semibold text-base-800 dark:text-base-100 mb-4">{dic.continuarLeyendo}</h2>
@@ -193,6 +251,10 @@ const jsonLd = {
   </section>
 
   <div class="mb-10"><SyncExplanationBanner /></div>
+
+  <div id="destacados" class="mb-10">
+    <Carrusel items={carrusel} titulo={dic.destacados} />
+  </div>
 
   {nuevos.length > 0 && (
     <section id="nuevos" class="mb-10">
@@ -221,21 +283,9 @@ const jsonLd = {
       página nueva enlazada solo desde el pie tarda meses en despegar. */}
   <nav class="mb-10 grid grid-cols-1 sm:grid-cols-3 gap-3" aria-label="Secciones">
     {[
-      {
-        href: ruta(IDIOMA_BASE, '/rankings'),
-        titulo: 'La novela va por delante',
-        sub: 'Dónde queda más historia sin dibujar',
-      },
-      {
-        href: ruta(IDIOMA_BASE, '/novedades'),
-        titulo: 'Capítulos nuevos',
-        sub: 'Lo que se movió en los últimos días',
-      },
-      {
-        href: ruta(IDIOMA_BASE, '/titulos/a'),
-        titulo: 'Todos los títulos',
-        sub: 'La misma obra, con sus otros nombres',
-      },
+      { href: ruta(IDIOMA_BASE, '/rankings'), titulo: dic.seccionAdelanto, sub: dic.seccionAdelantoSub },
+      { href: ruta(IDIOMA_BASE, '/novedades'), titulo: dic.seccionNovedades, sub: dic.seccionNovedadesSub },
+      { href: ruta(IDIOMA_BASE, '/titulos/a'), titulo: dic.seccionTitulos, sub: dic.seccionTitulosSub },
     ].map((x) => (
       <a
         href={x.href}
@@ -254,12 +304,23 @@ const jsonLd = {
       {dic.catalogo}
     </h2>
     <p class="mt-1 mb-4 text-sm text-base-500" data-sub>
-      {destacadas.length} obras con <strong class="text-acento-500">manhwa y novela</strong>. Busca arriba para ver todo el catálogo.
+      {dic.catalogoSub(destacadas.length)}
     </p>
-    <div id="destacadas" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-      {destacadas.map(({ novela, total, ultimos, formatos }) => (
-        <NovelaCard novela={novela} totalCapitulos={total} ultimos={ultimos} formatos={formatos} />
-      ))}
+    {/* 60, no las ~560: pintarlas todas eran 1,2 MB de HTML en la página más
+        visitada (lento en móvil y peor para los anuncios, que cargan después).
+        El resto está en /novelas y en el buscador. */}
+    <div id="destacadas">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {destacadas.slice(0, 60).map(({ novela, total, ultimos, formatos }) => (
+          <NovelaCard novela={novela} totalCapitulos={total} ultimos={ultimos} formatos={formatos} />
+        ))}
+      </div>
+      {destacadas.length > 60 && (
+        <a
+          href={ruta(idioma, '/novelas')}
+          class="mt-6 mx-auto block w-fit neu-sm neu-press rounded-xl px-5 py-2.5 text-sm font-medium text-acento-500"
+        >{dic.verTodos} ({destacadas.length}) →</a>
+      )}
     </div>
     <div id="resultados" hidden class="grid grid-cols-1 sm:grid-cols-2 gap-4"></div>
     <p id="sin-resultados" hidden class="neu-inset rounded-2xl p-8 text-center text-base-500 mt-2">
@@ -407,7 +468,7 @@ const jsonLd = {
   const sub = document.querySelector<HTMLElement>('[data-sub]');
   const vacio = document.getElementById('sin-resultados') as HTMLElement;
   const titulo = document.getElementById('titulo-catalogo') as HTMLElement;
-  const secciones = ['continuar', 'destacados', 'nuevos']
+  const secciones = ['ultimos', 'continuar', 'destacados', 'nuevos']
     .map((id) => document.getElementById(id))
     .filter((s): s is HTMLElement => s !== null);
   const visiblePrevio = new Map(secciones.map((s) => [s, !s.hidden]));

@@ -209,13 +209,19 @@ const PINTEREST =
             '@type': 'Organization',
             '@id': new URL('/#organizacion', Astro.site).toString(),
             name: SITIO,
+            alternateName: 'Manhwa To Novel',
             url: new URL('/', Astro.site).toString(),
-            logo: new URL('/og-default.png', Astro.site).toString(),
+            logo: new URL('/icono-512.png', Astro.site).toString(),
           },
           {
             '@type': 'WebSite',
             '@id': new URL('/#sitio', Astro.site).toString(),
             name: SITIO,
+            // Las grafías con que se busca la marca. Google las usa para el
+            // «nombre del sitio» y para entender que «manhwatonovel» (una
+            // palabra, sin espacios) es ESTE sitio y no una errata de «manhwa
+            // to novel», que le da resultados genéricos.
+            alternateName: ['Manhwa To Novel', 'manhwatonovel', 'manhwatonovel.com'],
             url: new URL('/', Astro.site).toString(),
             inLanguage: meta.htmlLang,
             publisher: { '@id': new URL('/#organizacion', Astro.site).toString() },

@@ -82,10 +82,25 @@ async function subirNube(p: UserProgress) {
 async function sincronizar(uid: string) {
   if (!supabase) return;
   userId = uid;
+  // Una vez por sesión del navegador, no en cada página: `onAuthStateChange`
+  // salta en CADA carga, y esto hacía 1 lectura + 1 escritura por obra guardada
+  // en cada página vista (un lector con 20 obras = 21 peticiones por clic).
+  const marca = `mtn:sync:${uid}`;
+  try {
+    if (sessionStorage.getItem(marca)) return;
+    sessionStorage.setItem(marca, '1');
+  } catch {
+    /* sin sessionStorage (modo privado estricto): se sincroniza igual */
+  }
   const { data } = await supabase.from('progreso').select('*').eq('user_id', uid);
 
+  const enNube = new Map<string, string>();
   for (const fila of data ?? []) {
     const local = cache[fila.novela_slug];
+    enNube.set(
+      fila.novela_slug,
+      JSON.stringify([[...(fila.capitulos_leidos ?? [])].sort((a: number, b: number) => a - b), Boolean(fila.es_favorito)]),
+    );
     cache[fila.novela_slug] = {
       userId: uid,
       novelaSlug: fila.novela_slug,
@@ -97,8 +112,12 @@ async function sincronizar(uid: string) {
   }
   guardarLocal();
 
-  // Empuja todo de vuelta (incluye lo que solo existía en este dispositivo).
-  for (const p of Object.values(cache)) await subirNube(p);
+  // Empuja de vuelta SOLO lo que la nube no tiene igual (lo que se leyó en este
+  // dispositivo sin sesión). Antes se reescribía todo, cambiara o no.
+  for (const p of Object.values(cache)) {
+    const actual = JSON.stringify([[...p.capitulosLeidos].sort((a, b) => a - b), Boolean(p.esFavorito)]);
+    if (enNube.get(p.novelaSlug) !== actual) await subirNube(p);
+  }
   window.dispatchEvent(new CustomEvent('progress:synced'));
 }
 

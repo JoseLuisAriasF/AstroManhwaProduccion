@@ -8,6 +8,9 @@
  *   node ... scripts/enriquecer.mjs --max=2000 --obra=slug
  *   node ... scripts/enriquecer.mjs --reintentar   # las que quedaron sin match
  *   node ... scripts/enriquecer.mjs --nivel-a      # obras A sin sinopsis o con portada muerta
+ *   node ... scripts/enriquecer.mjs --sin-portada  # TODAS las obras cuya portada no carga
+ *   node ... scripts/enriquecer.mjs --demografia   # Shounen/Seinen/… deducido de los géneros, sin red
+ *   node ... scripts/enriquecer.mjs --categorias   # fusiona los géneros de TODAS las bases (Isekai, Murim…)
  *
  * La coincidencia es conservadora (igual que emparejar): se acepta un resultado
  * solo si alguno de SUS títulos normalizados coincide con el de la obra o con
@@ -24,6 +27,7 @@ import { clavesDe, normalizar } from './emparejar.mjs';
 import { espera } from './plataformas.mjs';
 import { limpiarSinopsis } from '../src/lib/sinopsis.ts';
 import { esRetirada } from '../src/lib/dmca.ts';
+import { claveGenero, esGeneroConocido, fusionarGeneros } from '../src/lib/generos.ts';
 
 const args = Object.fromEntries(
   process.argv.slice(2).map((a) => {
@@ -65,6 +69,42 @@ async function fetchJson(url, opts = {}) {
   return r.json();
 }
 
+/**
+ * Demografía (Shounen, Seinen, Shoujo, Josei): es la categoría por la que más se
+ * navega en los sitios de manhwa y casi ninguna scan la pone. AniList la trae en
+ * `tags`, MangaUpdates en `genres` y MAL en `demographics`.
+ */
+const DEMOGRAFIAS = ['Shounen', 'Seinen', 'Shoujo', 'Josei'];
+const letras = (e) =>
+  String(e ?? '')
+    .toLowerCase()
+    .replace(/[^a-z]/g, '')
+    .replace(/^shonen$/, 'shounen')
+    .replace(/^shojo$/, 'shoujo');
+export const demografiaDe = (etiquetas = []) =>
+  DEMOGRAFIAS.find((d) => etiquetas.some((e) => letras(e) === d.toLowerCase())) ?? null;
+
+/**
+ * Cuando ninguna base la da: se deduce de los géneros que ya tiene la obra.
+ * ponytail: heurística por géneros, acierta lo típico (acción → shounen,
+ * romance sin acción → shoujo, adulto → seinen); si una obra sale mal
+ * etiquetada, la corrige el admin o el enriquecido con datos de AniList.
+ */
+const ADULTOS = new Set(['adulto', 'smut', 'hentai', 'erotico', 'maduro', 'ecchi', 'harem', 'psicologico', 'terror']);
+const ACCION = new Set([
+  'accion', 'artes-marciales', 'aventura', 'fantasia', 'murim', 'wuxia', 'regresion', 'torres',
+  'videojuegos', 'deportes', 'superheroes', 'mecha', 'isekai', 'reencarnacion', 'demonios', 'venganza',
+]);
+const ROMANCE = new Set(['romance', 'drama', 'recuentos-de-la-vida', 'vida-escolar', 'historico']);
+export function demografiaPorGeneros(categorias = []) {
+  const claves = categorias.map(claveGenero);
+  const hay = (set) => claves.some((c) => set.has(c));
+  if (hay(ADULTOS)) return 'Seinen';
+  if (hay(ACCION)) return 'Shounen';
+  if (hay(ROMANCE)) return 'Shoujo';
+  return null;
+}
+
 // Cada fuente: (query) → { titulos[], sinopsis, generos[], estado, portada? } | null.
 // `portada` sale de las bases que la sirven sin bloquear el hotlinking (su CDN
 // la entrega a nuestro proxy de /portada/): AniList, MangaUpdates y MAL.
@@ -75,7 +115,7 @@ const FUENTES = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         query:
-          'query($s:String){Media(search:$s,type:MANGA){title{romaji english native} synonyms genres status description(asHtml:false) coverImage{extraLarge}}}',
+          'query($s:String){Media(search:$s,type:MANGA){title{romaji english native} synonyms genres tags{name rank isMediaSpoiler} status description(asHtml:false) coverImage{extraLarge}}}',
         variables: { s: q },
       }),
     });
@@ -85,6 +125,8 @@ const FUENTES = {
       titulos: [m.title?.romaji, m.title?.english, m.title?.native, ...(m.synonyms ?? [])].filter(Boolean),
       sinopsis: limpiarHtml(m.description),
       generos: m.genres ?? [],
+      etiquetas: (m.tags ?? []).filter((t) => !t.isMediaSpoiler && t.rank >= 60).map((t) => t.name),
+      demografia: demografiaDe((m.tags ?? []).map((t) => t.name)),
       estado: estadoDe(m.status),
       portada: m.coverImage?.extraLarge ?? null,
     };
@@ -103,6 +145,12 @@ const FUENTES = {
       titulos: [r.title, ...(r.associated ?? []).map((a) => a.title)].filter(Boolean),
       sinopsis: limpiarHtml(r.description),
       generos: (r.genres ?? []).map((g) => g.genre).filter(Boolean),
+      etiquetas: (r.categories ?? [])
+        .filter((c) => c.votes > 0)
+        .sort((a, b) => b.votes - a.votes)
+        .slice(0, 25)
+        .map((c) => c.category),
+      demografia: demografiaDe((r.genres ?? []).map((g) => g.genre)),
       estado: estadoDe(r.status),
       portada: r.image?.url?.original ?? null,
     };
@@ -132,11 +180,17 @@ const FUENTES = {
       titulos: [m.title, ...(m.titles ?? []).map((t) => t.title)].filter(Boolean),
       sinopsis: limpiarHtml(m.synopsis),
       generos: (m.genres ?? []).map((g) => g.name).filter(Boolean),
+      etiquetas: (m.themes ?? []).map((g) => g.name),
+      demografia: demografiaDe((m.demographics ?? []).map((g) => g.name)),
       estado: estadoDe(m.status),
       portada: m.images?.jpg?.large_image_url ?? null,
     };
   },
 };
+
+/** Los géneros de un resultado: los suyos + los tags/temas que son género de
+ *  verdad (esGeneroConocido). «Male Protagonist» o «Full Color» no entran. */
+export const generosDe = (res) => [...(res?.generos ?? []), ...(res?.etiquetas ?? []).filter(esGeneroConocido)];
 
 // Orden de la cascada: primero las más fiables. Se para en el primer match.
 const ORDEN = ['anilist', 'mangaupdates', 'mangabaka', 'mal'];
@@ -192,7 +246,7 @@ async function aIngles(texto) {
  * no las 4. Consultarlas todas costaba ~5× y hacía que el workflow nocturno se
  * pasara del límite de tiempo. Con esto vuelve a caber.
  */
-export async function enriquecerObra(obra) {
+export async function enriquecerObra(obra, { todas = false } = {}) {
   const nombres = [obra.titulo, ...(obra.titulos_alternativos ?? [])].filter(Boolean);
 
   /** Consulta las bases: PARA en la primera que casa (sinopsis/géneros/estado) y
@@ -201,6 +255,10 @@ export async function enriquecerObra(obra) {
   const barrer = async (query, extra = []) => {
     const validos = [...nombres, ...extra];
     let base = null;
+    // Con `todas`, no se para en la primera: cada base que casa suma sus
+    // géneros, títulos y demografía. La sinopsis/portada siguen siendo de la
+    // primera (la más fiable).
+    const suma = { generos: [], titulos: [], demografia: null, fuentes: [] };
     for (const fuente of ORDEN) {
       let res;
       try {
@@ -210,16 +268,28 @@ export async function enriquecerObra(obra) {
       }
       await espera(CORTESIA[fuente]);
       if (res && casa(validos, res)) {
-        base = { fuente, ...res };
-        break;
+        base ??= { fuente, ...res };
+        suma.generos.push(...generosDe(res));
+        suma.titulos.push(...res.titulos);
+        suma.demografia ??= res.demografia ?? null;
+        suma.fuentes.push(fuente);
+        if (!todas) break;
       }
     }
     if (!base) return null;
+    base = {
+      ...base,
+      generos: fusionarGeneros([suma.generos], 30),
+      etiquetas: [],
+      titulos: [...new Set(suma.titulos)],
+      demografia: base.demografia ?? suma.demografia,
+      fuente: suma.fuentes.join('+'),
+    };
 
     // MangaBaka trae los nombres en más idiomas; se suma para el match cruzado.
     // Si ya fue la base, no se repite.
     const titulos = new Set(base.titulos);
-    if (base.fuente !== 'mangabaka') {
+    if (!base.fuente.includes('mangabaka')) {
       try {
         const mb = await FUENTES.mangabaka(query);
         await espera(CORTESIA.mangabaka);
@@ -249,11 +319,28 @@ export const PORTADA_MUERTA = /imageshack|mangadex/i;
  *  buenos (una portada en un host muerto no cuenta como dato). */
 export function parcheDe(obra, res) {
   const parche = { enriquecida: true };
-  if (!res) return parche;
+  // La demografía se añade SIEMPRE que falte (aunque la obra ya tenga géneros):
+  // primero la de la base de fichas, si no la deducida de sus géneros.
+  const conDemografia = (cats) => {
+    if (demografiaDe(cats)) return null;
+    const d = res?.demografia ?? demografiaPorGeneros(cats);
+    return d ? [...cats, d] : null;
+  };
+  if (!res) {
+    const cats = conDemografia(obra.categorias ?? []);
+    if (cats) parche.categorias = cats;
+    return parche;
+  }
   parche.metadatos_fuente = res.fuente;
   const sinopsis = limpiarSinopsis(res.sinopsis);
   if (!obra.sinopsis?.trim() && sinopsis) parche.sinopsis = sinopsis.slice(0, 4000);
-  if (!obra.categorias?.length && res.generos.length) parche.categorias = res.generos.slice(0, 8);
+  // Los géneros se FUSIONAN: lo que trajo la scan + lo de cada base de fichas.
+  // Antes solo se rellenaba si estaba vacío, y la obra se quedaba con los 2-3
+  // géneros de la primera scan (sin Isekai, Regresión, Murim…).
+  const antes = obra.categorias ?? [];
+  const unidas = fusionarGeneros([antes, generosDe(res)]);
+  const cats = conDemografia(unidas) ?? unidas;
+  if (cats.length !== antes.length) parche.categorias = cats;
   if (!obra.estado && res.estado) parche.estado = res.estado;
   if (res.portada && (!obra.portada_url || PORTADA_MUERTA.test(obra.portada_url))) parche.portada_url = res.portada;
   const alt = new Set([...(obra.titulos_alternativos ?? []), ...res.titulos].filter(Boolean));
@@ -282,6 +369,70 @@ if (import.meta.main) {
     const { data, error } = await db.from('obras').select(cols).eq('slug', args.obra);
     if (error) throw new Error(error.message);
     obras = data ?? [];
+  } else if (args.categorias) {
+    // Fusiona los géneros de TODAS las bases de fichas en las obras que ya
+    // casaron alguna vez (las que nunca casaron volverían a fallar). Lento
+    // (~4 bases por obra): se marca `categorias_fusionadas` y cada corrida
+    // sigue donde lo dejó la anterior.
+    for (let desde = 0; obras.length < max; desde += 1000) {
+      const { data, error } = await db
+        .from('obras')
+        .select(cols)
+        .eq('categorias_fusionadas', false)
+        .not('metadatos_fuente', 'is', null)
+        .order('slug')
+        .range(desde, desde + 999);
+      if (error) throw new Error(error.message);
+      obras.push(...data);
+      if (data.length < 1000) break;
+    }
+    obras = obras.slice(0, max);
+    console.log(`${obras.length} obras para fusionar géneros de todas las bases`);
+  } else if (args.demografia) {
+    // Solo la demografía, sin consultar ninguna base: deducida de los géneros.
+    // Una pasada sobre el catálogo entero. Las obras nuevas la reciben de
+    // AniList/MangaUpdates/MAL en el enriquecido nocturno.
+    let n = 0;
+    for (let desde = 0; ; desde += 1000) {
+      const { data, error } = await db.from('obras').select('slug,categorias').order('slug').range(desde, desde + 999);
+      if (error) throw new Error(error.message);
+      for (const o of data) {
+        const cats = o.categorias ?? [];
+        const d = !demografiaDe(cats) && demografiaPorGeneros(cats);
+        if (!d) continue;
+        const { error: e } = await db.from('obras').update({ categorias: [...cats, d] }).eq('slug', o.slug);
+        if (e) console.error(`  ${o.slug}: ${e.message}`);
+        else n++;
+      }
+      if (data.length < 1000) break;
+    }
+    console.log(`${n} obras con demografía nueva`);
+    process.exit(0);
+  } else if (args['sin-portada']) {
+    // Todas las obras cuya portada no carga (vacía o en un host muerto) y que
+    // tampoco tienen una buena de alguna fuente. Aunque ya estén enriquecidas.
+    const conBuena = new Set();
+    for (let desde = 0; ; desde += 1000) {
+      const { data, error } = await db
+        .from('fuentes')
+        .select('obra_slug, portada_vista')
+        .not('portada_vista', 'is', null)
+        .order('id')
+        .range(desde, desde + 999);
+      if (error) throw new Error(error.message);
+      for (const f of data) if (!PORTADA_MUERTA.test(f.portada_vista)) conBuena.add(f.obra_slug);
+      if (data.length < 1000) break;
+    }
+    for (let desde = 0; obras.length < max; desde += 1000) {
+      const { data, error } = await db.from('obras').select(cols).order('slug').range(desde, desde + 999);
+      if (error) throw new Error(error.message);
+      obras.push(
+        ...data.filter((o) => !conBuena.has(o.slug) && (!o.portada_url || PORTADA_MUERTA.test(o.portada_url))),
+      );
+      if (data.length < 1000) break;
+    }
+    obras = obras.slice(0, max);
+    console.log(`${obras.length} obras sin portada que cargue`);
   } else if (args['nivel-a']) {
     // Las obras con SEO completo (ver src/lib/indexacion.ts) a las que les falta
     // lo que más se ve: sinopsis, o una portada que cargue. Se enriquecen aunque
@@ -323,8 +474,9 @@ if (import.meta.main) {
   let casadas = 0;
   for (const obra of obras ?? []) {
     if (esRetirada(obra.slug)) continue;
-    const res = await enriquecerObra(obra);
+    const res = await enriquecerObra(obra, { todas: Boolean(args.categorias) });
     const parche = parcheDe(obra, res);
+    if (args.categorias) parche.categorias_fusionadas = true;
     const { error: e } = await db.from('obras').update(parche).eq('slug', obra.slug);
     if (e) {
       console.error(`  ${obra.slug}: ${e.message}`);
