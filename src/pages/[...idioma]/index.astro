@@ -91,14 +91,16 @@ const nuevos = [...conTotales]
   .slice(0, 12);
 
 // Últimos capítulos (estilo Olympus): las obras que acaban de crecer, con sus
-// dos capítulos más nuevos. Las fuentes link-out (Olympus) traen el total en
-// una sola fila, así que sus dos «capítulos» enlazan a la ficha, que es donde
-// está el enlace a la serie. Sin portada no entran: una rejilla de carteles
-// vacíos espanta más de lo que informa (siguen en /novedades).
+// dos capítulos más nuevos. Cada capítulo lleva a la FICHA con `#capitulo-N`:
+// la ficha abre ese capítulo en el visor con la fuente que lo tiene (ver
+// CapitulosExternos), en un clic y sin salir del sitio. Sin portada no entran:
+// una rejilla de carteles vacíos espanta más de lo que informa (siguen en
+// /novedades). 72 = 4 páginas del paginador; el HTML de las ocultas son enlaces
+// que Google sí rastrea.
 const porSlug = new Map(conTotales.map((o) => [o.novela.slug, o]));
 const ultimos: ItemUltimo[] = [];
 for (const a of await getActividad()) {
-  if (ultimos.length >= 18) break;
+  if (ultimos.length >= 72) break;
   const o = porSlug.get(a.slug);
   if (!o || o.novela.portadaUrl.includes('sin-portada')) continue;
   const fuentes = fuentesDe(await getCapitulosExternos(a.slug));
@@ -110,9 +112,10 @@ for (const a of await getActividad()) {
     .slice(0, 2);
   const ficha = fichaHref(o.novela);
   const tope = Math.max(0, ...fuentes.map((f) => f.ultimo));
-  const capitulos = listados.length
-    ? listados.map((n) => ({ numero: n, href: ruta(IDIOMA_BASE, `/novela/${a.slug}/capitulo-${n}`) }))
-    : [tope, tope - 1].filter((n) => n > 0).map((n) => ({ numero: n, href: ficha }));
+  const capitulos = (listados.length ? listados : [tope, tope - 1].filter((n) => n > 0)).map((n) => ({
+    numero: n,
+    href: `${ficha}#capitulo-${n}`,
+  }));
   if (!capitulos.length) continue;
   ultimos.push({
     slug: a.slug,
@@ -161,7 +164,7 @@ const jsonLd = {
   {/* Hero compacto: el eslogan (h1, con la marca para quien busca
       «manhwatonovel») y el buscador. Corto a propósito: en móvil los últimos
       capítulos tienen que asomar sin hacer scroll. */}
-  <section class="relative text-center pt-4 pb-8 sm:pt-8 sm:pb-10 overflow-hidden">
+  <section class="relative text-center pt-2 pb-6 sm:pt-8 sm:pb-10 overflow-hidden">
     <div
       aria-hidden="true"
       class="pointer-events-none absolute inset-x-0 -top-24 h-72 opacity-60 blur-3xl
@@ -171,17 +174,17 @@ const jsonLd = {
     </div>
 
     <div class="relative">
-      <span class="neu-inset rounded-full px-3 py-1 text-xs font-medium text-acento-500">
+      <span class="hidden sm:inline-block neu-inset rounded-full px-3 py-1 text-xs font-medium text-acento-500">
         {dic.heroBadge}
       </span>
       <h1
-        class="mt-4 text-3xl sm:text-5xl font-bold tracking-tight text-base-800 dark:text-base-50 text-balance leading-[1.1]"
+        class="mt-2 sm:mt-4 text-[1.7rem] sm:text-5xl font-bold tracking-tight text-base-800 dark:text-base-50 text-balance leading-[1.1]"
       >
         <span class="sr-only">ManhwaToNovel: </span>{dic.heroTitulo}
       </h1>
-      <p class="mt-4 text-sm sm:text-base text-base-500 max-w-2xl mx-auto text-pretty">{dic.heroSub}</p>
+      <p class="mt-3 sm:mt-4 text-sm sm:text-base text-base-500 max-w-2xl mx-auto text-pretty">{dic.heroSub}</p>
 
-      <div class="mt-6 max-w-lg mx-auto">
+      <div class="mt-5 sm:mt-6 max-w-lg mx-auto">
         <label class="neu-inset rounded-2xl flex items-center gap-3 px-4 py-3.5">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" class="size-5 text-base-400 shrink-0">
             <circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" stroke-linecap="round" />
@@ -197,7 +200,7 @@ const jsonLd = {
         </label>
       </div>
 
-      <dl class="mt-6 flex justify-center gap-3 flex-wrap text-sm">
+      <dl class="mt-6 hidden sm:flex justify-center gap-3 flex-wrap text-sm">
         {
           (
             [
@@ -219,6 +222,10 @@ const jsonLd = {
     </div>
   </section>
 
+  {/* Orden pensado para que vuelvan y naveguen: lo fresco primero (¿salió
+      el capítulo?), luego lo suyo (continuar), lo popular (prueba social) y el
+      catálogo. Lo que no se usa a diario (nuevas fichas, iniciar sesión) va al
+      final: cada pantalla de scroll que no engancha es un lector que se va. */}
   {ultimos.length > 0 && (
     <section id="ultimos" class="mb-10" aria-labelledby="titulo-ultimos">
       <div class="flex items-end justify-between gap-4 mb-4">
@@ -250,56 +257,12 @@ const jsonLd = {
     >{dic.verMas}</button>
   </section>
 
-  <div class="mb-10"><SyncExplanationBanner /></div>
-
   <div id="destacados" class="mb-10">
     <Carrusel items={carrusel} titulo={dic.destacados} />
   </div>
 
-  {nuevos.length > 0 && (
-    <section id="nuevos" class="mb-10">
-      <h2 class="font-semibold text-base-800 dark:text-base-100 mb-1">{dic.nuevosLanzamientos}</h2>
-      <p class="text-sm text-base-500 mb-4">{dic.nuevosLanzamientosSub}</p>
-      {/* Se muestran 6; el resto se despliega con "Ver más". El colapso es CSS
-          (nth-child) para que no dependa de JS y funcione sin él. */}
-      <div data-colapsable="6" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {nuevos.map(({ novela, formatos }) => (
-          <NovelaCard novela={novela} formatos={formatos} />
-        ))}
-      </div>
-      {nuevos.length > 6 && (
-        <button
-          data-mas
-          class="mt-4 mx-auto block neu-sm neu-press rounded-xl px-4 py-2 text-sm font-medium text-acento-500"
-        >
-          {dic.verMas}
-        </button>
-      )}
-    </section>
-  )}
-
-  {/* Las tres páginas que solo este sitio puede tener. Van en la portada
-      porque es de donde sale la autoridad que necesitan para posicionar: una
-      página nueva enlazada solo desde el pie tarda meses en despegar. */}
-  <nav class="mb-10 grid grid-cols-1 sm:grid-cols-3 gap-3" aria-label="Secciones">
-    {[
-      { href: ruta(IDIOMA_BASE, '/rankings'), titulo: dic.seccionAdelanto, sub: dic.seccionAdelantoSub },
-      { href: ruta(IDIOMA_BASE, '/novedades'), titulo: dic.seccionNovedades, sub: dic.seccionNovedadesSub },
-      { href: ruta(IDIOMA_BASE, '/titulos/a'), titulo: dic.seccionTitulos, sub: dic.seccionTitulosSub },
-    ].map((x) => (
-      <a
-        href={x.href}
-        hreflang="es"
-        class="neu-sm neu-press rounded-2xl p-4 transition-transform duration-200 hover:-translate-y-0.5"
-      >
-        <span class="block font-medium text-base-700 dark:text-base-200">{x.titulo}</span>
-        <span class="block mt-0.5 text-sm text-base-400">{x.sub}</span>
-      </a>
-    ))}
-  </nav>
-
   <!-- Catálogo -->
-  <section>
+  <section class="mb-10">
     <h2 id="titulo-catalogo" class="font-semibold text-base-800 dark:text-base-100">
       {dic.catalogo}
     </h2>
@@ -327,6 +290,51 @@ const jsonLd = {
       {dic.sinResultados}
     </p>
   </section>
+
+  {/* Las tres páginas que solo este sitio puede tener. Van en la portada
+      porque es de donde sale la autoridad que necesitan para posicionar: una
+      página nueva enlazada solo desde el pie tarda meses en despegar. */}
+  <nav class="mb-10 grid grid-cols-1 sm:grid-cols-3 gap-3" aria-label="Secciones">
+    {[
+      { href: ruta(IDIOMA_BASE, '/rankings'), titulo: dic.seccionAdelanto, sub: dic.seccionAdelantoSub },
+      { href: ruta(IDIOMA_BASE, '/novedades'), titulo: dic.seccionNovedades, sub: dic.seccionNovedadesSub },
+      { href: ruta(IDIOMA_BASE, '/titulos/a'), titulo: dic.seccionTitulos, sub: dic.seccionTitulosSub },
+    ].map((x) => (
+      <a
+        href={x.href}
+        hreflang="es"
+        class="neu-sm neu-press rounded-2xl p-4 transition-transform duration-200 hover:-translate-y-0.5"
+      >
+        <span class="block font-medium text-base-700 dark:text-base-200">{x.titulo}</span>
+        <span class="block mt-0.5 text-sm text-base-400">{x.sub}</span>
+      </a>
+    ))}
+  </nav>
+
+  {nuevos.length > 0 && (
+    <section id="nuevos" class="mb-10">
+      <h2 class="font-semibold text-base-800 dark:text-base-100 mb-1">{dic.nuevosLanzamientos}</h2>
+      <p class="text-sm text-base-500 mb-4">{dic.nuevosLanzamientosSub}</p>
+      {/* Se muestran 6; el resto se despliega con "Ver más". El colapso es CSS
+          (nth-child) para que no dependa de JS y funcione sin él. */}
+      <div data-colapsable="6" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {nuevos.map(({ novela, formatos }) => (
+          <NovelaCard novela={novela} formatos={formatos} />
+        ))}
+      </div>
+      {nuevos.length > 6 && (
+        <button
+          data-mas
+          class="mt-4 mx-auto block neu-sm neu-press rounded-xl px-4 py-2 text-sm font-medium text-acento-500"
+        >
+          {dic.verMas}
+        </button>
+      )}
+    </section>
+  )}
+
+  <div class="mb-10"><SyncExplanationBanner /></div>
+
 </Base>
 
 <script>

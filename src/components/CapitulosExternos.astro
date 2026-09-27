@@ -26,6 +26,8 @@ const { fuentes, slug } = Astro.props;
 const dic = t(idiomaDeRuta(Astro.url.pathname));
 
 const idiomaNombre = (i: string) => (esIdioma(i) ? IDIOMAS[i].nombre : i.toUpperCase());
+/** Capítulos por página. Con 1.000, llegar al 1 era hacer scroll hasta el fondo. */
+const POR_PAGINA = 50;
 ---
 
 {
@@ -72,7 +74,7 @@ const idiomaNombre = (i: string) => (esIdioma(i) ? IDIOMAS[i].nombre : i.toUpper
             </div>
             <span class="font-semibold text-base-800 dark:text-base-100 truncate">{f.nombre}</span>
             <span class="text-sm text-base-400 tabular-nums">
-              {f.total} {dic.capitulosCorto}
+              {`${f.total} ${dic.capitulosCorto}`}
               {!f.soloEnlace && f.ultimo > 0 && <span class="text-base-500"> · último {f.ultimo}</span>}
             </span>
           </button>
@@ -107,6 +109,31 @@ const idiomaNombre = (i: string) => (esIdioma(i) ? IDIOMAS[i].nombre : i.toUpper
               </>
             )}
           </p>
+
+          {/* Paginador + orden. Sin JS no hace nada: se ven todos, como antes.
+              «Desde el cap. 1» invierte la lista: quien empieza la obra no tiene
+              que ir a la última página a buscar el primero. */}
+          {f.capitulos.length > POR_PAGINA && (
+            <div data-pager hidden class="mb-3 flex flex-wrap items-center gap-2 text-sm">
+              <div class="flex rounded-xl neu-inset p-1" role="group">
+                <button
+                  data-orden="desc"
+                  aria-pressed="true"
+                  class="rounded-lg px-3 py-1.5 font-medium text-base-500 aria-pressed:bg-acento-500 aria-pressed:text-white"
+                >{dic.masRecientes}</button>
+                <button
+                  data-orden="asc"
+                  aria-pressed="false"
+                  class="rounded-lg px-3 py-1.5 font-medium text-base-500 aria-pressed:bg-acento-500 aria-pressed:text-white"
+                >{dic.desdeElPrimero}</button>
+              </div>
+              <div class="ml-auto flex items-center gap-1">
+                <button data-pg="-1" aria-label={dic.anterior} class="size-9 rounded-lg neu-sm neu-press text-lg leading-none disabled:opacity-30">‹</button>
+                <select data-pg-sel aria-label={dic.pagina} class="neu-inset rounded-lg bg-transparent px-2 py-1.5 text-sm tabular-nums max-w-[11rem]"></select>
+                <button data-pg="1" aria-label={dic.siguiente} class="size-9 rounded-lg neu-sm neu-press text-lg leading-none disabled:opacity-30">›</button>
+              </div>
+            </div>
+          )}
 
           <ol class="grid gap-2">
             {f.capitulos.map((c) => {
@@ -366,16 +393,23 @@ const idiomaNombre = (i: string) => (esIdioma(i) ? IDIOMAS[i].nombre : i.toUpper
       // navegadores donde ese evento no llega, y entonces el marco se quedaba
       // corriendo. `cancel` cubre el Esc, que es la salida que no pasa por
       // ningún click nuestro.
+      const olvidarHash = () => {
+        if (location.hash.startsWith('#capitulo-')) history.replaceState(null, '', location.pathname + location.search);
+      };
       const cerrar = () => {
         marco.removeAttribute('src');
         visor.close();
+        olvidarHash();
       };
       visor.querySelector('[data-visor-cerrar]')?.addEventListener('click', cerrar);
       visor.addEventListener('click', (e) => {
         if (e.target === visor) cerrar(); // el fondo ES el propio <dialog>
       });
       visor.addEventListener('cancel', () => marco.removeAttribute('src')); // Esc
-      visor.addEventListener('close', () => marco.removeAttribute('src'));
+      visor.addEventListener('close', () => {
+        marco.removeAttribute('src');
+        olvidarHash();
+      });
     }
 
     window.addEventListener('progress:change', pintar);
@@ -392,8 +426,71 @@ const idiomaNombre = (i: string) => (esIdioma(i) ? IDIOMAS[i].nombre : i.toUpper
       }),
     );
 
+    // ── Paginador por scan ─────────────────────────────────────────────────
+    // Las filas se ocultan con `hidden`; el orden se invierte moviendo los <li>
+    // (la cadena del visor ordena por número, así que no le afecta).
+    const POR = 50;
+    const pagers = new Map<HTMLElement, { aPagina: (f: HTMLElement) => void; reaplicar: () => void; pager: HTMLElement }>();
+    lista.querySelectorAll<HTMLElement>('[data-panel]').forEach((panel) => {
+      const pager = panel.querySelector<HTMLElement>('[data-pager]');
+      const ol = panel.querySelector<HTMLOListElement>('ol');
+      if (!pager || !ol) return;
+      const sel = pager.querySelector<HTMLSelectElement>('[data-pg-sel]')!;
+      const prev = pager.querySelector<HTMLButtonElement>('[data-pg="-1"]')!;
+      const next = pager.querySelector<HTMLButtonElement>('[data-pg="1"]')!;
+      const orden = [...pager.querySelectorAll<HTMLButtonElement>('[data-orden]')];
+      const filasDe = () => [...ol.children] as HTMLElement[];
+      let actual = 0;
+      const construir = () => {
+        const fs = filasDe();
+        sel.innerHTML = Array.from({ length: Math.ceil(fs.length / POR) }, (_, i) => {
+          const ns = fs.slice(i * POR, (i + 1) * POR).map((f) => f.dataset.cap).filter(Boolean).map(Number);
+          const texto = ns.length ? dic.rangoCaps(ns[0], ns[ns.length - 1]) : `${dic.pagina} ${i + 1}`;
+          return `<option value="${i}">${texto}</option>`;
+        }).join('');
+      };
+      const ir = (p: number) => {
+        const fs = filasDe();
+        const total = Math.ceil(fs.length / POR);
+        actual = Math.max(0, Math.min(total - 1, p));
+        fs.forEach((f, i) => (f.hidden = Math.floor(i / POR) !== actual));
+        sel.value = String(actual);
+        prev.disabled = actual === 0;
+        next.disabled = actual === total - 1;
+      };
+      const saltar = (p: number) => {
+        ir(p);
+        if (pager.getBoundingClientRect().top < 0) pager.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      };
+      orden.forEach((b) =>
+        b.addEventListener('click', () => {
+          const asc = b.dataset.orden === 'asc';
+          if ((ol.dataset.orden === 'asc') !== asc) {
+            ol.append(...filasDe().reverse());
+            ol.dataset.orden = asc ? 'asc' : 'desc';
+          }
+          orden.forEach((o) => o.setAttribute('aria-pressed', String(o === b)));
+          construir();
+          ir(0);
+        }),
+      );
+      sel.addEventListener('change', () => saltar(Number(sel.value)));
+      prev.addEventListener('click', () => saltar(actual - 1));
+      next.addEventListener('click', () => saltar(actual + 1));
+      construir();
+      ir(0);
+      pager.hidden = false;
+      pagers.set(panel, {
+        pager,
+        aPagina: (f) => ir(Math.floor(filasDe().indexOf(f) / POR)),
+        reaplicar: () => ir(actual),
+      });
+    });
+
     // Buscador por número, dentro del scan visible. Los spinoffs sin número
     // solo aparecen cuando la búsqueda está vacía (nada para hacer match).
+    // Mientras se busca, el paginador se aparta: se ven los resultados de todas
+    // las páginas.
     const filtro = lista.querySelector<HTMLInputElement>('[data-filtro]')!;
     filtro.addEventListener('input', () => {
       const q = filtro.value.trim();
@@ -401,7 +498,35 @@ const idiomaNombre = (i: string) => (esIdioma(i) ? IDIOMAS[i].nombre : i.toUpper
         const cap = f.dataset.cap!;
         const ocultar = q !== '' && (cap === '' || !cap.startsWith(q));
         f.style.display = ocultar ? 'none' : '';
+        if (q !== '') f.hidden = false;
+      });
+      pagers.forEach((p) => {
+        p.pager.hidden = q !== '';
+        if (q === '') p.reaplicar();
       });
     });
+
+    // ── #capitulo-N: llegar desde «Últimos capítulos» con el capítulo abierto ─
+    // Se elige la scan que lo tiene y se puede leer aquí dentro (la primera en
+    // el orden de tarjetas, que es la más completa); si ninguna, la primera que
+    // lo tenga, y se deja marcado en la lista.
+    const abrirHash = () => {
+      const m = /^#capitulo-(\d+)$/.exec(location.hash);
+      if (!m) return;
+      const candidatas = [...lista.querySelectorAll<HTMLElement>(`[data-panel] li[data-cap="${m[1]}"]`)];
+      const fila = candidatas.find((f) => f.querySelector('a[data-visor-src]')) ?? candidatas[0];
+      if (!fila) {
+        lista.scrollIntoView({ block: 'start' });
+        return;
+      }
+      const panel = fila.closest<HTMLElement>('[data-panel]')!;
+      tarjetas.find((b) => b.dataset.fuente === panel.dataset.panel)?.click();
+      pagers.get(panel)?.aPagina(fila);
+      fila.scrollIntoView({ block: 'center' });
+      fila.classList.add('ring-2', 'ring-acento-500');
+      fila.querySelector<HTMLAnchorElement>('a[data-visor-src]')?.click();
+    };
+    abrirHash();
+    window.addEventListener('hashchange', abrirHash);
   }
 </script>

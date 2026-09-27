@@ -72,15 +72,6 @@ jobs:
           PUBLIC_SUPABASE_URL: ${{ secrets.PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
 
-      # Géneros de TODAS las bases (Isekai, Murim, Shounen…) y, de paso, la
-      # portada si la que tiene no carga. Poco a poco: cada obra se marca
-      # (categorias_fusionadas) y la siguiente corrida sigue donde quedó.
-      - name: Géneros y portadas
-        continue-on-error: true
-        run: node scripts/enriquecer.mjs --categorias --max=150
-        env:
-          PUBLIC_SUPABASE_URL: ${{ secrets.PUBLIC_SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
 
       # Snapshot incremental de capitulos_externos para el build: Supabase solo
       # entrega lo que cambió desde la última vez (ver scripts/snapshot.mjs).
@@ -110,5 +101,18 @@ jobs:
         run: node scripts/indexnow.mjs
         env:
           SITE_URL: ${{ secrets.SITE_URL }}
+          PUBLIC_SUPABASE_URL: ${{ secrets.PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+
+      # Géneros de TODAS las bases (Isekai, Murim, Shounen…) y, de paso, la
+      # portada si la que tiene no carga. Poco a poco: cada obra se marca
+      # (categorias_fusionadas) y la siguiente corrida sigue donde quedó.
+      # Va AL FINAL y con tope: el domingo el descubrimiento completo se come
+      # casi toda la hora, y esto nunca debe dejar sin snapshot ni deploy.
+      - name: Géneros y portadas
+        continue-on-error: true
+        timeout-minutes: 15
+        run: node scripts/enriquecer.mjs --categorias --max=150
+        env:
           PUBLIC_SUPABASE_URL: ${{ secrets.PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
