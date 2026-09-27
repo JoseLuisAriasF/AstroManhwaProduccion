@@ -65,9 +65,9 @@ for (const viejo of muertos) {
   }
   console.log(`✓  ${viejo} → ${o.slug}`);
   if (seco) continue;
-  const r = await db
-    .from('obras')
-    .update({ slugs_antiguos: [...(o.slugs_antiguos ?? []), viejo] })
-    .eq('slug', o.slug);
+  // Se actualiza también en memoria: dos slugs viejos de la MISMA obra (p. ej.
+  // contra-los-dioses y against-the-gods → atg) no deben pisarse entre sí.
+  o.slugs_antiguos = [...(o.slugs_antiguos ?? []), viejo];
+  const r = await db.from('obras').update({ slugs_antiguos: o.slugs_antiguos }).eq('slug', o.slug);
   if (r.error) console.error(`   ${r.error.message}`);
 }
