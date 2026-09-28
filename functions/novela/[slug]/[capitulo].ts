@@ -486,6 +486,8 @@ ${o.imagen ? `<meta property="og:image" content="${esc(o.imagen)}">
 ${o.canonical ? `<meta property="og:url" content="${esc(o.canonical)}">` : ''}
 <meta name="theme-color" content="#171b24">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://quge5.com" crossorigin>
+<link rel="dns-prefetch" href="https://my.rtmark.net">
 <meta name="monetag" content="62d9babbfc5d166206a80624f263052b">
 <script src="https://quge5.com/88/tag.min.js" data-zone="287424" async data-cfasync="false"></script>
 <style>
