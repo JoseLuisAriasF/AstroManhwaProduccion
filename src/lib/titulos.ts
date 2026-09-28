@@ -109,3 +109,23 @@ export function segundoNombre(o: ConTitulos, idioma: string): string | undefined
     idioma === 'es' && idiomaTitulo(o.titulo) !== 'en' ? tituloIngles(o) : tituloEspanol(o) ?? tituloIngles(o);
   return otro && normal(otro) !== normal(o.titulo) ? otro : undefined;
 }
+
+/**
+ * ¿Este TEXTO (una sinopsis) está en inglés? Por palabras vacías: en inglés
+ * «the/and/of/his» aparecen en cualquier párrafo; en español, «el/la/que/los».
+ * Sin librería: para distinguir estos dos idiomas en un párrafo basta y sobra.
+ * Pide al menos 12 palabras para no decidir con una frase suelta.
+ */
+const VACIAS_EN = new Set(['the', 'and', 'of', 'to', 'his', 'her', 'is', 'in', 'with', 'she', 'for', 'that', 'after', 'who', 'but', 'when', 'was', 'their', 'from', 'will']);
+const VACIAS_ES = new Set(['el', 'la', 'de', 'que', 'y', 'en', 'los', 'las', 'su', 'con', 'un', 'una', 'por', 'se', 'del', 'para', 'al', 'es', 'lo', 'como']);
+export function esTextoIngles(texto: string | undefined): boolean {
+  const palabras = texto?.toLowerCase().match(/[a-záéíóúñü]+/g) ?? [];
+  if (palabras.length < 12) return false;
+  let en = 0;
+  let es = 0;
+  for (const p of palabras) {
+    if (VACIAS_EN.has(p)) en++;
+    if (VACIAS_ES.has(p)) es++;
+  }
+  return en > es * 2;
+}

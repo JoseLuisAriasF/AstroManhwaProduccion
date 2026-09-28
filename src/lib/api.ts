@@ -2,9 +2,10 @@ import type { Capitulo, CapituloExterno, EquivalenciaManhwa, Novela } from '@/ty
 import { IDIOMA_BASE, type Idioma } from './i18n';
 import { generosEn } from './generos';
 import { limpiarSinopsis, limpiarTitulo } from './sinopsis';
-import { esProhibida } from './indexacion';
+import { esAdulta, esProhibida } from './indexacion';
+import { brechaDe } from './brecha';
 import { esRetirada } from './dmca';
-import { tituloIngles } from './titulos';
+import { esTextoIngles, tituloIngles } from './titulos';
 import { capitulosDe, equivalencias, novelas } from './mockData';
 import { supabase } from './supabaseClient';
 import { traducir, traducirTexto } from './traducir';
@@ -338,12 +339,59 @@ function obrasConContenido(): Promise<Set<string>> {
  *  build. Todas las páginas reciben el mismo array: no se muta. */
 const novelasPorIdioma = new Map<Idioma, Promise<Novela[]>>();
 
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * FICHAS EN INGLÉS: el idioma que mejor paga
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Unas 8.500 obras tienen la sinopsis ORIGINAL en inglés (AniList, MangaUpdates)
+ * y hasta ahora solo salían en /en/ si además tenían traducción en el caché: 194
+ * fichas. Una sinopsis en inglés ya es contenido inglés de verdad, así que esas
+ * obras merecen su ficha en /en/, con el título inglés (localizarNovela).
+ *
+ * El techo es Cloudflare Pages: 20.000 archivos por deploy en el plan gratis
+ * (100.000 en los de pago). El presupuesto se CALCULA en cada build: lo que
+ * dejan libre las fichas en español —que crecen cada noche—, con margen. Así el
+ * inglés se encoge solo cuando el catálogo crece y el deploy nunca revienta.
+ * Se reparte por popularidad (capítulos indexados): primero lo que más se lee.
+ * Una obra con manhwa y novela cuesta 2 (ficha + /equivalencia). Lo adulto queda
+ * fuera: gastaría cupo en páginas noindex.
+ */
+const LIMITE_ARCHIVOS = 19_500; // de 20.000, con margen para las obras de un día
+/** Lo que no son fichas: portada, hubs ×2 idiomas, catálogo paginado, assets… (medido: ~420). */
+const OTROS_ARCHIVOS = 500;
+let inglesMarcado: Promise<void> | null = null;
+function marcarIngles(obras: Novela[]): Promise<void> {
+  inglesMarcado ??= (async () => {
+    const externos = await cargarExternos();
+    const equivalenciasEs = obras.filter((n) => brechaDe(externos.get(n.slug) ?? [])).length;
+    const PRESUPUESTO_EN = Math.max(0, LIMITE_ARCHIVOS - OTROS_ARCHIVOS - obras.length - equivalenciasEs);
+    if (!PRESUPUESTO_EN) console.warn('[en] sin cupo de archivos para fichas en inglés: el catálogo en español llena el límite de Pages');
+    const candidatas = obras
+      .filter((n) => !esAdulta(n) && esTextoIngles(n.sinopsis))
+      .map((n) => ({ n, ext: externos.get(n.slug) ?? [] }))
+      .sort((a, b) => b.ext.length - a.ext.length);
+    let gastado = 0;
+    let marcadas = 0;
+    for (const { n, ext } of candidatas) {
+      const coste = brechaDe(ext) ? 2 : 1;
+      if (gastado + coste > PRESUPUESTO_EN) continue;
+      gastado += coste;
+      marcadas++;
+      n.enIngles = true;
+    }
+    console.log(`[en] ${marcadas} fichas en inglés por sinopsis original (${gastado} archivos de ${PRESUPUESTO_EN})`);
+  })();
+  return inglesMarcado;
+}
+
 export function getNovelas(idioma: Idioma = IDIOMA_BASE): Promise<Novela[]> {
   let lista = novelasPorIdioma.get(idioma);
   if (!lista) {
     lista = (async () => {
       const publicables = await obrasConContenido();
-      return (await catalogo()).filter((n) => publicables.has(n.slug)).map((n) => localizarNovela(n, idioma));
+      const obras = (await catalogo()).filter((n) => publicables.has(n.slug));
+      await marcarIngles(obras);
+      return obras.map((n) => localizarNovela(n, idioma));
     })();
     novelasPorIdioma.set(idioma, lista);
   }

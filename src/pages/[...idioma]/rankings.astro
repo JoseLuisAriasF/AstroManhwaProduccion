@@ -2,7 +2,8 @@
 import Base from '@/layouts/Base.astro';
 import { getCapitulosExternos, getNovelas } from '@/lib/api';
 import { brechaDe, type Brecha } from '@/lib/brecha';
-import { IDIOMA_BASE, ruta, t, type Idioma } from '@/lib/i18n';
+import { IDIOMA_BASE, idiomaDeRuta, ruta, t } from '@/lib/i18n';
+import { PUBLICADOS, idiomasDeObra, paramsDeIdioma } from '@/lib/publicables';
 import { migas } from '@/lib/seo';
 import type { Novela } from '@/types/novela';
 
@@ -17,14 +18,52 @@ import type { Novela } from '@/types/novela';
  * Una lista ordenada es además el tipo de página que la gente enlaza y comparte
  * —a una ficha suelta no se enlaza—, y aquí sale de un cálculo, no de escribir.
  *
- * Solo en el idioma base, como el resto del catálogo (ver idiomasDeObra).
+ * En español e inglés («manhwa where the novel is ahead» se busca en inglés).
+ * Las filas enlazan a la ficha en el idioma en que exista.
  */
 export function getStaticPaths() {
-  return [{ params: { idioma: undefined } }];
+  return paramsDeIdioma().map(({ idioma }) => ({ params: { idioma } }));
 }
 
-const idioma = IDIOMA_BASE;
+const idioma = idiomaDeRuta(Astro.url.pathname);
 const dic = t(idioma);
+const en = idioma === 'en';
+const T = en
+  ? {
+      titulo: 'Manhwa where the novel is ahead — Rankings · ManhwaToNovel',
+      desc: (n: number) => `Which manhwa have the novel far ahead, which are caught up, and the longest novels. ${n} series with both formats indexed.`,
+      intro: (n: number) => `The most popular series and, by matching manhwa chapters with their novel, lists you will not find anywhere else. ${n} series have both formats indexed.`,
+      vacio: 'Nothing indexed yet. Series will show up as the indexer runs.',
+      capsIndexados: 'chapters indexed',
+      capsNovela: 'novel chapters',
+      alDia: 'caught up',
+      detalle: (m: number, n: number) => `manhwa ${m} · novel ${n}`,
+      listas: [
+        ['Most popular', 'By scanlation volume: the more sources and chapters a series has, the more people follow it.'],
+        ['The novel is ahead of the manhwa', 'You finished the manhwa and the story goes on. This is where it goes on the most.'],
+        ['The manhwa caught up with the novel', 'You are not missing anything here: they are neck and neck.'],
+        ['Longest novels', 'By chapters indexed. Reading for months.'],
+      ],
+      secciones: 'Sections',
+    }
+  : {
+      titulo: 'Manhwas cuya novela va más adelantada — Rankings · ManhwaToNovel',
+      desc: (n: number) => `Qué manhwas tienen la novela mucho más avanzada, cuáles ya están al día y las novelas más largas. ${n} obras con los dos formatos indexados.`,
+      intro: (n: number) => `Las obras más populares y, cruzando los capítulos del manhwa con los de su novela, listas que no existen en ningún otro sitio. ${n} obras tienen los dos formatos indexados.`,
+      vacio: 'Todavía no hay obras indexadas. Aparecerán solas conforme corra el indexador.',
+      capsIndexados: 'capítulos indexados',
+      capsNovela: 'capítulos de novela',
+      alDia: 'al día',
+      detalle: (m: number, n: number) => `manhwa ${m} · novela ${n}`,
+      listas: [
+        ['Las más populares', 'Por volumen de scanlation: cuantas más fuentes y capítulos tiene una obra, más gente la sigue.'],
+        ['La novela va más adelantada que el manhwa', 'Terminaste el manhwa y la historia sigue. Aquí es donde más sigue.'],
+        ['El manhwa ya alcanzó a la novela', 'Aquí no te estás perdiendo nada: van a la par.'],
+        ['Las novelas más largas', 'Por capítulos indexados. Para leer durante meses.'],
+      ],
+      secciones: 'Secciones',
+    };
+const fichaDe = (n: Novela) => ruta(idiomasDeObra(n).includes(idioma) ? idioma : IDIOMA_BASE, `/novela/${n.slug}`);
 
 interface Fila {
   novela: Novela;
@@ -53,56 +92,56 @@ for (const novela of novelas) {
 }
 
 const TOPE = 50;
-const mil = (n: number) => n.toLocaleString('es');
+const mil = (n: number) => n.toLocaleString(idioma);
 
 // Las más populares: por volumen de scanlation. Va primera porque es la lista
 // que la gente busca ("los más vistos") y la que engancha en frío.
 const masPopulares: FilaRender[] = [...populares]
   .sort((a, b) => b.caps - a.caps)
   .slice(0, TOPE)
-  .map((p) => ({ novela: p.novela, valor: mil(p.caps), detalle: 'capítulos indexados' }));
+  .map((p) => ({ novela: p.novela, valor: mil(p.caps), detalle: T.capsIndexados }));
 
 // El gancho del sitio, ordenado: dónde hay más historia esperando.
 const masAdelantadas: FilaRender[] = [...filas]
   .sort((a, b) => b.brecha.faltan - a.brecha.faltan)
   .slice(0, TOPE)
-  .map((f) => ({ novela: f.novela, valor: `+${f.brecha.faltan}`, detalle: `manhwa ${f.brecha.manhwa} · novela ${f.brecha.novela}` }));
+  .map((f) => ({ novela: f.novela, valor: `+${f.brecha.faltan}`, detalle: T.detalle(f.brecha.manhwa, f.brecha.novela) }));
 // Lo contrario, que también se busca: el manhwa ya alcanzó (o casi) a la novela.
 const alDia: FilaRender[] = filas
   .filter((f) => f.brecha.faltan <= 5)
   .sort((a, b) => a.brecha.faltan - b.brecha.faltan || b.brecha.manhwa - a.brecha.manhwa)
   .slice(0, TOPE)
-  .map((f) => ({ novela: f.novela, valor: f.brecha.faltan === 0 ? 'al día' : `+${f.brecha.faltan}`, detalle: `manhwa ${f.brecha.manhwa} · novela ${f.brecha.novela}` }));
+  .map((f) => ({ novela: f.novela, valor: f.brecha.faltan === 0 ? T.alDia : `+${f.brecha.faltan}`, detalle: T.detalle(f.brecha.manhwa, f.brecha.novela) }));
 // Las novelas más largas indexadas: "novelas con más capítulos" es una consulta
 // con volumen propio y esta es la respuesta real, no una lista a ojo.
 const masLargas: FilaRender[] = [...filas]
   .sort((a, b) => b.brecha.novela - a.brecha.novela)
   .slice(0, TOPE)
-  .map((f) => ({ novela: f.novela, valor: `${f.brecha.novela}`, detalle: 'capítulos de novela' }));
+  .map((f) => ({ novela: f.novela, valor: `${f.brecha.novela}`, detalle: T.capsNovela }));
 
 const listas = [
   {
     id: 'mas-populares',
-    titulo: 'Las más populares',
-    sub: 'Por volumen de scanlation: cuantas más fuentes y capítulos tiene una obra, más gente la sigue.',
+    titulo: T.listas[0][0],
+    sub: T.listas[0][1],
     filas: masPopulares,
   },
   {
     id: 'mas-adelantadas',
-    titulo: 'La novela va más adelantada que el manhwa',
-    sub: 'Terminaste el manhwa y la historia sigue. Aquí es donde más sigue.',
+    titulo: T.listas[1][0],
+    sub: T.listas[1][1],
     filas: masAdelantadas,
   },
   {
     id: 'al-dia',
-    titulo: 'El manhwa ya alcanzó a la novela',
-    sub: 'Aquí no te estás perdiendo nada: van a la par.',
+    titulo: T.listas[2][0],
+    sub: T.listas[2][1],
     filas: alDia,
   },
   {
     id: 'mas-largas',
-    titulo: 'Las novelas más largas',
-    sub: 'Por capítulos indexados. Para leer durante meses.',
+    titulo: T.listas[3][0],
+    sub: T.listas[3][1],
     filas: masLargas,
   },
 ];
@@ -116,7 +155,7 @@ const jsonLd = listas.map((l) => ({
     '@type': 'ListItem',
     position: i + 1,
     name: f.novela.titulo,
-    url: new URL(ruta(idioma, `/novela/${f.novela.slug}`), Astro.site).toString(),
+    url: new URL(fichaDe(f.novela), Astro.site).toString(),
   })),
 }));
 
@@ -124,20 +163,15 @@ const ruta_migas = migas(Astro.site, [
   { nombre: dic.navInicio, href: ruta(idioma) },
   { nombre: 'Rankings', href: ruta(idioma, '/rankings') },
 ]);
-// Esta página SOLO se genera en el idioma base (ver getStaticPaths). Sin pasar
-// esto a <Base>, `alternativas()` anunciaba hreflang a /en/…, /pt/… y cuatro
-// más: seis URLs que devuelven 404. Google descarta el clúster de idiomas
-// entero y gasta rastreo en páginas que no existen.
-const SOLO_BASE: Idioma[] = [IDIOMA_BASE];
 
 ---
 
 <Base
-  titulo="Manhwas cuya novela va más adelantada — Rankings · ManhwaToNovel"
-  descripcion={`Qué manhwas tienen la novela mucho más avanzada, cuáles ya están al día y las novelas más largas. ${filas.length} obras con los dos formatos indexados.`}
+  titulo={T.titulo}
+  descripcion={T.desc(filas.length)}
   anchoCompleto
   jsonLd={[...jsonLd, ruta_migas]}
-  idiomas={SOLO_BASE}
+  idiomas={PUBLICADOS}
 >
   <nav class="text-sm text-base-400 mb-4" aria-label="breadcrumb">
     <a href={ruta(idioma)} class="hover:text-acento-500">{dic.navInicio}</a>
@@ -148,21 +182,15 @@ const SOLO_BASE: Idioma[] = [IDIOMA_BASE];
   <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-base-800 dark:text-base-50">
     Rankings
   </h1>
-  <p class="mt-2 text-base-500 max-w-2xl">
-    Las obras más populares, y —cruzando los capítulos del manhwa con los de su
-    novela— listas que no existen en ningún otro sitio. {filas.length} obras tienen
-    los dos formatos indexados.
-  </p>
+  <p class="mt-2 text-base-500 max-w-2xl">{T.intro(filas.length)}</p>
 
   {masPopulares.length === 0 && (
-    <p class="mt-8 neu-inset rounded-2xl p-5 text-base-500">
-      Todavía no hay obras indexadas. Aparecerán solas conforme corra el indexador.
-    </p>
+    <p class="mt-8 neu-inset rounded-2xl p-5 text-base-500">{T.vacio}</p>
   )}
 
   {/* Índice de la propia página: en móvil, varias listas de 50 son mucho scroll. */}
   {masPopulares.length > 0 && (
-    <nav class="mt-5 flex flex-wrap gap-2" aria-label="Secciones">
+    <nav class="mt-5 flex flex-wrap gap-2" aria-label={T.secciones}>
       {listas.map((l) => (
         <a href={`#${l.id}`} class="text-sm neu-inset neu-press rounded-lg px-3 py-1.5 hover:text-acento-500">
           {l.titulo}
@@ -179,7 +207,7 @@ const SOLO_BASE: Idioma[] = [IDIOMA_BASE];
         {l.filas.map((f, i) => (
           <li>
             <a
-              href={ruta(idioma, `/novela/${f.novela.slug}`)}
+              href={fichaDe(f.novela)}
               class="neu-sm rounded-xl p-3 flex items-center gap-3 transition-transform duration-200 hover:-translate-y-0.5"
             >
               <span class="w-7 shrink-0 text-center text-sm font-semibold tabular-nums text-base-400">

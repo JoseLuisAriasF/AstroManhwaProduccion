@@ -154,19 +154,34 @@ const ruta_migas = migas(Astro.site, [
 // Google las rastrea y no las indexa. Esta intro las convierte en algo propio,
 // SIN copiar nada de otro sitio —son datos nuestros: formatos, conteos, brecha—.
 // Solo se pinta cuando NO hay sinopsis escrita (ver más abajo).
+const enIngles = idioma === 'en';
+const ambosTexto = enIngles ? 'manhwa and novel' : 'manhwa y novela';
 const formatoTexto =
   formatosDisponibles.length === 2
-    ? 'manhwa y novela'
-    : formatosDisponibles[0] ?? (novela.tipo === 'ambos' ? 'manhwa y novela' : novela.tipo);
-const introGenerada = [
-  `${novela.titulo}${tituloIngles && tituloIngles !== novela.titulo ? ` (${tituloIngles})` : ''} está disponible como ${formatoTexto}.`,
-  fuentes.length
-    ? `Está indexada en ${fuentes.length} ${fuentes.length === 1 ? 'fuente' : 'fuentes'}, cada una con enlace al sitio original.`
-    : '',
-  brecha
-    ? `La novela va por el capítulo ${brecha.novela} y el manhwa por el ${brecha.manhwa}${brecha.faltan ? `: ${brecha.faltan} capítulos por delante` : ''}.`
-    : '',
-]
+    ? ambosTexto
+    : formatosDisponibles[0] ?? (novela.tipo === 'ambos' ? ambosTexto : novela.tipo);
+const otroNombre = tituloIngles && tituloIngles !== novela.titulo ? ` (${tituloIngles})` : '';
+const introGenerada = (
+  enIngles
+    ? [
+        `${novela.titulo}${otroNombre} is available as ${formatoTexto}.`,
+        fuentes.length
+          ? `It is indexed on ${fuentes.length} ${fuentes.length === 1 ? 'source' : 'sources'}, each one linking to the original site.`
+          : '',
+        brecha
+          ? `The novel is on chapter ${brecha.novela} and the manhwa on chapter ${brecha.manhwa}${brecha.faltan ? `: ${brecha.faltan} chapters ahead` : ''}.`
+          : '',
+      ]
+    : [
+        `${novela.titulo}${otroNombre} está disponible como ${formatoTexto}.`,
+        fuentes.length
+          ? `Está indexada en ${fuentes.length} ${fuentes.length === 1 ? 'fuente' : 'fuentes'}, cada una con enlace al sitio original.`
+          : '',
+        brecha
+          ? `La novela va por el capítulo ${brecha.novela} y el manhwa por el ${brecha.manhwa}${brecha.faltan ? `: ${brecha.faltan} capítulos por delante` : ''}.`
+          : '',
+      ]
+)
   .filter(Boolean)
   .join(' ');
 
@@ -265,13 +280,13 @@ const jsonLdFaq = preguntas.length >= 2 ? [faq(preguntas)] : [];
 
       <div class="mt-3 flex flex-wrap gap-2">
         {
-          // Enlace solo si la página de categoría existe: se generan en el idioma
-          // base y sin los géneros adultos. Si no, /en/categoria/x o
-          // /categoria/hentai serían enlaces internos a un 404.
+          // Enlace solo si la página de categoría existe (sin los géneros
+          // adultos; si no, /categoria/hentai sería un enlace interno a un 404).
+          // Existen en español e inglés: se enlaza la del idioma de la ficha.
           novela.categorias.map((c) =>
             hubs.has(claveGenero(c)) ? (
               <a
-                href={ruta(IDIOMA_BASE, `/categoria/${claveGenero(c)}`)}
+                href={ruta(idioma, `/categoria/${claveGenero(c)}`)}
                 class="text-xs text-base-500 neu-inset neu-press rounded-lg px-2 py-1 hover:text-acento-500"
               >
                 {c}

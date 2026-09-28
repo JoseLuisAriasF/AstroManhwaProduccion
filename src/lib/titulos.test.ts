@@ -3,7 +3,7 @@
  * Casos sacados de las obras nivel A reales (sept. 2026).
  */
 import assert from 'node:assert/strict';
-import { idiomaTitulo, segundoNombre, tituloIngles } from './titulos.ts';
+import { esTextoIngles, idiomaTitulo, segundoNombre, tituloIngles } from './titulos.ts';
 
 const casos: [string, string][] = [
   ['Return of the Mount Hua Sect', 'en'],
@@ -75,4 +75,8 @@ assert.equal(segundoNombre(zenith, 'es'), 'Shadow of the Supreme', 'sin la etiqu
 
 assert.equal(segundoNombre({ titulo: 'Breakers', titulosAlternativos: ['브레이커즈'] }, 'es'), undefined, 'nada fiable, nada');
 
+// Sinopsis: inglés de AniList sí, español de una scan no, frase corta no decide.
+assert.equal(esTextoIngles('After dying at the hands of his master, the young swordsman returns to the day he joined the sect and swears to change his fate with the knowledge of his past life.'), true);
+assert.equal(esTextoIngles('Después de morir a manos de su maestro, el joven espadachín regresa al día en que entró a la secta y jura cambiar su destino con lo que sabe de su vida pasada.'), false);
+assert.equal(esTextoIngles('The return of the hero'), false, 'menos de 12 palabras');
 console.log('OK: títulos por idioma');

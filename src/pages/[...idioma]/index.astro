@@ -157,7 +157,7 @@ const catalogo: ItemUltimo[] = [...destacadas]
 // Categorías: los géneros con más obras, como atajos. Son hubs indexables
 // (/categoria/isekai/…): enlazarlos desde la portada les pasa autoridad.
 const categorias = (await generosDestacados(8)).slice(0, 24).map((g) => ({
-  href: ruta(IDIOMA_BASE, `/categoria/${g.slug}`),
+  href: ruta(idioma, `/categoria/${g.slug}`),
   nombre: nombreGenero(g.nombre, idioma),
   n: g.obras.length,
 }));
@@ -267,8 +267,7 @@ const jsonLd = {
           <p class="text-sm text-base-500">{dic.ultimosCapitulosSub}</p>
         </div>
         <a
-          href={ruta(IDIOMA_BASE, '/novedades')}
-          hreflang="es"
+          href={ruta(idioma, '/novedades')}
           class="shrink-0 neu-sm neu-press rounded-xl px-3 py-2 text-sm font-medium text-acento-500"
         >{dic.verTodos} →</a>
       </div>
@@ -325,7 +324,6 @@ const jsonLd = {
           <li>
             <a
               href={c.href}
-              hreflang="es"
               class="inline-flex items-center gap-1.5 neu-sm neu-press rounded-xl px-3 py-2 text-sm font-medium text-base-700 dark:text-base-200 hover:text-acento-500"
             >
               {c.nombre}<span class="text-xs text-base-400 tabular-nums">{c.n}</span>
@@ -347,13 +345,12 @@ const jsonLd = {
       página nueva enlazada solo desde el pie tarda meses en despegar. */}
   <nav class="mb-10 grid grid-cols-1 sm:grid-cols-3 gap-3" aria-label="Secciones">
     {[
-      { href: ruta(IDIOMA_BASE, '/rankings'), titulo: dic.seccionAdelanto, sub: dic.seccionAdelantoSub },
-      { href: ruta(IDIOMA_BASE, '/novedades'), titulo: dic.seccionNovedades, sub: dic.seccionNovedadesSub },
-      { href: ruta(IDIOMA_BASE, '/titulos/a'), titulo: dic.seccionTitulos, sub: dic.seccionTitulosSub },
+      { href: ruta(idioma, '/rankings'), titulo: dic.seccionAdelanto, sub: dic.seccionAdelantoSub },
+      { href: ruta(idioma, '/novedades'), titulo: dic.seccionNovedades, sub: dic.seccionNovedadesSub },
+      { href: ruta(idioma, '/titulos/a'), titulo: dic.seccionTitulos, sub: dic.seccionTitulosSub },
     ].map((x) => (
       <a
         href={x.href}
-        hreflang="es"
         class="neu-sm neu-press rounded-2xl p-4 transition-transform duration-200 hover:-translate-y-0.5"
       >
         <span class="block font-medium text-base-700 dark:text-base-200">{x.titulo}</span>

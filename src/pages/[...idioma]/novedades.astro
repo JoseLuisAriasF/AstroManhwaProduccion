@@ -1,7 +1,8 @@
 ---
 import Base from '@/layouts/Base.astro';
 import { fuentesDe, getActividad, getCapitulosExternos, getNovelas } from '@/lib/api';
-import { IDIOMA_BASE, ruta, t, type Idioma } from '@/lib/i18n';
+import { IDIOMA_BASE, idiomaDeRuta, ruta, t } from '@/lib/i18n';
+import { PUBLICADOS, idiomasDeObra, paramsDeIdioma } from '@/lib/publicables';
 import { migas } from '@/lib/seo';
 
 /**
@@ -20,11 +21,12 @@ import { migas } from '@/lib/seo';
  * así que las siete versiones de esta lista serían el mismo texto duplicado.
  */
 export function getStaticPaths() {
-  return [{ params: { idioma: undefined } }];
+  return paramsDeIdioma().map(({ idioma }) => ({ params: { idioma } }));
 }
 
-const idioma = IDIOMA_BASE;
+const idioma = idiomaDeRuta(Astro.url.pathname);
 const dic = t(idioma);
+const en = idioma === 'en';
 
 const TOPE = 240; // dos semanas largas de actividad; el resto vive en el catálogo
 
@@ -53,71 +55,87 @@ for (const a of recientes) {
   (dias.get(dia) ?? dias.set(dia, []).get(dia)!).push(a);
 }
 
-const fecha = new Intl.DateTimeFormat('es', { day: 'numeric', month: 'long', year: 'numeric' });
+const fecha = new Intl.DateTimeFormat(idioma, { day: 'numeric', month: 'long', year: 'numeric' });
 const hoy = new Date().toISOString().slice(0, 10);
 const ayer = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
 const etiquetaDia = (d: string) =>
-  d === hoy ? 'Hoy' : d === ayer ? 'Ayer' : fecha.format(new Date(`${d}T12:00:00Z`));
+  d === hoy ? (en ? 'Today' : 'Hoy') : d === ayer ? (en ? 'Yesterday' : 'Ayer') : fecha.format(new Date(`${d}T12:00:00Z`));
+
+const T = en
+  ? {
+      titulo: 'New manhwa & light novel chapters — Updated today · ManhwaToNovel',
+      desc: `The ${recientes.length} series that just got a new chapter, newest first. Manhwa and light novels, with a direct link to where to read them.`,
+      nombre: 'New chapters',
+      miga: 'New chapters',
+      h1: 'New chapters',
+      intro: `What moved lately: ${recientes.length} series with a new chapter. Sources are checked every day, so this list is what is really out now.`,
+      vacio: 'No activity recorded yet. It will show up as soon as the first indexing runs.',
+      obras: 'series',
+      cap: (n: number) => `Chapter ${n} →`,
+    }
+  : {
+      titulo: 'Capítulos nuevos de manhwa y novelas — Actualizado hoy · ManhwaToNovel',
+      desc: `Las ${recientes.length} obras que recibieron capítulo nuevo, ordenadas por fecha. Manhwas y novelas ligeras, con el enlace directo a donde leerlas.`,
+      nombre: 'Capítulos nuevos',
+      miga: 'Novedades',
+      h1: 'Capítulos nuevos',
+      intro: `Lo que se movió últimamente: ${recientes.length} obras con capítulo nuevo. Las fuentes se revisan todos los días, así que esta lista es lo que hay de verdad, no un archivo viejo.`,
+      vacio: 'Todavía no hay actividad registrada. Aparecerá sola en cuanto corra la primera indexación.',
+      obras: 'obras',
+      cap: (n: number) => `Capítulo ${n} →`,
+    };
+/** La ficha en el idioma en que exista; el capítulo se abre en ella (#capitulo-N). */
+const fichaDe = (n: { slug: string; sinopsis?: string; sinopsisOriginal?: string }) =>
+  ruta(idiomasDeObra(n).includes(idioma) ? idioma : IDIOMA_BASE, `/novela/${n.slug}`);
 
 const jsonLd = {
   '@context': 'https://schema.org',
   '@type': 'CollectionPage',
-  name: 'Capítulos nuevos',
+  name: T.nombre,
   inLanguage: idioma,
   numberOfItems: recientes.length,
 };
 
 const ruta_migas = migas(Astro.site, [
   { nombre: dic.navInicio, href: ruta(idioma) },
-  { nombre: 'Novedades', href: ruta(idioma, '/novedades') },
+  { nombre: T.miga, href: ruta(idioma, '/novedades') },
 ]);
-// Esta página SOLO se genera en el idioma base (ver getStaticPaths). Sin pasar
-// esto a <Base>, `alternativas()` anunciaba hreflang a /en/…, /pt/… y cuatro
-// más: seis URLs que devuelven 404. Google descarta el clúster de idiomas
-// entero y gasta rastreo en páginas que no existen.
-const SOLO_BASE: Idioma[] = [IDIOMA_BASE];
+
 
 ---
 
 <Base
-  titulo="Capítulos nuevos de manhwa y novelas — Actualizado hoy · ManhwaToNovel"
-  descripcion={`Las ${recientes.length} obras que recibieron capítulo nuevo, ordenadas por fecha. Manhwas y novelas ligeras, con el enlace directo a donde leerlas.`}
+  titulo={T.titulo}
+  descripcion={T.desc}
   anchoCompleto
   jsonLd={[jsonLd, ruta_migas]}
-  idiomas={SOLO_BASE}
+  idiomas={PUBLICADOS}
 >
   <Fragment slot="head">
-    <link rel="alternate" type="application/rss+xml" title="Capítulos nuevos" href="/rss.xml" />
+    <link rel="alternate" type="application/rss+xml" title={T.nombre} href="/rss.xml" />
   </Fragment>
 
   <nav class="text-sm text-base-400 mb-4" aria-label="breadcrumb">
     <a href={ruta(idioma)} class="hover:text-acento-500">{dic.navInicio}</a>
     <span class="mx-1.5">/</span>
-    <span class="text-base-500">Novedades</span>
+    <span class="text-base-500">{T.miga}</span>
   </nav>
 
   <div class="flex flex-wrap items-baseline gap-3">
-    <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-base-800 dark:text-base-50">
-      Capítulos nuevos
-    </h1>
+    <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-base-800 dark:text-base-50">{T.h1}</h1>
     <a href="/rss.xml" class="text-sm text-acento-500 hover:underline">RSS</a>
   </div>
-  <p class="mt-2 text-base-500 max-w-2xl">
-    Lo que se movió últimamente: {recientes.length} obras con capítulo nuevo. Las fuentes se revisan
-    todos los días, así que esta lista es lo que hay de verdad, no un archivo viejo.
-  </p>
+  <p class="mt-2 text-base-500 max-w-2xl">{T.intro}</p>
 
   {recientes.length === 0 && (
-    <p class="mt-8 neu-inset rounded-2xl p-5 text-base-500">
-      Todavía no hay actividad registrada. Aparecerá sola en cuanto corra la primera indexación.
-    </p>
+    <p class="mt-8 neu-inset rounded-2xl p-5 text-base-500">{T.vacio}</p>
   )}
 
   {[...dias].map(([dia, items]) => (
     <section class="mt-8">
       <h2 class="text-sm font-semibold uppercase tracking-wide text-base-400">
         {etiquetaDia(dia)}
-        <span class="ml-2 font-normal normal-case tabular-nums">{items.length} obras</span>
+        <span class="ml-2 font-normal normal-case tabular-nums">{items.length} {T.obras}</span>
       </h2>
       <ul class="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {items.map((a) => {
@@ -125,7 +143,7 @@ const SOLO_BASE: Idioma[] = [IDIOMA_BASE];
           return (
             <li>
               <a
-                href={ruta(IDIOMA_BASE, `/novela/${n.slug}`)}
+                href={fichaDe(n)}
                 class="neu-sm rounded-xl p-3 flex gap-3 items-center transition-transform duration-200 hover:-translate-y-0.5"
               >
                 <img
@@ -147,10 +165,10 @@ const SOLO_BASE: Idioma[] = [IDIOMA_BASE];
               </a>
               {ultimoCap.has(a.slug) && (
                 <a
-                  href={ruta(IDIOMA_BASE, `/novela/${n.slug}/capitulo-${ultimoCap.get(a.slug)}`)}
+                  href={en ? `${fichaDe(n)}#capitulo-${ultimoCap.get(a.slug)}` : ruta(IDIOMA_BASE, `/novela/${n.slug}/capitulo-${ultimoCap.get(a.slug)}`)}
                   class="mt-1 block text-[11px] text-acento-500 hover:underline"
                 >
-                  Capítulo {ultimoCap.get(a.slug)} →
+                  {T.cap(ultimoCap.get(a.slug)!)}
                 </a>
               )}
             </li>

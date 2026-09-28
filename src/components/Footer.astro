@@ -18,20 +18,11 @@ const anio = new Date().getFullYear();
     <nav class="flex flex-wrap gap-x-4 gap-y-2">
       <a class="hover:text-acento-500 transition-colors" href={ruta(idioma, '/novelas')}>{dic.navCatalogo}</a>
       <a class="hover:text-acento-500 transition-colors" href={ruta(idioma, '/biblioteca')}>{dic.navBiblioteca}</a>
-      {/* Novedades y Rankings existen SOLO en español (como el resto del
-          catálogo, ver idiomasDeObra), así que la etiqueta va en español y el
-          enlace lo declara con hreflang. Se enlazan desde todos los idiomas a
-          propósito: son las dos páginas nuevas y sin enlaces internos serían
-          huérfanas, que es justo lo que se quería arreglar. */}
-      <a class="hover:text-acento-500 transition-colors" href={ruta(IDIOMA_BASE, '/novedades')} hreflang="es">
-        Novedades
-      </a>
-      <a class="hover:text-acento-500 transition-colors" href={ruta(IDIOMA_BASE, '/rankings')} hreflang="es">
-        Rankings
-      </a>
-      <a class="hover:text-acento-500 transition-colors" href={ruta(IDIOMA_BASE, '/titulos/a')} hreflang="es">
-        Títulos A-Z
-      </a>
+      {/* Los hubs existen en español e inglés: cada idioma enlaza al suyo. Van en
+          el pie de todas las páginas para que ninguno quede huérfano. */}
+      <a class="hover:text-acento-500 transition-colors" href={ruta(idioma, '/novedades')}>{dic.seccionNovedades}</a>
+      <a class="hover:text-acento-500 transition-colors" href={ruta(idioma, '/rankings')}>{dic.navRanking}</a>
+      <a class="hover:text-acento-500 transition-colors" href={ruta(idioma, '/titulos/a')}>{dic.seccionTitulos}</a>
       <a class="hover:text-acento-500 transition-colors" href="/rss.xml">RSS</a>
       <a class="hover:text-acento-500 transition-colors" href="/sitemap-index.xml">{dic.navSitemap}</a>
     </nav>

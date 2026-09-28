@@ -31,6 +31,8 @@ export interface Novela {
   creadaEn?: string;
   /** Slugs de fichas fusionadas en esta (ver scripts/fusionar.mjs): 301 hacia aquí. */
   slugsAntiguos?: string[];
+  /** Tiene ficha en /en/ con su sinopsis original en inglés (ver marcarIngles en api.ts). */
+  enIngles?: boolean;
 }
 
 export interface EquivalenciaManhwa {

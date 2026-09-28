@@ -23,7 +23,9 @@ interface Props {
 }
 
 const { fuentes, slug } = Astro.props;
-const dic = t(idiomaDeRuta(Astro.url.pathname));
+const idiomaPagina = idiomaDeRuta(Astro.url.pathname);
+const dic = t(idiomaPagina);
+const enIngles = idiomaPagina === 'en';
 
 const idiomaNombre = (i: string) => (esIdioma(i) ? IDIOMAS[i].nombre : i.toUpperCase());
 /** Capítulos por página. Con 1.000, llegar al 1 era hacer scroll hasta el fondo. */
@@ -140,7 +142,12 @@ const POR_PAGINA = 50;
               // Una sola pasada del regex por fila: en una obra de 2.000
               // capítulos, llamarlo en la condición y otra vez en el valor son
               // 4.000 ejecuciones por página, y hay 8.600 páginas.
-              const resto = restoDelTitulo(c.titulo, c.numero);
+              const resto = enIngles
+                ? restoDelTitulo(c.titulo, c.numero)?.replace(
+                    /^(Serie|Novela) completa · (\d+) capítulos$/,
+                    (_, f, n) => `${f === 'Serie' ? 'Full series' : 'Full novel'} · ${n} chapters`,
+                  )
+                : restoDelTitulo(c.titulo, c.numero);
               return (
               <li
                 data-cap={c.numero ?? ''}

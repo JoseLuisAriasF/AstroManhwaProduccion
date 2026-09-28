@@ -3,7 +3,8 @@ import Base from '@/layouts/Base.astro';
 import NovelaCard from '@/components/NovelaCard.astro';
 import { formatos, getCapitulosExternos, getNovelas } from '@/lib/api';
 import { brechaDe } from '@/lib/brecha';
-import { IDIOMA_BASE, ruta, t, type Idioma } from '@/lib/i18n';
+import { idiomaDeRuta, ruta, t } from '@/lib/i18n';
+import { PUBLICADOS, paramsDeIdioma } from '@/lib/publicables';
 import { migas } from '@/lib/seo';
 import type { Novela } from '@/types/novela';
 
@@ -19,13 +20,14 @@ import type { Novela } from '@/types/novela';
  * Ordenadas por brecha: arriba, donde más historia queda por leer. Ese orden
  * ES el gancho —"+1775 capítulos esperando"—, no un detalle estético.
  *
- * Solo en el idioma base, como el resto de páginas propias (idiomasDeObra).
+ * En español e inglés: cada tarjeta enlaza a la ficha en el idioma en que
+ * exista (NovelaCard cae al español si la obra no tiene versión inglesa).
  */
 export function getStaticPaths() {
-  return [{ params: { idioma: undefined } }];
+  return paramsDeIdioma().map(({ idioma }) => ({ params: { idioma } }));
 }
 
-const idioma = IDIOMA_BASE;
+const idioma = idiomaDeRuta(Astro.url.pathname);
 const dic = t(idioma);
 
 interface Fila {
@@ -51,27 +53,43 @@ const ruta_migas = migas(Astro.site, [
   { nombre: dic.navInicio, href: ruta(idioma) },
   { nombre: dic.navSeries, href: ruta(idioma, '/series') },
 ]);
+const T = {
+  es: {
+    titulo: 'Series con manhwa y novela — dónde sigue la historia · ManhwaToNovel',
+    desc: `${filas.length} obras que tienen el manhwa y la novela indexados a la vez. Terminaste el manhwa; aquí ves por qué capítulo va la novela y cuánto queda.`,
+    nombre: 'Series con manhwa y novela',
+    h1: 'Manhwa y novela, juntos',
+    intro: `${filas.length} obras tienen los dos formatos indexados. Si terminaste el manhwa, aquí ves exactamente por dónde va la novela y cuánta historia te queda.`,
+    vacio: 'Todavía no hay obras con manhwa y novela indexados a la vez. Aparecen solas conforme el indexador cruza las fuentes.',
+    enNovela: (n: number) => `+${n} en la novela`,
+  },
+  en: {
+    titulo: 'Series with both manhwa and novel — where the story continues · ManhwaToNovel',
+    desc: `${filas.length} series with both the manhwa and the novel indexed. Finished the manhwa? See which chapter the novel is on and how much story is left.`,
+    nombre: 'Series with manhwa and novel',
+    h1: 'Manhwa and novel, together',
+    intro: `${filas.length} series have both formats indexed. If you finished the manhwa, see exactly where the novel is and how much story you have left.`,
+    vacio: 'No series with both manhwa and novel indexed yet. They appear automatically as the indexer matches sources.',
+    enNovela: (n: number) => `+${n} in the novel`,
+  },
+}[idioma === 'en' ? 'en' : 'es'];
+
 const jsonLd = {
   '@context': 'https://schema.org',
   '@type': 'CollectionPage',
-  name: 'Series con manhwa y novela',
+  name: T.nombre,
   inLanguage: idioma,
   numberOfItems: filas.length,
 };
-// Esta página SOLO se genera en el idioma base (ver getStaticPaths). Sin pasar
-// esto a <Base>, `alternativas()` anunciaba hreflang a /en/…, /pt/… y cuatro
-// más: seis URLs que devuelven 404. Google descarta el clúster de idiomas
-// entero y gasta rastreo en páginas que no existen.
-const SOLO_BASE: Idioma[] = [IDIOMA_BASE];
 
 ---
 
 <Base
-  titulo="Series con manhwa y novela — dónde sigue la historia · ManhwaToNovel"
-  descripcion={`${filas.length} obras que tienen el manhwa y la novela indexados a la vez. Terminaste el manhwa; aquí ves por qué capítulo va la novela y cuánto queda.`}
+  titulo={T.titulo}
+  descripcion={T.desc}
   anchoCompleto
   jsonLd={[jsonLd, ruta_migas]}
-  idiomas={SOLO_BASE}
+  idiomas={PUBLICADOS}
 >
   <nav class="text-sm text-base-400 mb-4" aria-label="breadcrumb">
     <a href={ruta(idioma)} class="hover:text-acento-500">{dic.navInicio}</a>
@@ -79,19 +97,11 @@ const SOLO_BASE: Idioma[] = [IDIOMA_BASE];
     <span class="text-base-500">{dic.navSeries}</span>
   </nav>
 
-  <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-base-800 dark:text-base-50">
-    Manhwa y novela, juntos
-  </h1>
-  <p class="mt-2 text-base-500 max-w-2xl text-pretty">
-    {filas.length} obras tienen los dos formatos indexados. Si terminaste el manhwa,
-    aquí ves exactamente por dónde va la novela — y cuánta historia te queda.
-  </p>
+  <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-base-800 dark:text-base-50">{T.h1}</h1>
+  <p class="mt-2 text-base-500 max-w-2xl text-pretty">{T.intro}</p>
 
   {filas.length === 0 && (
-    <p class="mt-8 neu-inset rounded-2xl p-5 text-base-500">
-      Todavía no hay obras con manhwa y novela indexados a la vez. Aparecen solas
-      conforme el indexador cruza las fuentes.
-    </p>
+    <p class="mt-8 neu-inset rounded-2xl p-5 text-base-500">{T.vacio}</p>
   )}
 
   <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -101,7 +111,7 @@ const SOLO_BASE: Idioma[] = [IDIOMA_BASE];
         {/* La brecha, en la esquina: el número por el que se vino. */}
         {f.faltan > 0 && (
           <span class="absolute top-2 right-2 text-[11px] font-semibold tabular-nums text-acento-500 neu-inset rounded-lg px-2 py-0.5">
-            +{f.faltan} en la novela
+            {T.enNovela(f.faltan)}
           </span>
         )}
       </div>

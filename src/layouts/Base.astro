@@ -114,10 +114,16 @@ const PINTEREST =
         <link rel="alternate" hreflang={a.hreflang} href={new URL(a.href, Astro.site).toString()} />
       ))
     }
+    {/* x-default = la versión para quien no habla ninguno de los idiomas del
+        sitio. Inglés si la página existe en inglés: es el público internacional
+        y el que mejor paga en publicidad. Si no, la base en español. */}
     <link
       rel="alternate"
       hreflang="x-default"
-      href={new URL(idiomasAlternos.find((a) => a.idioma === IDIOMA_BASE)!.href, Astro.site).toString()}
+      href={new URL(
+        (idiomasAlternos.find((a) => a.idioma === 'en') ?? idiomasAlternos.find((a) => a.idioma === IDIOMA_BASE)!).href,
+        Astro.site,
+      ).toString()}
     />
 
     <meta property="og:type" content={tipo} />

@@ -62,7 +62,7 @@ const indice = obras.map((o) => ({
 <Base titulo={`${dic.catalogo} · ManhwaToNovel`} descripcion={dic.seoCatalogoDesc} anchoCompleto>
   <h1 class="text-2xl font-bold tracking-tight text-base-800 dark:text-base-50">{dic.catalogo}</h1>
   <p class="mt-1 text-sm text-base-500" data-sub>
-    {destacadas.length} obras con <strong class="text-acento-500">manhwa y novela</strong>. Busca un título para ver el catálogo completo.
+    {dic.catalogoSub(destacadas.length)}
   </p>
 
   <label class="mt-5 neu-inset rounded-xl flex items-center gap-3 px-4 py-3">

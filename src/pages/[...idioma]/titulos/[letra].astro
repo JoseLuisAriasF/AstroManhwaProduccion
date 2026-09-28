@@ -1,7 +1,8 @@
 ---
 import Base from '@/layouts/Base.astro';
 import { getNovelas } from '@/lib/api';
-import { IDIOMA_BASE, ruta, t, type Idioma } from '@/lib/i18n';
+import { IDIOMA_BASE, idiomaDeRuta, ruta, t } from '@/lib/i18n';
+import { PUBLICADOS, idiomasDeObra, paramsDeIdioma } from '@/lib/publicables';
 import { migas } from '@/lib/seo';
 
 /**
@@ -36,14 +37,17 @@ const LETRAS = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ', '#'];
 
 export function getStaticPaths() {
   const letras = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ', '#'];
-  return letras.map((l) => ({
-    // "#" no puede ir en una ruta: se archiva como "otros".
-    params: { idioma: undefined, letra: l === '#' ? 'otros' : l.toLowerCase() },
-  }));
+  return paramsDeIdioma().flatMap(({ idioma }) =>
+    letras.map((l) => ({
+      // "#" no puede ir en una ruta: se archiva como "otros".
+      params: { idioma, letra: l === '#' ? 'otros' : l.toLowerCase() },
+    })),
+  );
 }
 
-const idioma = IDIOMA_BASE;
+const idioma = idiomaDeRuta(Astro.url.pathname);
 const dic = t(idioma);
+const en = idioma === 'en';
 const param = Astro.params.letra!;
 const letra = param === 'otros' ? '#' : param.toUpperCase();
 
@@ -59,53 +63,65 @@ const entradas = novelas
       .map((nombre) => ({ nombre, novela: n })),
   )
   .filter((e) => inicial(e.nombre) === letra)
-  .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  .sort((a, b) => a.nombre.localeCompare(b.nombre, idioma));
+
+const fichaDe = (n: (typeof novelas)[number]) =>
+  ruta(idiomasDeObra(n).includes(idioma) ? idioma : IDIOMA_BASE, `/novela/${n.slug}`);
+const T = en
+  ? {
+      titulo: `Manhwa & novels by title: ${letra} — Every alternative name · ManhwaToNovel`,
+      desc: `${entradas.length} titles starting with ${letra}, including alternative names in English, Korean and romanized. Find the series even if you know it by another name.`,
+      nombre: `Titles starting with ${letra}`,
+      miga: 'Titles',
+      intro: `The same series goes by several names depending on the scan and the language. They are all here, each one linking to its page. ${entradas.length} under this letter.`,
+      indice: 'Alphabetical index',
+      vacio: `No title starts with ${letra} yet.`,
+    }
+  : {
+      titulo: `Manhwas y novelas por título: ${letra} — Todos sus nombres · ManhwaToNovel`,
+      desc: `${entradas.length} títulos que empiezan por ${letra}, incluidos los nombres alternativos en inglés, coreano y romanizado. Encuentra la obra aunque la conozcas por otro nombre.`,
+      nombre: `Títulos que empiezan por ${letra}`,
+      miga: 'Títulos',
+      intro: `La misma obra circula con varios nombres según la scan y el idioma. Aquí están todos, cada uno llevando a su ficha. ${entradas.length} en esta letra.`,
+      indice: 'Índice alfabético',
+      vacio: `Ningún título empieza por ${letra} todavía.`,
+    };
 
 const href = (l: string) => ruta(idioma, `/titulos/${l === '#' ? 'otros' : l.toLowerCase()}`);
 
 const jsonLd = {
   '@context': 'https://schema.org',
   '@type': 'CollectionPage',
-  name: `Títulos que empiezan por ${letra}`,
+  name: T.nombre,
   inLanguage: idioma,
   numberOfItems: entradas.length,
 };
 
 const ruta_migas = migas(Astro.site, [
   { nombre: dic.navInicio, href: ruta(idioma) },
-  { nombre: 'Títulos', href: href('A') },
+  { nombre: T.miga, href: href('A') },
   { nombre: letra, href: href(letra) },
 ]);
-// Esta página SOLO se genera en el idioma base (ver getStaticPaths). Sin pasar
-// esto a <Base>, `alternativas()` anunciaba hreflang a /en/…, /pt/… y cuatro
-// más: seis URLs que devuelven 404. Google descarta el clúster de idiomas
-// entero y gasta rastreo en páginas que no existen.
-const SOLO_BASE: Idioma[] = [IDIOMA_BASE];
 
 ---
 
 <Base
-  titulo={`Manhwas y novelas por título: ${letra} — Todos sus nombres · ManhwaToNovel`}
-  descripcion={`${entradas.length} títulos que empiezan por ${letra}, incluidos los nombres alternativos en inglés, coreano y romanizado. Encuentra la obra aunque la conozcas por otro nombre.`}
+  titulo={T.titulo}
+  descripcion={T.desc}
   anchoCompleto
   jsonLd={[jsonLd, ruta_migas]}
-  idiomas={SOLO_BASE}
+  idiomas={PUBLICADOS}
 >
   <nav class="text-sm text-base-400 mb-4" aria-label="breadcrumb">
     <a href={ruta(idioma)} class="hover:text-acento-500">{dic.navInicio}</a>
     <span class="mx-1.5">/</span>
-    <span class="text-base-500">Títulos · {letra}</span>
+    <span class="text-base-500">{T.miga} · {letra}</span>
   </nav>
 
-  <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-base-800 dark:text-base-50">
-    Títulos que empiezan por {letra}
-  </h1>
-  <p class="mt-2 text-base-500 max-w-2xl">
-    La misma obra circula con varios nombres según la scan y el idioma. Aquí están
-    todos, cada uno llevando a su ficha. {entradas.length} en esta letra.
-  </p>
+  <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-base-800 dark:text-base-50">{T.nombre}</h1>
+  <p class="mt-2 text-base-500 max-w-2xl">{T.intro}</p>
 
-  <nav class="mt-5 flex flex-wrap gap-1.5" aria-label="Índice alfabético">
+  <nav class="mt-5 flex flex-wrap gap-1.5" aria-label={T.indice}>
     {LETRAS.map((l) => (
       <a
         href={href(l)}
@@ -121,14 +137,12 @@ const SOLO_BASE: Idioma[] = [IDIOMA_BASE];
   </nav>
 
   {entradas.length === 0 ? (
-    <p class="mt-8 neu-inset rounded-2xl p-5 text-base-500">
-      Ningún título empieza por {letra} todavía.
-    </p>
+    <p class="mt-8 neu-inset rounded-2xl p-5 text-base-500">{T.vacio}</p>
   ) : (
     <ul class="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-1">
       {entradas.map((e) => (
         <li class="text-sm border-b border-base-300/30 dark:border-base-700/30 py-1.5">
-          <a href={ruta(idioma, `/novela/${e.novela.slug}`)} class="hover:text-acento-500">
+          <a href={fichaDe(e.novela)} class="hover:text-acento-500">
             {e.nombre}
           </a>
           {e.nombre !== e.novela.titulo && (
