@@ -28,13 +28,16 @@ function localizarNovela(n: Novela, idioma: Idioma): Novela {
   // inglés oficial («Return of the Mount Hua Sect»), no por «Return to the Mount
   // Hua Sect». En /en/ se usa el inglés que ya está entre los alternos.
   const titulo = idioma === 'en' ? (tituloIngles(n) ?? n.titulo) : n.titulo;
+  // También en español: muchas sinopsis llegaron en inglés (AniList, MangaDex)
+  // y su versión española vive en el caché. Antes el idioma base se servía tal
+  // cual y la ficha española enseñaba la sinopsis en inglés.
+  const sinopsis = traducirTexto(n.sinopsis, idioma);
   return {
     ...n,
     titulo,
-    // También en español: muchas sinopsis llegaron en inglés (AniList, MangaDex)
-    // y su versión española vive en el caché. Antes el idioma base se servía tal
-    // cual y la ficha española enseñaba la sinopsis en inglés.
-    sinopsis: traducirTexto(n.sinopsis, idioma),
+    // /en/ nunca enseña prosa en español: sin traducción ni original en inglés,
+    // la ficha inglesa va sin sinopsis (el resto de la página sí es inglés).
+    sinopsis: idioma === 'en' && sinopsis === n.sinopsis && !esTextoIngles(n.sinopsis) ? '' : sinopsis,
     sinopsisOriginal: n.sinopsis,
     categorias: generosEn(n.categorias, idioma),
     // El título del idioma actual deja de ser "alterno" y el canónico pasa a
@@ -341,20 +344,21 @@ const novelasPorIdioma = new Map<Idioma, Promise<Novela[]>>();
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
- * FICHAS EN INGLÉS: el idioma que mejor paga
+ * FICHAS EN INGLÉS: solo las obras con manhwa Y novela (nivel A)
  * ─────────────────────────────────────────────────────────────────────────────
- * Unas 8.500 obras tienen la sinopsis ORIGINAL en inglés (AniList, MangaUpdates)
- * y hasta ahora solo salían en /en/ si además tenían traducción en el caché: 194
- * fichas. Una sinopsis en inglés ya es contenido inglés de verdad, así que esas
- * obras merecen su ficha en /en/, con el título inglés (localizarNovela).
+ * Decisión del dueño, oct. 2026: el sitio es bilingüe (es + en) solo en lo que
+ * únicamente él arma, la brecha manhwa↔novela. Antes salían en /en/ ~1.600 obras
+ * de un solo formato por tener la sinopsis original en inglés; esas vuelven a ser
+ * solo `es` (el middleware 301-ea sus /en/ a la ficha española). Es dinámico: en
+ * cuanto el scrapeo cruza manhwa y novela de una obra, el siguiente build la
+ * publica también en /en/, con hreflang y sitemap incluidos.
  *
  * El techo es Cloudflare Pages: 20.000 archivos por deploy en el plan gratis
  * (100.000 en los de pago). El presupuesto se CALCULA en cada build: lo que
  * dejan libre las fichas en español —que crecen cada noche—, con margen. Así el
  * inglés se encoge solo cuando el catálogo crece y el deploy nunca revienta.
  * Se reparte por popularidad (capítulos indexados): primero lo que más se lee.
- * Una obra con manhwa y novela cuesta 2 (ficha + /equivalencia). Lo adulto queda
- * fuera: gastaría cupo en páginas noindex.
+ * Cada obra cuesta 2 (ficha + /equivalencia). Lo adulto queda fuera: nunca es A.
  */
 const LIMITE_ARCHIVOS = 19_500; // de 20.000, con margen para las obras de un día
 /** Lo que no son fichas: portada, hubs ×2 idiomas, catálogo paginado, assets… (medido: ~420). */
@@ -366,20 +370,21 @@ function marcarIngles(obras: Novela[]): Promise<void> {
     const equivalenciasEs = obras.filter((n) => brechaDe(externos.get(n.slug) ?? [])).length;
     const PRESUPUESTO_EN = Math.max(0, LIMITE_ARCHIVOS - OTROS_ARCHIVOS - obras.length - equivalenciasEs);
     if (!PRESUPUESTO_EN) console.warn('[en] sin cupo de archivos para fichas en inglés: el catálogo en español llena el límite de Pages');
+    // Mismo criterio que nivelDe() para la A: no adulta y con brecha.
     const candidatas = obras
-      .filter((n) => !esAdulta(n) && esTextoIngles(n.sinopsis))
       .map((n) => ({ n, ext: externos.get(n.slug) ?? [] }))
+      .filter(({ n, ext }) => !esAdulta(n) && brechaDe(ext))
       .sort((a, b) => b.ext.length - a.ext.length);
     let gastado = 0;
     let marcadas = 0;
-    for (const { n, ext } of candidatas) {
-      const coste = brechaDe(ext) ? 2 : 1;
+    for (const { n } of candidatas) {
+      const coste = 2;
       if (gastado + coste > PRESUPUESTO_EN) continue;
       gastado += coste;
       marcadas++;
       n.enIngles = true;
     }
-    console.log(`[en] ${marcadas} fichas en inglés por sinopsis original (${gastado} archivos de ${PRESUPUESTO_EN})`);
+    console.log(`[en] ${marcadas} fichas A en inglés (${gastado} archivos de ${PRESUPUESTO_EN})`);
   })();
   return inglesMarcado;
 }

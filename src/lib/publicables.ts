@@ -1,6 +1,6 @@
 import { ACTIVOS, CODIGOS, IDIOMAS, IDIOMA_BASE, ruta, rutaCanonica, type Idioma } from './i18n';
 import { capitulosDe, novelas } from './mockData';
-import { cobertura, traducirTexto } from './traducir';
+import { cobertura } from './traducir';
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
@@ -60,26 +60,12 @@ export function paramsDeIdioma() {
 }
 
 /**
- * En qué idiomas se publica UNA obra. Solo las que tienen prosa traducible
- * —sinopsis escrita a mano— justifican una versión por idioma; el catálogo
- * descubierto (título literal, sinopsis vacía) en /en/, /pt/… sería el mismo
- * español duplicado ×6: inútil para el lector, dañino para SEO y, a 8.600
- * obras, el build de Cloudflare no cabe en su límite de tiempo. Esas van solo
- * en el idioma base; las traducidas, en todos los publicados.
+ * En qué idiomas se publica UNA obra: `es` siempre, y `en` solo si es nivel A
+ * (manhwa Y novela, no adulta). Lo marca `marcarIngles` en api.ts en cada build,
+ * así que una obra que gana su segundo formato sale sola en /en/.
  */
-export function idiomasDeObra(novela: { sinopsis?: string; sinopsisOriginal?: string; enIngles?: boolean }): Idioma[] {
-  const s = (novela.sinopsisOriginal ?? novela.sinopsis)?.trim();
-  if (!s) return [IDIOMA_BASE];
-  // Multi-idioma SOLO si la sinopsis está de verdad traducida (existe en el
-  // caché para algún idioma no-base). Una sinopsis importada de AniList está en
-  // inglés y sin traducir: la obra queda en `es` hasta que LibreTranslate la
-  // llene —y entonces aparece sola—. Sin esto, enriquecer miles de obras las
-  // publicaría en 7 idiomas con texto sin traducir y el build no cabría en CF.
-  // Una sinopsis que ya viene en inglés (AniList) no tiene entrada «en» en el
-  // caché: la tiene «es». Esa obra también existe en inglés, con su texto original.
-  // O marcada en el build por tener la sinopsis original en inglés (api.ts).
-  const enIngles = traducirTexto(s, IDIOMA_BASE) !== s || novela.enIngles === true;
-  return [IDIOMA_BASE, ...PUBLICADOS.filter((c) => c !== IDIOMA_BASE && (traducirTexto(s, c) !== s || (c === 'en' && enIngles)))];
+export function idiomasDeObra(novela: { enIngles?: boolean }): Idioma[] {
+  return novela.enIngles && PUBLICADOS.includes('en') ? [IDIOMA_BASE, 'en'] : [IDIOMA_BASE];
 }
 
 /**

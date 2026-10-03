@@ -74,7 +74,7 @@ const PINTEREST =
 ---
 
 <!doctype html>
-<html lang={meta.htmlLang} dir={meta.dir} class="scroll-pt-24">
+<html lang={meta.htmlLang} dir={meta.dir} class="dark scroll-pt-24">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -266,10 +266,12 @@ const PINTEREST =
 
     <slot name="head" />
 
-    {/* Anti-FOUC: corre antes del primer pintado */}
+    {/* Anti-FOUC: corre antes del primer pintado. Oscuro por defecto (decisión
+        del dueño): el <html> ya sale con `dark` y esto solo lo quita si el lector
+        eligió claro. */}
     <script is:inline>
       (() => {
-        const t = localStorage.getItem('mtn:tema') || 'system';
+        const t = localStorage.getItem('mtn:tema') || 'dark';
         const oscuro =
           t === 'dark' ||
           (t === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);

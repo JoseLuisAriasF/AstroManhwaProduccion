@@ -491,8 +491,7 @@ ${o.canonical ? `<meta property="og:url" content="${esc(o.canonical)}">` : ''}
 <meta name="monetag" content="62d9babbfc5d166206a80624f263052b">
 <script src="https://quge5.com/88/tag.min.js" data-zone="287424" async data-cfasync="false"></script>
 <style>
-:root{color-scheme:light dark;--bg:#eef1f6;--card:#fff;--tx:#2b3140;--sub:#6b7280;--ac:#5b6cff}
-@media(prefers-color-scheme:dark){:root{--bg:#171b24;--card:#1e2431;--tx:#e7eaf0;--sub:#9aa2b1}}
+:root{color-scheme:dark;--bg:#171b24;--card:#1e2431;--tx:#e7eaf0;--sub:#9aa2b1;--ac:#8b9aff}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.6 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
 main{max-width:44rem;margin:0 auto;padding:2rem 1rem 3rem}

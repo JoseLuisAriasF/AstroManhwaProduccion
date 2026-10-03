@@ -4,6 +4,13 @@
 /* Modo oscuro por clase en <html> (lo aplica el script anti-FOUC del layout) */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Fundido entre páginas sin JS (View Transitions entre documentos). Junto al
+   prefetch de Speculation Rules, la navegación se siente de app. Quien no lo
+   soporta navega igual que siempre. */
+@view-transition {
+  navigation: auto;
+}
+
 @layer base {
   /* Superficie y sombras: los dos únicos valores que cambian entre temas */
   :root {
@@ -12,6 +19,7 @@
     --sombra-oscura: rgba(163, 172, 189, 0.45);
   }
   .dark {
+    color-scheme: dark;
     --superficie: #171b24;
     --sombra-clara: rgba(255, 255, 255, 0.035);
     --sombra-oscura: rgba(0, 0, 0, 0.55);

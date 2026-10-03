@@ -46,5 +46,5 @@ const opciones = [
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
     if (raiz.dataset.tema === 'system') aplicar('system');
   });
-  aplicar(localStorage.getItem('mtn:tema') || 'system');
+  aplicar(localStorage.getItem('mtn:tema') || 'dark');
 </script>
