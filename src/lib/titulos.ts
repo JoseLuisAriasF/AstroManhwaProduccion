@@ -40,7 +40,7 @@ const COREANO = /eo|eu|jj|kk|hw|gw|oe/;
 const FIN_ES = /(?:o|a|os|as|cion|dad|mente)$/;
 const FIN_EN = /(?:ing|ings|ed|ness|ly|tion|th|ght|er|ers|or|ist|ian|ine|ure)$/;
 /** Francés que se cuela entre los alternos («Issu de sang vulgaire»). */
-const FIN_FR = /(?:aire|aite|eux|eur|oir|ais|ait|ille|ee)$/;
+const FIN_FR = /(?:aire|aite|eux|eur|oir|ais|ait|ille)$/;
 
 /** El «hangul filler» (U+3164) y los espacios de ancho cero que algunas scans pegan al título. */
 const INVISIBLES = /[\u3164\u200b-\u200d\ufeff]/g;

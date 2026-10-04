@@ -12,6 +12,8 @@ const casos: [string, string][] = [
   ['Absolute Necromancer', 'en'],
   ['Breakers', 'en'],
   ["A Dragonslayer's Peerless Regression", 'en'],
+  ['I Have a Mythical Tree', 'en'],
+  ['History of Three States', 'en'],
   ['Regreso de la Secta del Monte Hua', 'es'],
   ['Cazando automáticamente con mis clones', 'es'],
   ['Ciudad del pecado', 'es'],
