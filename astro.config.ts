@@ -27,7 +27,8 @@ export default defineConfig({
       // Las fichas (/novela/…) tampoco: van en /sitemap-obras.xml, que sabe
       // cuáles llevan noindex (ver src/lib/indexacion.ts). Este paquete no.
       filter: (pagina) => !pagina.includes('/admin') && !new URL(pagina).pathname.includes('/novela/'),
-      customSitemaps: [`${SITE.replace(/\/$/, '')}/sitemap-obras.xml`],
+      // Las A (manhwa + novela) primero: es el catálogo prioritario (src/lib/sitemapObras.ts).
+      customSitemaps: [`${SITE.replace(/\/$/, '')}/sitemap-ambos.xml`, `${SITE.replace(/\/$/, '')}/sitemap-obras.xml`],
       serialize(item) {
         // `as typeof item`: el tipo de `changefreq` es un ENUM del paquete
         // sitemap, y un literal 'daily' no le encaja aunque valga en runtime.

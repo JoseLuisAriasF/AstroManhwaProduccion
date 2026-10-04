@@ -76,7 +76,7 @@ const leer = async (ruta, como) => {
   return como === 'json' ? r.json() : r.text();
 };
 const enSitemap = new Set(
-  [...(await leer('/sitemap-obras.xml')).matchAll(/\/novela\/([^/<]+)\/<\/loc>/g)].map((m) => m[1]),
+  [...((await leer('/sitemap-ambos.xml')) + (await leer('/sitemap-obras.xml'))).matchAll(/\/novela\/([^/<]+)\/<\/loc>/g)].map((m) => m[1]),
 );
 const obrasA = new Set(await leer('/obras-nivel-a.json', 'json'));
 
@@ -112,11 +112,22 @@ if (slugsA.length) {
   }
 }
 
-// La portada y el catálogo cambian con cada tanda nueva, así que van siempre.
+// La portada, el catálogo y el hub de series cambian con cada tanda nueva, así
+// que van siempre. Las A (manhwa + novela) van primero y con sus cuatro caras:
+// ficha y /equivalencia, en español y en inglés (la brecha cambió con el capítulo).
 const urlList = [
   `${sitio}/`,
+  `${sitio}/en/`,
   `${sitio}/novelas/`,
-  ...slugs.map((s) => `${sitio}/novela/${s}/`),
+  `${sitio}/series/`,
+  `${sitio}/en/series/`,
+  ...slugsA.flatMap((s) => [
+    `${sitio}/novela/${s}/`,
+    `${sitio}/en/novela/${s}/`,
+    `${sitio}/novela/${s}/equivalencia/`,
+    `${sitio}/en/novela/${s}/equivalencia/`,
+  ]),
+  ...slugs.filter((s) => !obrasA.has(s)).map((s) => `${sitio}/novela/${s}/`),
   ...new Set(capitulos),
 ];
 

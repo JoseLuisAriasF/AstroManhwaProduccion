@@ -65,44 +65,56 @@ export async function catalogoOrdenado(): Promise<Novela[]> {
  * no hace falta ordenar las 3.000 de "Acción".
  */
 const TOPE_BUCKET = 40;
-let indiceCats: Map<string, Novela[]> | null = null;
+let indiceCats: Promise<Map<string, Novela[]>> | null = null;
 
-async function porCategoria(): Promise<Map<string, Novela[]>> {
-  if (!indiceCats) {
-    indiceCats = new Map();
-    for (const n of await catalogoOrdenado()) {
+/** Obras con manhwa Y novela: las que reciben la prioridad en el enlazado. */
+const esA = async (slug: string) => (await niveles()).get(slug) === 'A';
+
+function porCategoria(): Promise<Map<string, Novela[]>> {
+  indiceCats ??= (async () => {
+    const indice = new Map<string, Novela[]>();
+    const orden = await catalogoOrdenado();
+    const nivel = await niveles();
+    // Las A entran primero en cada bucket: así casi todo el cupo de 40 son obras
+    // con manhwa y novela, y las fichas de un solo formato —que traen el ~90%
+    // del tráfico de Google— reparten su autoridad hacia ellas.
+    const a = orden.filter((n) => nivel.get(n.slug) === 'A');
+    const resto = orden.filter((n) => nivel.get(n.slug) !== 'A');
+    for (const n of [...a, ...resto]) {
       // Una ficha normal no recomienda lo adulto (sí al revés: de lo adulto a
       // lo normal, que es sacar al lector de ahí).
       if (esAdulta(n)) continue;
       for (const c of n.categorias) {
-        const bucket = indiceCats.get(c) ?? [];
+        const bucket = indice.get(c) ?? [];
         if (bucket.length < TOPE_BUCKET) bucket.push(n);
-        indiceCats.set(c, bucket);
+        indice.set(c, bucket);
       }
     }
-  }
+    return indice;
+  })();
   return indiceCats;
 }
 
 /**
- * Obras similares para la malla de enlaces internos de una ficha. Prioriza las
- * que comparten más categorías; si la obra no tiene ninguna (o son raras), se
- * completa con vecinas alfabéticas para que NINGUNA ficha quede sin enlaces de
- * salida —una ficha sin salidas es un callejón para el rastreador—.
+ * Obras similares para la malla de enlaces internos de una ficha. Primero las
+ * que tienen manhwa Y novela (nivel A), y dentro de cada grupo las que comparten
+ * más categorías; si la obra no tiene ninguna (o son raras), se completa con
+ * vecinas alfabéticas para que NINGUNA ficha quede sin enlaces de salida —una
+ * ficha sin salidas es un callejón para el rastreador—.
  */
 export async function relacionadasDe(novela: Novela, cuantas = 6): Promise<Novela[]> {
   const indice = await porCategoria();
-  const puntos = new Map<string, { n: Novela; comunes: number }>();
+  const puntos = new Map<string, { n: Novela; comunes: number; a: boolean }>();
   for (const c of novela.categorias) {
     for (const n of indice.get(c) ?? []) {
       if (n.slug === novela.slug) continue;
       const prev = puntos.get(n.slug);
       if (prev) prev.comunes++;
-      else puntos.set(n.slug, { n, comunes: 1 });
+      else puntos.set(n.slug, { n, comunes: 1, a: await esA(n.slug) });
     }
   }
   const elegidas = [...puntos.values()]
-    .sort((a, b) => b.comunes - a.comunes)
+    .sort((x, y) => Number(y.a) - Number(x.a) || y.comunes - x.comunes)
     .slice(0, cuantas)
     .map((x) => x.n);
 
@@ -110,11 +122,16 @@ export async function relacionadasDe(novela: Novela, cuantas = 6): Promise<Novel
     const todas = await catalogoOrdenado();
     const i = todas.findIndex((n) => n.slug === novela.slug);
     const vistos = new Set([novela.slug, ...elegidas.map((n) => n.slug)]);
-    for (let k = 1; elegidas.length < cuantas && k <= todas.length; k++) {
-      const vecina = todas[(i + k) % todas.length];
-      if (vecina && !vistos.has(vecina.slug) && !esAdulta(vecina)) {
-        vistos.add(vecina.slug);
-        elegidas.push(vecina);
+    // Dos vueltas: primero las vecinas A (manhwa + novela), luego cualquiera.
+    // Las fichas sin géneros son justo las de más tráfico, así que esta es la
+    // vía por la que más autoridad llega a las A.
+    for (const soloA of [true, false]) {
+      for (let k = 1; elegidas.length < cuantas && k <= todas.length; k++) {
+        const vecina = todas[(i + k) % todas.length];
+        if (vecina && !vistos.has(vecina.slug) && !esAdulta(vecina) && (!soloA || (await esA(vecina.slug)))) {
+          vistos.add(vecina.slug);
+          elegidas.push(vecina);
+        }
       }
     }
   }
