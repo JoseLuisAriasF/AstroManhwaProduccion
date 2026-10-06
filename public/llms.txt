@@ -1,0 +1,17 @@
+# ManhwaToNovel
+
+> Latest manhwa and light-novel chapters in one place, with the community-sourced
+> manhwa to novel chapter equivalence: when you finish the manhwa, find exactly
+> which novel chapter to continue from, and where to read each source. The site
+> indexes where to read each work and its latest chapter per source; it does not
+> host the chapters. Spanish-first (manhwatonovel.com), English under /en/.
+
+## Main sections
+- [Catalog](https://www.manhwatonovel.com/novelas): every work, manhwa and light novels, with alternative titles.
+- [Rankings](https://www.manhwatonovel.com/rankings): where the most story remains undrawn (novel far ahead of the manhwa).
+- [New chapters](https://www.manhwatonovel.com/novedades): updated nightly. RSS feed: https://www.manhwatonovel.com/rss.xml
+- [Browse by title](https://www.manhwatonovel.com/titulos/a): find a work by its other names (English, Korean, romanized).
+
+## What is unique here
+- Per-work manhwa to novel chapter equivalence (e.g. /novela/<slug>/equivalencia): the gap between the latest manhwa chapter and how far the novel goes, so a reader knows which novel chapter to continue from.
+- Works that exist as both manhwa and novel are the priority of the catalog; single-format works are also indexed.
