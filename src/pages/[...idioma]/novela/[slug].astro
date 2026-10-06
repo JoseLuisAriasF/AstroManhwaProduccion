@@ -12,6 +12,7 @@ import { generos } from '@/lib/categorias';
 import { claveGenero } from '@/lib/generos';
 import { faq, migas } from '@/lib/seo';
 import { brechaDe } from '@/lib/brecha';
+import { adaptacionDe, etiquetaAdaptacion } from '@/lib/adaptacion';
 import { segundoNombre } from '@/lib/titulos';
 import { textosObra } from '@/lib/textosObra';
 
@@ -39,6 +40,9 @@ const externos = await getCapitulosExternos(novela.slug);
 // por número de capítulos. Y qué formatos hay, para el aviso "Manhwa · Novela".
 const fuentes = fuentesDe(externos);
 const formatosDisponibles = formatos(externos);
+// Estado de adaptación DERIVADO de las fuentes (no de novela.tipo, obsoleto).
+// Dato explícito para cada ficha, visible abajo y en el JSON-LD de la serie.
+const adaptacion = adaptacionDe(formatosDisponibles);
 const anclas = await getEquivalencias(novela.slug);
 // El puente se muestra si la obra tiene manhwa Y novela (aunque no haya anclas:
 // la comunidad puede aportar/votar la primera).
@@ -127,6 +131,11 @@ const jsonLd = {
   image: new URL(novela.portadaUrl, Astro.site).toString(),
   inLanguage: IDIOMAS[idioma].htmlLang,
   genre: novela.categorias,
+  // Estado de adaptación como dato estructurado. No da rich result; ayuda a
+  // Google a entender QUÉ es la página y diferencia las fichas entre sí.
+  ...(adaptacion !== 'desconocido'
+    ? { additionalProperty: { '@type': 'PropertyValue', propertyID: 'adaptacion', name: 'formato', value: adaptacion } }
+    : {}),
   ...(hayLecturaInterna
     ? {
         potentialAction: {
@@ -159,7 +168,9 @@ const ambosTexto = enIngles ? 'manhwa and novel' : 'manhwa y novela';
 const formatoTexto =
   formatosDisponibles.length === 2
     ? ambosTexto
-    : formatosDisponibles[0] ?? (novela.tipo === 'ambos' ? ambosTexto : novela.tipo);
+    // Sin capítulos externos no hay formato derivado: `novela.tipo` como mero
+    // sustantivo de último recurso, nunca para reclamar "ambos" (está obsoleto).
+    : formatosDisponibles[0] ?? novela.tipo;
 const otroNombre = tituloIngles && tituloIngles !== novela.titulo ? ` (${tituloIngles})` : '';
 const introGenerada = (
   enIngles
@@ -249,6 +260,10 @@ const jsonLdFaq = preguntas.length >= 2 ? [faq(preguntas)] : [];
           </span>
         ))}
       </div>
+
+      {/* Estado de adaptación, explícito y visible en TODA ficha (aunque sea
+          "sin novela conocida"): dato propio que diferencia las páginas. */}
+      <p class="mt-2 text-sm text-base-500">{etiquetaAdaptacion(adaptacion, idioma)}</p>
 
       {/* El nombre en inglés va DENTRO del h1: fuera de Latinoamérica es la
           consulta más común ("Return of the Mount Hua Sect"), y el h1 es la

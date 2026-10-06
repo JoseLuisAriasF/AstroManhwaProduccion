@@ -232,8 +232,20 @@ conteos de lo mismo daban 152.845 y 199.850.
 
 ## SEO: qué se hace y por qué
 
-El sitio ya nacía con sitemap, hreflang, canonical y JSON-LD de `Book`/`Chapter`.
+El sitio ya nacía con sitemap, hreflang, canonical y JSON-LD.
 Lo que se añadió encima es lo que un agregador puede hacer y una scan no.
+
+> **Schema de la ficha — decisión cerrada (no es deuda pendiente).** La ficha usa
+> `ComicSeries` / `BookSeries` / `CreativeWorkSeries` según formato, **no** `Book`.
+> Se quitó el `Book` genérico a propósito: no somos el autor ni es un ebook, y el
+> marcado que no describe la página es motivo de acción manual («datos
+> estructurados spam»). Ninguno de estos tipos da resultado enriquecido; sirven
+> para que Google entienda QUÉ es la página, y para eso tienen que acertar. Si una
+> auditoría sugiere «añadir Book/CreativeWork a cada ficha», es un **retroceso**:
+> ya está, y mejor. El estado de adaptación (manhwa/novela/ambos) va como
+> `additionalProperty` derivado en build de las fuentes (`src/lib/adaptacion.ts`),
+> nunca como columna en Supabase: `obras.tipo` demostró que una columna a mano se
+> pudre (73 filas `ambos` cuando la realidad derivada son 2.132).
 
 ### Páginas que solo existen aquí
 
