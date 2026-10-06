@@ -2,16 +2,32 @@
  * Correr con: node --experimental-strip-types src/lib/indexacion.test.ts
  */
 import assert from 'node:assert/strict';
-import { esAdulta, esGeneroAdulto, esProhibida, nivelDe } from './indexacion.ts';
+import { cuantasLiberar, esAdulta, esColaFria, esGeneroAdulto, esProhibida, nivelDe } from './indexacion.ts';
 
 const obra = { adulta: false, ambos: false, ultimo: 0, conTrafico: false };
 
 assert.equal(nivelDe({ ...obra, ambos: true, ultimo: 1 }), 'A', 'ambos es A aunque vaya corta');
-assert.equal(nivelDe({ ...obra, ultimo: 5 }), 'B', 'un formato con sustancia');
+assert.equal(nivelDe({ ...obra, ultimo: 5, liberada: true }), 'B', 'cola fría liberada: indexable');
+assert.equal(nivelDe({ ...obra, ultimo: 5 }), 'C', 'cola fría sin liberar: noindex (prioriza las A)');
 assert.equal(nivelDe({ ...obra, ultimo: 4 }), 'C', 'un formato y delgada');
 assert.equal(nivelDe({ ...obra, ultimo: 1, conTrafico: true }), 'B', 'el tráfico medido la rescata');
 assert.equal(nivelDe({ ...obra, adulta: true, ambos: true, ultimo: 300 }), 'C', 'lo adulto sin tráfico no se indexa');
 assert.equal(nivelDe({ ...obra, adulta: true, ambos: true, conTrafico: true }), 'B', 'adulta con tráfico: solo la ficha, nunca A');
+
+// esColaFria: solo la que gatea el lote (un formato, ≥5 caps, sin tráfico, no adulta).
+assert.ok(esColaFria({ ...obra, ultimo: 5 }), 'un formato, ≥5 caps, sin tráfico');
+assert.ok(!esColaFria({ ...obra, ultimo: 5, conTrafico: true }), 'con tráfico no es cola fría (siempre B)');
+assert.ok(!esColaFria({ ...obra, ambos: true, ultimo: 5 }), 'ambos no es cola fría (es A)');
+assert.ok(!esColaFria({ ...obra, ultimo: 4 }), 'delgada no es cola fría (es C de todos modos)');
+
+// Rampa de liberación: 0 antes del inicio, crece después, nunca pasa del total.
+assert.equal(cuantasLiberar(10680, Date.parse('2026-10-20')), 0, 'antes de LOTE_INICIO: 0 (A primero)');
+assert.ok(cuantasLiberar(10680, Date.parse('2026-12-01')) > 0, 'tras el inicio: libera algo');
+assert.ok(
+  cuantasLiberar(10680, Date.parse('2027-01-01')) > cuantasLiberar(10680, Date.parse('2026-12-01')),
+  'crece con el tiempo',
+);
+assert.equal(cuantasLiberar(100, Date.parse('2030-01-01')), 100, 'tope en el total, no se pasa');
 
 assert.ok(esAdulta({ titulo: 'Ella Me Enseña Mucho - Uncensored', categorias: [] }), 'por el título');
 assert.ok(esAdulta({ titulo: 'El taller de sonidos eróticos', categorias: [] }), 'erótico con tilde');

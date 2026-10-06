@@ -1,6 +1,6 @@
 import { fuentesDe, getCapitulosExternos, getNovelas } from './api';
 import { brechaDe } from './brecha';
-import { esAdulta, nivelDe, type Nivel } from './indexacion';
+import { cuantasLiberar, esAdulta, esColaFria, nivelDe, type Nivel } from './indexacion';
 import conTrafico from './con-trafico.json';
 import type { Novela } from '@/types/novela';
 
@@ -15,24 +15,34 @@ const trafico = new Set<string>(conTrafico);
 
 export function niveles(): Promise<Map<string, Nivel>> {
   nivelesCache ??= (async () => {
-    const mapa = new Map<string, Nivel>();
+    // 1) Los hechos de cada obra (leer externos es lo caro: una sola vez).
+    const hechos = [];
     for (const n of await getNovelas()) {
       const externos = await getCapitulosExternos(n.slug);
-      mapa.set(
-        n.slug,
-        nivelDe({
-          adulta: esAdulta(n),
-          // Igual que el getStaticPaths de /equivalencia: el sitemap mete esa
-          // URL para las A, así que "ambos" tiene que significar que existe.
-          ambos: brechaDe(externos) !== null,
-          ultimo: Math.max(0, ...fuentesDe(externos).map((f) => f.total)),
-          conTrafico: trafico.has(n.slug),
-        }),
-      );
+      hechos.push({
+        slug: n.slug,
+        // Sin fecha → al final del orden: no se libera antes que las fechadas.
+        creadaEn: n.creadaEn ?? '9999',
+        adulta: esAdulta(n),
+        // Igual que el getStaticPaths de /equivalencia: el sitemap mete esa
+        // URL para las A, así que "ambos" tiene que significar que existe.
+        ambos: brechaDe(externos) !== null,
+        ultimo: Math.max(0, ...fuentesDe(externos).map((f) => f.total)),
+        conTrafico: trafico.has(n.slug),
+      });
     }
+    // 2) La cola fría se libera por antigüedad (creada_en asc) hasta LOTE_B_FRIA.
+    // Orden estable: una obra liberada nunca vuelve a noindex al crecer el lote.
+    const colaFria = hechos.filter(esColaFria).sort((a, b) => a.creadaEn.localeCompare(b.creadaEn));
+    const liberadas = new Set(colaFria.slice(0, cuantasLiberar(colaFria.length)).map((h) => h.slug));
+    // 3) Nivel final, con la cola fría gateada.
+    const mapa = new Map<string, Nivel>();
+    for (const h of hechos) mapa.set(h.slug, nivelDe({ ...h, liberada: liberadas.has(h.slug) }));
     const cuenta = { A: 0, B: 0, C: 0 };
     for (const v of mapa.values()) cuenta[v]++;
-    console.log(`[niveles] A=${cuenta.A} B=${cuenta.B} C=${cuenta.C} (con tráfico: ${trafico.size})`);
+    console.log(
+      `[niveles] A=${cuenta.A} B=${cuenta.B} C=${cuenta.C} (tráfico ${trafico.size}; cola fría liberada ${liberadas.size}/${colaFria.length})`,
+    );
     return mapa;
   })();
   return nivelesCache;

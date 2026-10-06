@@ -32,6 +32,41 @@ export type Nivel = 'A' | 'B' | 'C';
 /** Por debajo de esto una ficha de un solo formato es un título y dos enlaces. */
 export const MIN_CAPITULOS = 5;
 
+/**
+ * Liberación AUTOMÁTICA de la «cola fría» (un solo formato, ≥MIN_CAPITULOS, aún
+ * SIN tráfico medido) por una rampa temporal. La prioridad del dueño: que Google
+ * indexe TODAS las A (manhwa + novela) primero; la cola fría entra después, sola,
+ * en paquetes semanales, hasta completarse —sin tocar nada a mano—.
+ *
+ *   - Hasta `LOTE_INICIO`: 0 liberadas (foco en A + B-con-tráfico; A pequeño, se
+ *     indexa en pocas semanas con ~220 rastreos/día).
+ *   - Desde `LOTE_INICIO`: +`LOTE_POR_SEMANA` cada semana, hasta soltar todo.
+ *   Las liberadas se eligen por `creada_en` (las más viejas primero) en niveles(),
+ *   y una vez dentro NO salen (rampa monótona: nada de oscilar index/noindex).
+ *
+ * ⚠ Es por TIEMPO, no por feedback real de Google (medir la indexación necesita
+ * la API de GSC en el build, que no está). Ritmo conservador para no reinundar;
+ * si GSC muestra que Google va sobrado, sube LOTE_POR_SEMANA. Para pausar: pon
+ * LOTE_INICIO en el futuro. Para soltar todo ya: LOTE_INICIO en el pasado + ritmo alto.
+ *
+ * Las A nunca pasan por aquí: una obra que gana su segundo formato —o dos fichas
+ * fusionadas en una con ambos— se vuelve A sola en el siguiente build, con prioridad.
+ */
+export const LOTE_INICIO = '2026-11-03'; // ~4 semanas tras el deploy: deja indexar las A
+export const LOTE_POR_SEMANA = 300; // 10.680 / 300 ≈ 36 semanas (~8 meses) para completar
+
+/** Cuántas de cola fría liberar a fecha `ahora`. Pura y testable. */
+export function cuantasLiberar(total: number, ahora: number = Date.now()): number {
+  const semanas = (ahora - Date.parse(LOTE_INICIO)) / (7 * 24 * 60 * 60 * 1000);
+  if (semanas <= 0) return 0;
+  return Math.min(total, Math.floor(semanas * LOTE_POR_SEMANA));
+}
+
+/** Cola fría: un solo formato, con sustancia, pero aún sin tráfico medido. Es
+ *  indexable (B) solo si entra en el lote liberado; si no, C/noindex. */
+export const esColaFria = (o: { adulta: boolean; ambos: boolean; ultimo: number; conTrafico: boolean }) =>
+  !o.adulta && !o.ambos && !o.conTrafico && o.ultimo >= MIN_CAPITULOS;
+
 /** Géneros explícitos, por su clave canónica (ver generos.ts): «Adult», «adult» y
  *  «Adulto» son el mismo. `ecchi` y `mature` quedan fuera a propósito: son
  *  contenido sugerente o violento, no explícito, y son ~550 obras normales. */
@@ -58,10 +93,16 @@ export function nivelDe(o: {
   ultimo: number;
   /** Tuvo impresiones en Search Console (ver scripts/gsc-trafico.mjs). */
   conTrafico: boolean;
+  /** Solo cola fría: si está liberada al índice en el lote actual (ver niveles()). */
+  liberada?: boolean;
 }): Nivel {
   // Adulta con tráfico: B (la ficha, nunca sus capítulos). Decisión del dueño,
   // sept. 2026: la obra con más clics del sitio es Adult/Smut.
   if (o.adulta) return o.conTrafico ? 'B' : 'C';
   if (o.ambos) return 'A';
-  return o.conTrafico || o.ultimo >= MIN_CAPITULOS ? 'B' : 'C';
+  if (o.conTrafico) return 'B'; // B con tráfico: siempre dentro, nunca batcheada.
+  // Cola fría: indexable solo si entra en el lote liberado (LOTE_B_FRIA); si no,
+  // C/noindex hasta que el lote crezca. Prioriza que las A se indexen primero.
+  if (o.ultimo >= MIN_CAPITULOS) return o.liberada ? 'B' : 'C';
+  return 'C';
 }

@@ -23,6 +23,9 @@ export async function sitemapDeObras(site: URL, nivel: Exclude<Nivel, 'C'>): Pro
   const base = site.href.replace(/\/$/, '');
   const mapa = await niveles();
   const cuando = new Map((await getActividad()).map((a) => [a.slug, a.cuando]));
+  // Las A (manhwa + novela) son la prioridad: que Google las rastree primero.
+  // Señal débil (Google la pondera poco), pero gratis y coherente con el tiering.
+  const prioridad = nivel === 'A' ? '<priority>1.0</priority>' : '<priority>0.5</priority>';
 
   const urls: string[] = [];
   for (const n of await getNovelas()) {
@@ -48,7 +51,7 @@ export async function sitemapDeObras(site: URL, nivel: Exclude<Nivel, 'C'>): Pro
               .join('')
           : '';
       for (const idioma of idiomas) {
-        urls.push(`<url><loc>${base}${ruta(idioma, r)}</loc>${lastmod}${alternas}${r.endsWith('/equivalencia') ? '' : img}</url>`);
+        urls.push(`<url><loc>${base}${ruta(idioma, r)}</loc>${lastmod}${prioridad}${alternas}${r.endsWith('/equivalencia') ? '' : img}</url>`);
       }
     }
   }
