@@ -8,7 +8,7 @@ WORKDIR /app
 # torch de CPU desde su índice propio, antes que el resto: así pip no baja las
 # ruedas de CUDA que arrastraría transformers.
 COPY requirements.txt .
-RUN pip install --no-cache-dir torch==2.5.1 --index-url https://download.pytorch.org/whl/cpu \
+RUN pip install --no-cache-dir torch==2.5.1 --index-url https://download.pytorch.org/whl/cu121 \
  && pip install --no-cache-dir -r requirements.txt
 
 COPY app.py .
