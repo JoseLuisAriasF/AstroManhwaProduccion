@@ -1,0 +1,184 @@
+· 0.94  "Netoge no Yome ga Ninki Idol datta ken ~Cool-kei no kanojo wa genjitsu demo yome no tsumori de iru~" ~ "Netoge no Yome ga Ninki Idol datta: Cool-kei no Kanojo wa Genjitsu demo Yome no Tsumori de Iru"
+    queda: netoge-no-yome-ga-ninki-idol-datta-cool-kei-no-kanojo-wa-genjitsu-demo-yome-no-t   absorbe: netoge-no-yome-ga-ninki-idol-datta-ken-cool-kei-no-kanojo-wa-genjitsu-demo-yome-
+    → node scripts/fusionar.mjs --dst=netoge-no-yome-ga-ninki-idol-datta-cool-kei-no-kanojo-wa-genjitsu-demo-yome-no-t --src=netoge-no-yome-ga-ninki-idol-datta-ken-cool-kei-no-kanojo-wa-genjitsu-demo-yome-
+
+· 0.91  "Mis ataques básicos invocan a los no muertos: IN, el Guardabosques Oscuro, soy la verdadera calamidad." ~ "Mis ataques basicos invocan a los no muertos: Yo, el Guardabosques Oscuro, soy la verdadera calamidad."
+    queda: mis-ataques-basicos-invocan-a-los-no-muertos-in-el-guardabosques-oscuro-soy-la-v   absorbe: mis-ataques-basicos-invocan-a-los-no-muertos-yo-el-guardabosques-oscuro-soy-la-v
+    → node scripts/fusionar.mjs --dst=mis-ataques-basicos-invocan-a-los-no-muertos-in-el-guardabosques-oscuro-soy-la-v --src=mis-ataques-basicos-invocan-a-los-no-muertos-yo-el-guardabosques-oscuro-soy-la-v
+
+· 0.91  "Dungeon ni Deai wo Motomeru no wa Machigatteiru Darou ka" ~ "Dungeon ni Deai wo Motomeru no wa Machigatteiru Darou ka II"
+    queda: dungeon-ni-deai-wo-motomeru-no-wa-machigatteiru-darou-ka   absorbe: dungeon-ni-deai-wo-motomeru-no-wa-machigatteiru-darou-ka-ii
+    → node scripts/fusionar.mjs --dst=dungeon-ni-deai-wo-motomeru-no-wa-machigatteiru-darou-ka --src=dungeon-ni-deai-wo-motomeru-no-wa-machigatteiru-darou-ka-ii
+
+· 0.88  "El Señor Demonio, estoy siendo El Objetivo De Mis Discípulas" ~ "¡Yo, el Señor Demonio, estoy siendo el objetivo de mis discípulas!"
+    queda: el-senor-demonio-estoy-siendo-el-objetivo-de-mis-discipulas   absorbe: yo-el-senor-demonio-estoy-siendo-el-objetivo-de-mis-discipulas
+    → node scripts/fusionar.mjs --dst=el-senor-demonio-estoy-siendo-el-objetivo-de-mis-discipulas --src=yo-el-senor-demonio-estoy-siendo-el-objetivo-de-mis-discipulas
+
+· 0.88  "Me convertí en un cazador trascendente con 100,000x EXP" ~ "Me convertí en un cazador de clase trascendente con 100.000x EXP."
+    queda: me-converti-en-un-cazador-de-clase-trascendente-con-100-000x-exp   absorbe: i-became-a-transcendent-hunter-with-100-000x-exp
+    → node scripts/fusionar.mjs --dst=me-converti-en-un-cazador-de-clase-trascendente-con-100-000x-exp --src=i-became-a-transcendent-hunter-with-100-000x-exp
+
+· 0.86  "Cronicas de la faccion demoniaca (Chun hajin, el asesino mas fuerte)" ~ "Cronicas de la faccion demoniaca (Chun hajin, el asesino mas…"
+    queda: cronicas-de-la-faccion-demoniaca-chun-hajin-el-asesino-mas-fuerte   absorbe: cronicas-de-la-faccion-demoniaca-chun-hajin-el-asesino-mas
+    → node scripts/fusionar.mjs --dst=cronicas-de-la-faccion-demoniaca-chun-hajin-el-asesino-mas-fuerte --src=cronicas-de-la-faccion-demoniaca-chun-hajin-el-asesino-mas
+
+· 0.86  "Otonari no Tenshi-sama ni Itsu no Ma ni ka Dame Ningen ni Sareteita Ken" ~ "Otonari No Tenshi-sama Ni Itsu No Ma Ni Ka Dame Ningen Ni Sareteita Ken: After The Rain"
+    queda: otonari-no-tenshi-sama-ni-itsu-no-ma-ni-ka-dame-ningen-ni-sareteita-ken   absorbe: otonari-no-tenshi-sama-ni-itsu-no-ma-ni-ka-dame-ningen-ni-sareteita-ken-after-th
+    → node scripts/fusionar.mjs --dst=otonari-no-tenshi-sama-ni-itsu-no-ma-ni-ka-dame-ningen-ni-sareteita-ken --src=otonari-no-tenshi-sama-ni-itsu-no-ma-ni-ka-dame-ningen-ni-sareteita-ken-after-th
+
+· 0.83  "Mi Vida De Funcionario Renacido En El Mundo Extraño" ~ "Mi vida como funcionario público renacido en un mundo extraño"
+    queda: my-civil-servant-life-reborn-in-the-strange-world   absorbe: mi-vida-de-funcionario-renacido-en-el-mundo-extrano
+    → node scripts/fusionar.mjs --dst=my-civil-servant-life-reborn-in-the-strange-world --src=mi-vida-de-funcionario-renacido-en-el-mundo-extrano
+
+· 0.83  "Los diez grandes emperadores son mis discípulos" ~ " Los Diez Grandes Emperadores Todos Son Mis Discípulos "
+    queda: los-diez-grandes-emperadores-son-mis-discipulos   absorbe: los-diez-grandes-emperadores-todos-son-mis-discipulos
+    → node scripts/fusionar.mjs --dst=los-diez-grandes-emperadores-son-mis-discipulos --src=los-diez-grandes-emperadores-todos-son-mis-discipulos
+
+· 0.83  "Por favor, cásate conmigo otra vez" ~ "¡Esposo Por Favor, Casate Conmigo Otra Vez!"
+    queda: por-favor-casate-conmigo-otra-vez   absorbe: esposo-por-favor-casate-conmigo-otra-vez
+    → node scripts/fusionar.mjs --dst=por-favor-casate-conmigo-otra-vez --src=esposo-por-favor-casate-conmigo-otra-vez
+
+· 0.83  "El Profesor Genio solo Quiere una Vida Tranquila" ~ "El profesor genio quiere una vida tranquila."
+    queda: el-profesor-genio-quiere-una-vida-tranquila   absorbe: el-profesor-genio-solo-quiere-una-vida-tranquila
+    → node scripts/fusionar.mjs --dst=el-profesor-genio-quiere-una-vida-tranquila --src=el-profesor-genio-solo-quiere-una-vida-tranquila
+
+· 0.83  "Manual de inversión del genio de Wall Street" ~ "El manual de inversión definitivo del genio de Wall Street"
+    queda: el-manual-de-inversion-definitivo-del-genio-de-wall-street   absorbe: manual-de-inversion-del-genio-de-wall-street
+    → node scripts/fusionar.mjs --dst=el-manual-de-inversion-definitivo-del-genio-de-wall-street --src=manual-de-inversion-del-genio-de-wall-street
+
+· 0.83  "El legendario cazador vuelve a ser joven de nuevo" ~ "El legendario cazador vuelve a ser joven"
+    queda: el-legendario-cazador-vuelve-a-ser-joven   absorbe: el-legendario-cazador-vuelve-a-ser-joven-de-nuevo
+    → node scripts/fusionar.mjs --dst=el-legendario-cazador-vuelve-a-ser-joven --src=el-legendario-cazador-vuelve-a-ser-joven-de-nuevo
+
+· 0.83  "The Cool Classmate 10 Years Later... (Serializacion)" ~ "The Cool Classmate 10 Years Later..."
+    queda: the-cool-classmate-10-years-later   absorbe: the-cool-classmate-10-years-later-serializacion
+    → node scripts/fusionar.mjs --dst=the-cool-classmate-10-years-later --src=the-cool-classmate-10-years-later-serializacion
+
+· 0.83  "I Became a Transcendent Hunter with 100,000x EXP" ~ "The 100,000x EXP Transcendent Hunter"
+    queda: i-became-a-transcendent-hunter-with-100-000x-exp   absorbe: the-100-000x-exp-transcendent-hunter
+    → node scripts/fusionar.mjs --dst=i-became-a-transcendent-hunter-with-100-000x-exp --src=the-100-000x-exp-transcendent-hunter
+
+· 0.83  "Recibo 100% de drop rate en el dia del juicio" ~ "Recibo 100% de drop en el día del juicio"
+    queda: recibo-100-de-drop-en-el-dia-del-juicio   absorbe: recibo-100-de-drop-rate-en-el-dia-del-juicio
+    → node scripts/fusionar.mjs --dst=recibo-100-de-drop-en-el-dia-del-juicio --src=recibo-100-de-drop-rate-en-el-dia-del-juicio
+
+· 0.83  "Imaizumi Trae a Todas las Gals a su Casa ~Extras~" ~ "Imaizumi Trae a Todas las Gals a su Casa"
+    queda: imaizumi-trae-a-todas-las-gals-a-su-casa   absorbe: imaizumi-trae-a-todas-las-gals-a-su-casa-extras
+    → node scripts/fusionar.mjs --dst=imaizumi-trae-a-todas-las-gals-a-su-casa --src=imaizumi-trae-a-todas-las-gals-a-su-casa-extras
+
+· 0.83  "Imaizumi Trae a Todas las Gals a su Casa" ~ "Imaizumi Trae a Todas las Gals a su Casa ~Deep~"
+    queda: imaizumi-trae-a-todas-las-gals-a-su-casa   absorbe: imaizumi-trae-a-todas-las-gals-a-su-casa-deep
+    → node scripts/fusionar.mjs --dst=imaizumi-trae-a-todas-las-gals-a-su-casa --src=imaizumi-trae-a-todas-las-gals-a-su-casa-deep
+
+· 0.83  "Cuando Enfrento a los Fuertes, me Vuelvo Aún más Fuerte" ~ "Cuando Enfrento a los Fuertes, me Vuelvo Aun mas Fuertes"
+    queda: cuando-enfrento-a-los-fuertes-me-vuelvo-aun-mas-fuerte   absorbe: cuando-enfrento-a-los-fuertes-me-vuelvo-aun-mas-fuertes
+    → node scripts/fusionar.mjs --dst=cuando-enfrento-a-los-fuertes-me-vuelvo-aun-mas-fuerte --src=cuando-enfrento-a-los-fuertes-me-vuelvo-aun-mas-fuertes
+
+· 0.83  "Las Diosas Son Mis Esposas Soy Invencible En El Juego En Linea" ~ "Con diosas como esposas, soy invencible en el juego en linea."
+    queda: con-diosas-como-esposas-soy-invencible-en-el-juego-en-linea   absorbe: las-diosas-son-mis-esposas-soy-invencible-en-el-juego-en-linea
+    → node scripts/fusionar.mjs --dst=con-diosas-como-esposas-soy-invencible-en-el-juego-en-linea --src=las-diosas-son-mis-esposas-soy-invencible-en-el-juego-en-linea
+
+· 0.83  "All-Class Awakening: God Slayer II" ~ "All-Class Awakening: God Slayer"
+    queda: all-class-awakening-god-slayer   absorbe: all-class-awakening-god-slayer-ii
+    → node scripts/fusionar.mjs --dst=all-class-awakening-god-slayer --src=all-class-awakening-god-slayer-ii
+
+· 0.83  "La razon por la que Raeliana termino en la mansion del duque" ~ "La razón por la cual Raeliana terminó en la mansión del duque"
+    queda: the-duke-s-fiancee   absorbe: la-razon-por-la-que-raeliana-termino-en-la-mansion-del-duque
+    → node scripts/fusionar.mjs --dst=the-duke-s-fiancee --src=la-razon-por-la-que-raeliana-termino-en-la-mansion-del-duque
+
+· 0.83  "Tengo una carrera al azar cada semana" ~ "Tengo una Nueva Carrera al Azar Cada Semana"
+    queda: tengo-una-nueva-carrera-al-azar-cada-semana   absorbe: tengo-una-carrera-al-azar-cada-semana
+    → node scripts/fusionar.mjs --dst=tengo-una-nueva-carrera-al-azar-cada-semana --src=tengo-una-carrera-al-azar-cada-semana
+
+· 0.83  "Nuestra Nueva Vida Pervertida de Recien Casados" ~ "Nuestra Nueva Vida de Recién Casados"
+    queda: nuestra-nueva-vida-de-recien-casados   absorbe: nuestra-nueva-vida-pervertida-de-recien-casados
+    → node scripts/fusionar.mjs --dst=nuestra-nueva-vida-de-recien-casados --src=nuestra-nueva-vida-pervertida-de-recien-casados
+
+· 0.83  "Reencarnación del demonio sangriento, la prueba del tanque." ~ "Reencarnación del demonio sangriento: La prueba del tanque maldito."
+    queda: reencarnacion-del-demonio-sangriento-la-prueba-del-tanque-maldito   absorbe: reencarnacion-del-demonio-sangriento-la-prueba-del-tanque
+    → node scripts/fusionar.mjs --dst=reencarnacion-del-demonio-sangriento-la-prueba-del-tanque-maldito --src=reencarnacion-del-demonio-sangriento-la-prueba-del-tanque
+
+· 0.80  "Me convertí en el Emperador loco" ~ "Me convertí en ese Emperador Loco"
+    queda: me-converti-en-el-emperador-loco   absorbe: me-converti-en-ese-emperador-loco
+    → node scripts/fusionar.mjs --dst=me-converti-en-el-emperador-loco --src=me-converti-en-ese-emperador-loco
+
+· 0.80  "Me convertí en el Emperador Loco" ~ "Me convertí en ese Emperador Loco"
+    queda: me-converti-en-ese-emperador-loco   absorbe: i-became-the-crazy-emperor
+    → node scripts/fusionar.mjs --dst=me-converti-en-ese-emperador-loco --src=i-became-the-crazy-emperor
+
+· 0.80  "Obligado a ser Demonio Celestial" ~ "Se ve obligado a ser el demonio celestial"
+    queda: obligado-a-ser-demonio-celestial   absorbe: forced-to-be-the-heavenly-demon
+    → node scripts/fusionar.mjs --dst=obligado-a-ser-demonio-celestial --src=forced-to-be-the-heavenly-demon
+
+· 0.80  "El Artista Marcial de Sangre Demoníaca" ~ "El Artista Marcial Secreto de Sangre Demoniaca"
+    queda: el-artista-marcial-secreto-de-sangre-demoniaca   absorbe: el-artista-marcial-de-sangre-demoniaca
+    → node scripts/fusionar.mjs --dst=el-artista-marcial-secreto-de-sangre-demoniaca --src=el-artista-marcial-de-sangre-demoniaca
+
+· 0.80  " El Regreso del Legendario Caballero de la Lanza" ~ "El Regreso del Legendario Caballero de la Lanza – extras"
+    queda: el-regreso-del-legendario-caballero-de-la-lanza   absorbe: el-regreso-del-legendario-caballero-de-la-lanza-extras
+    → node scripts/fusionar.mjs --dst=el-regreso-del-legendario-caballero-de-la-lanza --src=el-regreso-del-legendario-caballero-de-la-lanza-extras
+
+· 0.80  "Fantasia, Puedo tener epifanias infinitas" ~ "Puedo tener infinitas epifanías"
+    queda: fantasia-puedo-tener-epifanias-infinitas   absorbe: puedo-tener-infinitas-epifanias
+    → node scripts/fusionar.mjs --dst=fantasia-puedo-tener-epifanias-infinitas --src=puedo-tener-infinitas-epifanias
+
+· 0.80  "El hijo menor del clan de los asesinos retrocede con el poder de los cinco reyes demonio" ~ "El hijo menor del clan de asesinos regresa con los poderes de cinco reyes demonio"
+    queda: el-hijo-menor-del-clan-de-asesinos-regresa-con-los-poderes-de-cinco-reyes-demoni   absorbe: el-hijo-menor-del-clan-de-los-asesinos-retrocede-con-el-poder-de-los-cinco-reyes
+    → node scripts/fusionar.mjs --dst=el-hijo-menor-del-clan-de-asesinos-regresa-con-los-poderes-de-cinco-reyes-demoni --src=el-hijo-menor-del-clan-de-los-asesinos-retrocede-con-el-poder-de-los-cinco-reyes
+
+· 0.80  "¡Soy Una Villana De Artes Marciales, Pero Soy La Mas Fuerte!" ~ "¡Soy la villana de artes marciales más fuerte!"
+    queda: soy-una-villana-de-artes-marciales-pero-soy-la-mas-fuerte   absorbe: soy-la-villana-de-artes-marciales-mas-fuerte
+    → node scripts/fusionar.mjs --dst=soy-una-villana-de-artes-marciales-pero-soy-la-mas-fuerte --src=soy-la-villana-de-artes-marciales-mas-fuerte
+
+· 0.80  "Soy una Villaña, pero no viviré como una" ~ "Soy una villana, pero no viviré como tal"
+    queda: i-m-a-villainess-but-i-won-t-live-like-one   absorbe: soy-una-villana-pero-no-vivire-como-tal
+    → node scripts/fusionar.mjs --dst=i-m-a-villainess-but-i-won-t-live-like-one --src=soy-una-villana-pero-no-vivire-como-tal
+
+· 0.80  "Masamune-kun no Revenge - Engagement-" ~ "Masamune-kun no Revenge"
+    queda: masamune-kun-no-revenge-engagement   absorbe: masamune-kun-no-revenge
+    → node scripts/fusionar.mjs --dst=masamune-kun-no-revenge-engagement --src=masamune-kun-no-revenge
+
+· 0.80  "El comandante caballero dragon de otro mundo" ~ "El Caballero Dragon En Otro Mundo"
+    queda: el-comandante-caballero-dragon-de-otro-mundo   absorbe: el-caballero-dragon-en-otro-mundo
+    → node scripts/fusionar.mjs --dst=el-comandante-caballero-dragon-de-otro-mundo --src=el-caballero-dragon-en-otro-mundo
+
+· 0.80  "Alguien Ha Poseído Mi Cuerpo" ~ "Mi Cuerpo Ha Sido Poseído Por Alguien"
+    queda: alguien-ha-poseido-mi-cuerpo   absorbe: mi-cuerpo-ha-sido-poseido-por-alguien
+    → node scripts/fusionar.mjs --dst=alguien-ha-poseido-mi-cuerpo --src=mi-cuerpo-ha-sido-poseido-por-alguien
+
+· 0.80  "El Rey demonio tiene 18 años" ~ "El Rey Demonio de 18 años"
+    queda: el-rey-demonio-tiene-18-anos   absorbe: el-rey-demonio-de-18-anos
+    → node scripts/fusionar.mjs --dst=el-rey-demonio-tiene-18-anos --src=el-rey-demonio-de-18-anos
+
+· 0.80  "Hice un Contrato de Invocacion Conmigo Mismo" ~ "Hice Un Contrato Conmigo Mismo"
+    queda: hice-un-contrato-conmigo-mismo   absorbe: hice-un-contrato-de-invocacion-conmigo-mismo
+    → node scripts/fusionar.mjs --dst=hice-un-contrato-conmigo-mismo --src=hice-un-contrato-de-invocacion-conmigo-mismo
+
+· 0.80  "Toca a mi hermano pequeño y estás muerto." ~ "Si Tocas a Mi Hermano, Estas Muerto"
+    queda: touch-my-little-brother-and-you-re-dead   absorbe: si-tocas-a-mi-hermano-estas-muerto
+    → node scripts/fusionar.mjs --dst=touch-my-little-brother-and-you-re-dead --src=si-tocas-a-mi-hermano-estas-muerto
+
+· 0.80  "Sword Art Online Re: Aincrad" ~ "Sword Art Online: Aincrad"
+    queda: sword-art-online-re-aincrad   absorbe: sword-art-online-aincrad
+    → node scripts/fusionar.mjs --dst=sword-art-online-re-aincrad --src=sword-art-online-aincrad
+
+· 0.80  "One in seven billion irregular (One-of-a-Kind Irregular)" ~ "One in Seven Billion Irregular"
+    queda: one-in-seven-billion-irregular-one-of-a-kind-irregular   absorbe: one-in-seven-billion-irregular
+    → node scripts/fusionar.mjs --dst=one-in-seven-billion-irregular-one-of-a-kind-irregular --src=one-in-seven-billion-irregular
+
+· 0.80  "Shin Elf-san wa Yaserarenai" ~ "Elf-san wa Yaserarenai"
+    queda: elf-san-wa-yaserarenai   absorbe: shin-elf-san-wa-yaserarenai
+    → node scripts/fusionar.mjs --dst=elf-san-wa-yaserarenai --src=shin-elf-san-wa-yaserarenai
+
+· 0.80  "La Tienda de Conveniencia de Otro Mundo" ~ "Bienvenido A La Tienda De Conveniencia En Otro Mundo"
+    queda: la-tienda-de-conveniencia-de-otro-mundo   absorbe: bienvenido-a-la-tienda-de-conveniencia-en-otro-mundo
+    → node scripts/fusionar.mjs --dst=la-tienda-de-conveniencia-de-otro-mundo --src=bienvenido-a-la-tienda-de-conveniencia-en-otro-mundo
+
+· 0.80  "Conviértete en un Dios – Mito de Cthulhu - Continuación" ~ "Conviertete en un Dios - Mito de Cthulhu"
+    queda: conviertete-en-un-dios-mito-de-cthulhu   absorbe: conviertete-en-un-dios-mito-de-cthulhu-continuacion
+    → node scripts/fusionar.mjs --dst=conviertete-en-un-dios-mito-de-cthulhu --src=conviertete-en-un-dios-mito-de-cthulhu-continuacion
+
+· 0.80  "No soy Vasallo del dios demonio" ~ "Realmente no soy el vasallo del dios demonio"
+    queda: realmente-no-soy-el-vasallo-del-dios-demonio   absorbe: no-soy-vasallo-del-dios-demonio
+    → node scripts/fusionar.mjs --dst=realmente-no-soy-el-vasallo-del-dios-demonio --src=no-soy-vasallo-del-dios-demonio
+
