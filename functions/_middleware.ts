@@ -122,13 +122,27 @@ export const onRequest = async (context: {
   const res = await context.next();
   if (res.status !== 404 || context.request.method !== 'GET') return res;
   const reparada = reparar(url.pathname) ?? url.pathname;
-  const destino = rutaFusionada(reparada, await mapaFusiones(url.origin)) ?? (reparada !== url.pathname ? reparada : null);
+  const fusionada = rutaFusionada(reparada, await mapaFusiones(url.origin));
+  const destino = fusionada ?? (reparada !== url.pathname ? reparada : null);
   if (!destino) return res;
   // Solo se redirige a lo que EXISTE, y al final de la cadena. Search Console
   // listaba 301 → 404 (una ficha fusionada, un género adulto que no se publica):
   // Google lo cuenta como 404 y además gasta dos rastreos en averiguarlo.
-  const prueba = await fetch(new URL(destino + url.search, url).toString(), { redirect: 'follow' });
-  await prueba.body?.cancel();
-  return prueba.ok && prueba.url !== url.toString() ? Response.redirect(prueba.url, 301) : res;
+  const intento = async (d: string) => {
+    const p = await fetch(new URL(d + url.search, url).toString(), { redirect: 'follow' });
+    await p.body?.cancel();
+    return p.ok && p.url !== url.toString() ? Response.redirect(p.url, 301) : null;
+  };
+  const r1 = await intento(destino);
+  if (r1) return r1;
+  // Capítulo de slug fusionado cuyo mismo número no existe en el superviviente
+  // (son fuentes y numeraciones distintas): manda a la ficha del superviviente.
+  // Es un 301 válido y preserva el link equity que Google tenía indexado del
+  // slug viejo. Sin esto, miles de /novela/<viejo>/capitulo-N quedaban en 404.
+  if (fusionada && /\/capitulo-\d+\/?$/.test(fusionada)) {
+    const r2 = await intento(fusionada.replace(/\/capitulo-\d+\/?$/, '/'));
+    if (r2) return r2;
+  }
+  return res;
 };
 
