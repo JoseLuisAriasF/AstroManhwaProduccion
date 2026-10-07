@@ -135,12 +135,14 @@ export const onRequest = async (context: {
   };
   const r1 = await intento(destino);
   if (r1) return r1;
-  // Capítulo de slug fusionado cuyo mismo número no existe en el superviviente
-  // (son fuentes y numeraciones distintas): manda a la ficha del superviviente.
-  // Es un 301 válido y preserva el link equity que Google tenía indexado del
-  // slug viejo. Sin esto, miles de /novela/<viejo>/capitulo-N quedaban en 404.
-  if (fusionada && /\/capitulo-\d+\/?$/.test(fusionada)) {
-    const r2 = await intento(fusionada.replace(/\/capitulo-\d+\/?$/, '/'));
+  // Capítulo que no existe (slug fusionado con numeración distinta, o capítulo
+  // que la obra ya no sirve) y cuya FICHA sí: manda a la ficha. Es un 301 válido
+  // y preserva el link equity que Google tenía indexado. Sin esto quedaban en 404
+  // tanto los capítulos de obras fusionadas como los enlaces viejos tipo
+  // `/novela/<slug>-capitulo-N` que `reparar()` convierte a `/novela/<slug>/capitulo-N`
+  // pero cuyo número ya no está entre las fuentes.
+  if (/\/capitulo-\d+\/?$/.test(destino)) {
+    const r2 = await intento(destino.replace(/\/capitulo-\d+\/?$/, '/'));
     if (r2) return r2;
   }
   return res;
