@@ -17,6 +17,7 @@ import { IDIOMA_BASE, idiomaDeRuta, ruta, t } from '@/lib/i18n';
 import { generosDestacados } from '@/lib/categorias';
 import { nombreGenero } from '@/lib/generos';
 import { idiomasDeObra, paramsDeIdioma } from '@/lib/publicables';
+import { tipoSerie } from '@/lib/seo';
 
 export function getStaticPaths() {
   return paramsDeIdioma().map(({ idioma }) => ({ params: { idioma } }));
@@ -174,7 +175,7 @@ const jsonLd = {
   // sitemap y los enlaces, no por un schema gigante. Las obras siguen enlazadas
   // en el HTML (tarjetas, /titulos/*), que es lo que de verdad cuenta.
   hasPart: carrusel.map((c) => ({
-    '@type': 'Book',
+    '@type': tipoSerie(c.formatos),
     name: c.novela.titulo,
     alternateName: c.novela.titulosAlternativos,
     url: new URL(c.href, Astro.site).toString(),

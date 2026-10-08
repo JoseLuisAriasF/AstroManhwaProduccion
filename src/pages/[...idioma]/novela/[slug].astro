@@ -10,7 +10,7 @@ import { idiomasDeObra, paramsDeIdioma } from '@/lib/publicables';
 import { niveles, relacionadasDe } from '@/lib/catalogo';
 import { generos } from '@/lib/categorias';
 import { claveGenero } from '@/lib/generos';
-import { faq, migas } from '@/lib/seo';
+import { faq, migas, tipoSerie, tituloFicha } from '@/lib/seo';
 import { brechaDe } from '@/lib/brecha';
 import { adaptacionDe, etiquetaAdaptacion } from '@/lib/adaptacion';
 import { segundoNombre } from '@/lib/titulos';
@@ -82,7 +82,6 @@ const ultimoDe = (tipo: 'manhwa' | 'novela') =>
 const ultimoManhwa = ultimoDe('manhwa');
 const ultimoNovela = ultimoDe('novela');
 const capsTitulo = tx.capsTitulo(ultimoManhwa, ultimoNovela);
-const nombres = [novela.titulo, tituloIngles].filter((n, i, a) => n && a.indexOf(n) === i).join(' / ');
 
 // Los últimos capítulos con página propia (la arma la función del edge, ver
 // functions/novela/[slug]/[capitulo].ts). Son la ENTRADA a esa cadena: cada una
@@ -104,7 +103,7 @@ const ultimosNumeros = [
   .slice(0, 6);
 // Sin sufijos genéricos: el de antes decía «Novela completa en español» / «Full
 // novel online», y aquí no se aloja ninguna novela: se indexa dónde leerla.
-const tituloSeo = capsTitulo ? `${nombres} — ${capsTitulo}` : nombres;
+const tituloSeo = tituloFicha(novela.titulo, tituloIngles, capsTitulo);
 
 // La descripción es lo que decide el clic en el resultado de Google, y un
 // número concreto gana a cualquier adjetivo.
@@ -122,7 +121,7 @@ const nivel = (await niveles()).get(novela.slug) ?? 'C';
 const hubs = await generos();
 const jsonLd = {
   '@context': 'https://schema.org',
-  '@type': tieneAmbos ? 'CreativeWorkSeries' : formatosDisponibles[0] === 'novela' ? 'BookSeries' : 'ComicSeries',
+  '@type': tipoSerie(formatosDisponibles),
   '@id': url,
   name: novela.titulo,
   alternateName: novela.titulosAlternativos,

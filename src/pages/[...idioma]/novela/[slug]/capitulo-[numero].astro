@@ -86,7 +86,8 @@ const jsonLd = {
   datePublished: capitulo.fechaPublicacion,
   inLanguage: IDIOMAS[idioma].htmlLang,
   isPartOf: {
-    '@type': 'Book',
+    // Sin leer las fuentes aquí: CreativeWorkSeries sirve para manhwa y novela.
+    '@type': 'CreativeWorkSeries',
     name: novela.titulo,
     alternateName: novela.titulosAlternativos,
     url: new URL(base, Astro.site).toString(),

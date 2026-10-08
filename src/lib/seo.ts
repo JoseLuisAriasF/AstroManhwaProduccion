@@ -1,5 +1,5 @@
-import type { Idioma } from './i18n';
-import { ruta } from './i18n';
+import type { Idioma } from './i18n.ts';
+import { ruta } from './i18n.ts';
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
@@ -69,4 +69,26 @@ export function faq(preguntas: Pregunta[]) {
       acceptedAnswer: { '@type': 'Answer', text: p.respuesta },
     })),
   };
+}
+
+/**
+ * Tipo de serie según los formatos que la obra TIENE indexados. Un solo sitio
+ * decide: ficha y carrusel lo usan igual, para que una misma obra no sea
+ * `ComicSeries` en una página y `Book` en otra.
+ */
+export function tipoSerie(formatos: ReadonlyArray<'manhwa' | 'novela'>): 'CreativeWorkSeries' | 'BookSeries' | 'ComicSeries' {
+  if (formatos.includes('manhwa') && formatos.includes('novela')) return 'CreativeWorkSeries';
+  return formatos[0] === 'novela' ? 'BookSeries' : 'ComicSeries';
+}
+
+/**
+ * Título de la ficha: «Título / Alterno — capítulo N», pero sin el alterno si
+ * el conjunto pasa de ~65 caracteres. Google corta por encima de ~60 en el
+ * resultado; un título cortado a media palabra pierde justo la parte útil.
+ */
+export function tituloFicha(principal: string, alterno: string | undefined, sufijo: string): string {
+  const completo = [principal, alterno].filter((n, i, a) => n && a.indexOf(n) === i).join(' / ');
+  const con = sufijo ? `${completo} — ${sufijo}` : completo;
+  if (con.length <= 65) return con;
+  return sufijo ? `${principal} — ${sufijo}` : principal;
 }
