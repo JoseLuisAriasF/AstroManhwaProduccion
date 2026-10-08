@@ -345,7 +345,21 @@ font:13px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}</style></head>
 <p class="fin">Fin del capítulo · ${paginas.length} páginas</p></body></html>`;
 }
 
+/**
+ * `/leer` es una herramienta, no contenido: no debe indexarse. Google sigue los
+ * enlaces de cada capítulo hacia aquí y, cuando la fuente responde 403 al bot,
+ * queda registrado como página bloqueada en Search Console (2.548 en oct. 2026).
+ * `noindex, follow`: no se indexa la URL, pero sí se siguen sus enlaces.
+ */
 export const onRequest = async (context: { request: Request }): Promise<Response> => {
+  const r = await leerCapitulo(context);
+  const cabeceras = new Headers(r.headers);
+  // Respeta la política propia de cada rama (algunas ya van con nofollow).
+  if (!cabeceras.has('X-Robots-Tag')) cabeceras.set('X-Robots-Tag', 'noindex, follow');
+  return new Response(r.body, { status: r.status, statusText: r.statusText, headers: cabeceras });
+};
+
+const leerCapitulo = async (context: { request: Request }): Promise<Response> => {
   const destino = new URL(context.request.url).searchParams.get('u') ?? '';
   if (!esFuenteDelCatalogo(destino)) {
     return new Response('Esa dirección no es de una fuente del catálogo.', {
