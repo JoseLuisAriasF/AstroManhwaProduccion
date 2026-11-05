@@ -133,7 +133,7 @@ interface Contexto {
 // (no se puede purgar desde el dashboard: convive con el CDN cache y es por isolate).
 // 2026-11-05: v2, al quitar Monetag había capítulos cacheados con el script y seguían
 // sirviéndose durante 24 h; con el bump cada clave es nueva y el primer hit regenera.
-const CACHE_V = 'v2';
+const CACHE_V = 'v3';
 
 export const onRequest = async (context: Contexto): Promise<Response> => {
   const cache = (globalThis as any).caches?.default as Cache | undefined;
