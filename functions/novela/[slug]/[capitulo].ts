@@ -377,11 +377,7 @@ const generar = async (context: Contexto): Promise<Response> => {
       <button>Ir</button>
     </form>
 
-    <!-- El visor: el capítulo encima de esta página, en vez de mandar al lector
-         a otra pestaña. Es el mismo de la ficha —/leer trae el capítulo desde el
-         sitio y le quita la publicidad con su CSP— y con el mismo sandbox: sin
-         allow-popups (popunders), sin allow-same-origin (nuestro localStorage)
-         y sin allow-top-navigation (frame-busting). -->
+    <!-- Visor del capitulo encima de la pagina; iframe sandbox restringido. -->
     <dialog class="visor">
       <header>
         <span data-t></span>
