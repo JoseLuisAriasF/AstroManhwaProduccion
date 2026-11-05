@@ -129,11 +129,17 @@ interface Contexto {
  * Solo se guarda lo que genera esta función (lleva CDN-Cache-Control); el 301
  * y lo que cae a `next()` pasan tal cual.
  */
+// Bumpear este número invalida TODO el caches.default de la Function en el edge
+// (no se puede purgar desde el dashboard: convive con el CDN cache y es por isolate).
+// 2026-11-05: v2, al quitar Monetag había capítulos cacheados con el script y seguían
+// sirviéndose durante 24 h; con el bump cada clave es nueva y el primer hit regenera.
+const CACHE_V = 'v2';
+
 export const onRequest = async (context: Contexto): Promise<Response> => {
   const cache = (globalThis as any).caches?.default as Cache | undefined;
   if (!cache || context.request.method !== 'GET') return generar(context);
   const url = new URL(context.request.url);
-  const clave = new Request(url.origin + url.pathname);
+  const clave = new Request(`${url.origin}/_c${CACHE_V}${url.pathname}`);
   const guardada = await cache.match(clave);
   if (guardada) return guardada;
   const res = await generar(context);
