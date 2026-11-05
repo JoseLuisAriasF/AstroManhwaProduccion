@@ -492,7 +492,6 @@ ${o.imagen ? `<meta property="og:image" content="${esc(o.imagen)}">
 ${o.canonical ? `<meta property="og:url" content="${esc(o.canonical)}">` : ''}
 <meta name="theme-color" content="#171b24">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<!-- Monetag retirado el 2026-11-05 por «Páginas engañosas» en GSC. Ver Base.astro. -->
 <style>
 :root{color-scheme:dark;--bg:#171b24;--card:#1e2431;--tx:#e7eaf0;--sub:#9aa2b1;--ac:#8b9aff}
 *{box-sizing:border-box}

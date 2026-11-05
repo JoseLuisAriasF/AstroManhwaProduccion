@@ -82,14 +82,9 @@ const PINTEREST =
     <meta name="description" content={descripcion} />
     {GSC && <meta name="google-site-verification" content={GSC} />}
     {PINTEREST && <meta name="p:domain_verify" content={PINTEREST} />}
-    {/* Monetag Multitag retirado el 2026-11-05: Google Safe Browsing marcó el sitio
-        con «Páginas engañosas» (Problemas de seguridad en GSC) por los popunder /
-        push / in-page push / viñeta que sirve esa red. Chrome enseñaba warning rojo
-        antes de entrar -> 0 tráfico. Sin tráfico tampoco hay ingresos de ads, así
-        que la única salida era quitarlo. Alternativas limpias para monetizar
-        (AdSense, Ezoic, native/banner estándar) sin bloquear el SEO. NO reactivar
-        este script ni ningún otro de quge5.com / rtmark.net / propellerads /
-        monetag sin plantear antes la alternativa. */}
+    {/* Red publicitaria de terceros retirada el 2026-11-05 tras banner de seguridad
+        en GSC (contenido engañoso: pop / push / viñeta). NO reintegrar sin leer el
+        README y plantear antes una red limpia (AdSense, Ezoic, Mediavine). */}
     {noindex && <meta name="robots" content="noindex, follow" />}
     <link rel="canonical" href={canonical} />
     <link rel="sitemap" href="/sitemap-index.xml" />
